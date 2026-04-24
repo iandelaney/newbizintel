@@ -27,6 +27,18 @@ $resolvedDataPath = (Resolve-Path -LiteralPath $DataPath).Path
 $data = Get-Content -LiteralPath $resolvedDataPath -Raw | ConvertFrom-Json -Depth 100
 $errors = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
+$resolvePython = Join-Path $PSScriptRoot '..\common\resolve_python.ps1'
+$python = & $resolvePython
+$assetAuditJson = & $python (Join-Path $PSScriptRoot 'audit_campaign_art_assets.py') --data $resolvedDataPath
+$assetAudit = $assetAuditJson | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or $assetAudit.ok -ne $true) {
+    foreach ($assetError in @($assetAudit.errors)) {
+        $errors.Add([string]$assetError)
+    }
+}
+foreach ($assetWarning in @($assetAudit.warnings)) {
+    $warnings.Add([string]$assetWarning)
+}
 
 $ideas = @($data.creative_campaign_ideas.ideas)
 $families = New-Object System.Collections.Generic.List[string]
@@ -88,5 +100,6 @@ if ($errors.Count -gt 0) {
     idea_count = $ideas.Count
     style_families = $families.ToArray()
     style_names = $styleNames.ToArray()
+    asset_quality = $assetAudit
     warnings = $warnings.ToArray()
 } | ConvertTo-Json -Depth 5 -Compress

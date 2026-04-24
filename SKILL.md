@@ -29,6 +29,7 @@ This root skill is only the entrypoint and routing policy. It should not absorb 
 - Keep the gating discipline. Modularization must not lower the evidence or QA standard.
 - Keep `newbiz2` self-contained and cleanly shareable with colleagues.
 - Do not introduce hidden dependencies on sibling folders or local workspace-only helper paths.
+- Treat Creative Campaign artwork as a delivery-grade asset, not decoration. Production reports must use bundled final raster artwork marked `final-raster-artwork`; local scaffold, placeholder, unverified, missing, undersized, or non-raster campaign art is a fail condition.
 - Use `scripts\qa\smoke_test_install.ps1` after installer or config-handoff changes so the colleague install path is proven, not assumed.
 - Use `scripts\qa\release_check.ps1` before calling the repo ready to share or publish.
 - Treat `Univers` as the current real-brand regression target for the full modular path.
