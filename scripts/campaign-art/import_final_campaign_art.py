@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -76,6 +78,15 @@ def normalize_image(source: Path, destination: Path) -> dict[str, int]:
     return {"width": WIDTH, "height": HEIGHT}
 
 
+def normalize_import_task(source: Path, destination: Path) -> dict[str, object]:
+    dimensions = normalize_image(source, destination)
+    return {
+        "source": str(source),
+        "destination": str(destination),
+        "dimensions": dimensions,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Import final raster campaign artwork into newbiz2 report data."
@@ -91,6 +102,12 @@ def main() -> int:
         "--overwrite-final",
         action="store_true",
         help="Allow overwriting ideas already marked as final-raster-artwork",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help="Number of parallel image-normalisation workers. Defaults to a safe small pool.",
     )
     args = parser.parse_args()
 
@@ -130,14 +147,49 @@ def main() -> int:
         source_root = latest_generated_batch(DEFAULT_GENERATED_IMAGES_DIR)
 
     source_files = select_source_images(source_root, len(target_ideas))
-    imported_files: list[str] = []
-    imported_titles: list[str] = []
+    prepared_imports: list[dict[str, object]] = []
 
     for idea, source_path in zip(target_ideas, source_files):
         title = (idea.get("title") or "").strip()
         existing_url = idea.get("illustration_url") or ""
         destination = output_path_for_idea(asset_dir, brand_slug, title, existing_url)
-        dimensions = normalize_image(source_path, destination)
+        prepared_imports.append(
+            {
+                "idea": idea,
+                "title": title,
+                "source": source_path,
+                "destination": destination,
+            }
+        )
+
+    worker_count = args.workers
+    if worker_count <= 0:
+        worker_count = min(len(prepared_imports), max(1, min(4, (os.cpu_count() or 2))))
+
+    normalised_by_destination: dict[str, dict[str, object]] = {}
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = {
+            executor.submit(
+                normalize_import_task,
+                item["source"],
+                item["destination"],
+            ): item
+            for item in prepared_imports
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            normalised_by_destination[str(result["destination"])] = result
+
+    imported_files: list[str] = []
+    imported_titles: list[str] = []
+
+    for item in prepared_imports:
+        idea = item["idea"]
+        title = str(item["title"])
+        source_path = item["source"]
+        destination = item["destination"]
+        result = normalised_by_destination[str(destination)]
+        dimensions = result["dimensions"]
         idea["illustration_url"] = relative_asset_path(asset_dir, destination)
         idea["illustration_asset_role"] = "final-raster-artwork"
         idea["illustration_generation_backend"] = "imagegen"
@@ -156,6 +208,7 @@ def main() -> int:
         "titles": imported_titles,
         "files": imported_files,
         "overwrite_final": bool(args.overwrite_final),
+        "parallel_workers": worker_count,
     }
     print(json.dumps(payload, separators=(",", ":")))
     return 0

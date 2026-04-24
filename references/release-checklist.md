@@ -9,6 +9,7 @@ Use this checklist before sharing `newbiz2` with colleagues or publishing it to 
 - Run a sample render stack proof with:
   - [run_newbiz2.ps1](C:\codex projects\newbiz2-skill-repo\scripts\run_newbiz2.ps1)
   - `-DataPath .\examples\report-data.sample.json -Mode render-stack`
+- Confirm the QA smoke test still uses the hybrid parallel path, with deterministic jobs only writing isolated audit outputs before render.
 - Confirm fresh sample outputs exist:
   - `examples\newbizintel-report.html`
   - `examples\archive\newbizintel-report-portable.html`

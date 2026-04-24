@@ -15,9 +15,9 @@ $state.gates.gate_6a_editorial_quality = 'in_progress'
 & $context.save_run_state -Path $context.run_state_path -State $state
 
 $qa = & (Join-Path $PSScriptRoot 'smoke_test_bundle.ps1') -DataPath $context.data_path | ConvertFrom-Json
-$editorial = & (Join-Path $PSScriptRoot 'audit_editorial_quality.ps1') -DataPath $context.data_path | ConvertFrom-Json
-$campaignArt = & (Join-Path $PSScriptRoot 'audit_campaign_art_contract.ps1') -DataPath $context.data_path | ConvertFrom-Json
-$pptx = & (Join-Path $PSScriptRoot 'audit_pptx_output.ps1') -PptxPath $qa.pptx | ConvertFrom-Json
+$editorial = $qa.editorial
+$campaignArt = $qa.campaign_art_contract
+$pptx = $qa.pptx_audit
 
 $state.status.qa = 'passed'
 $state.gates.gate_6_render_outputs = 'passed'

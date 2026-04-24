@@ -2,20 +2,57 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$DataPath,
 
-    [string]$TemplatePath
+    [string]$TemplatePath,
+
+    [switch]$NoParallel
 )
 
 $ErrorActionPreference = 'Stop'
 
 $resolvedDataPath = (Resolve-Path -LiteralPath $DataPath).Path
 $results = [ordered]@{}
+. (Join-Path $PSScriptRoot '..\common\invoke_json_jobs.ps1')
 
-$results.schema_validation = & (Join-Path $PSScriptRoot '..\structure\validate_report_data.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
-$results.asset_validation = & (Join-Path $PSScriptRoot '..\assets\validate_brand_assets.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
-$results.required_logos = & (Join-Path $PSScriptRoot '..\assets\build_required_logo_manifest.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
-$results.source_badges = & (Join-Path $PSScriptRoot '..\assets\build_source_badge_manifest.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
-$results.editorial = & (Join-Path $PSScriptRoot 'audit_editorial_quality.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
-$results.campaign_art_contract = & (Join-Path $PSScriptRoot 'audit_campaign_art_contract.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
+$initialAuditJobs = @(
+    @{
+        key = 'schema_validation'
+        path = Join-Path $PSScriptRoot '..\structure\validate_report_data.ps1'
+        parameters = @{ DataPath = $resolvedDataPath }
+    },
+    @{
+        key = 'asset_validation'
+        path = Join-Path $PSScriptRoot '..\assets\validate_brand_assets.ps1'
+        parameters = @{ DataPath = $resolvedDataPath }
+    },
+    @{
+        key = 'required_logos'
+        path = Join-Path $PSScriptRoot '..\assets\build_required_logo_manifest.ps1'
+        parameters = @{ DataPath = $resolvedDataPath }
+    },
+    @{
+        key = 'source_badges'
+        path = Join-Path $PSScriptRoot '..\assets\build_source_badge_manifest.ps1'
+        parameters = @{ DataPath = $resolvedDataPath }
+    },
+    @{
+        key = 'editorial'
+        path = Join-Path $PSScriptRoot 'audit_editorial_quality.ps1'
+        parameters = @{ DataPath = $resolvedDataPath }
+    },
+    @{
+        key = 'campaign_art_contract'
+        path = Join-Path $PSScriptRoot 'audit_campaign_art_contract.ps1'
+        parameters = @{ DataPath = $resolvedDataPath }
+    }
+)
+
+$initialAudits = Invoke-JsonJobs -Jobs $initialAuditJobs -WorkingDirectory (Split-Path -Parent $resolvedDataPath) -Sequential:$NoParallel
+$results.schema_validation = $initialAudits.schema_validation
+$results.asset_validation = $initialAudits.asset_validation
+$results.required_logos = $initialAudits.required_logos
+$results.source_badges = $initialAudits.source_badges
+$results.editorial = $initialAudits.editorial
+$results.campaign_art_contract = $initialAudits.campaign_art_contract
 
 $renderParams = @{ DataPath = $resolvedDataPath }
 if ($TemplatePath) {
