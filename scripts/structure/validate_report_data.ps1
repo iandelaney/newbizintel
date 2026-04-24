@@ -197,8 +197,8 @@ function Find-EscapedPunctuationEntityPaths {
         return $hits
     }
 
-    $properties = $Value.PSObject.Properties
-    if ($properties) {
+    $properties = @($Value.PSObject.Properties | Where-Object { $_.MemberType -eq 'NoteProperty' })
+    if ($properties.Count -gt 0) {
         foreach ($property in $properties) {
             foreach ($hit in (Find-EscapedPunctuationEntityPaths -Value $property.Value -PathLabel "$PathLabel.$($property.Name)")) {
                 $hits.Add($hit)
