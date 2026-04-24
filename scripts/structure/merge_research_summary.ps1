@@ -85,13 +85,6 @@ function Merge-InfluentialNewsPreservingBadges {
             -not [string]::IsNullOrWhiteSpace([string]$item.source_logo_url) -or
             -not [string]::IsNullOrWhiteSpace([string]$item.logo_url)
 
-        if (-not $hasExplicitLogoAfterMerge) {
-            $genericNewsBadge = Join-Path $AssetDirectory 'news.png'
-            if (Test-Path -LiteralPath $genericNewsBadge) {
-                Ensure-Property -Object $item -Name 'publisher_logo_url' -Value 'news.png'
-            }
-        }
-
         $merged += $item
     }
 

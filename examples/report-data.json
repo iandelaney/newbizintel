@@ -2,7 +2,8 @@
   "brand": {
     "name": "Example Brand",
     "website": "https://example.com/",
-    "logo_url": "",
+    "logo_url": "slide-assets/example-brand-logo.svg",
+    "mark_url": "slide-assets/example-brand-mark.svg",
     "date": "11 March 2026",
     "slug": "example-brand"
   },
@@ -289,6 +290,7 @@
       {
         "competitor": "Competitor A",
         "website": "https://www.competitor-a.com/",
+        "logo_url": "competitor-a-logo.svg",
         "why_it_matters": "Replace with why this competitor matters.",
         "positioning_pattern": "Replace with the positioning pattern observed.",
         "implication": "Replace with the implication for the subject brand."
@@ -426,7 +428,7 @@
         "source": "Example Brand",
         "url": "https://example.com/news/story-1",
         "why_it_matters": "Replace with why this story shapes buyer or market perception.",
-        "publisher_logo_url": "news.png"
+        "publisher_logo_url": "slide-assets/example-brand-logo.svg"
       },
       {
         "date": "12 March 2026",
@@ -434,7 +436,7 @@
         "source": "Example Brand",
         "url": "https://example.com/news/story-2",
         "why_it_matters": "Replace with why this story shapes buyer or market perception.",
-        "publisher_logo_url": "news.png"
+        "publisher_logo_url": "slide-assets/example-brand-logo.svg"
       },
       {
         "date": "13 March 2026",
@@ -442,7 +444,7 @@
         "source": "Example Brand",
         "url": "https://example.com/news/story-3",
         "why_it_matters": "Replace with why this story shapes buyer or market perception.",
-        "publisher_logo_url": "news.png"
+        "publisher_logo_url": "slide-assets/example-brand-logo.svg"
       },
       {
         "date": "14 March 2026",
@@ -450,7 +452,7 @@
         "source": "Example Brand",
         "url": "https://example.com/news/story-4",
         "why_it_matters": "Replace with why this story shapes buyer or market perception.",
-        "publisher_logo_url": "news.png"
+        "publisher_logo_url": "slide-assets/example-brand-logo.svg"
       },
       {
         "date": "15 March 2026",
@@ -458,7 +460,7 @@
         "source": "Example Brand",
         "url": "https://example.com/news/story-5",
         "why_it_matters": "Replace with why this story shapes buyer or market perception.",
-        "publisher_logo_url": "news.png"
+        "publisher_logo_url": "slide-assets/example-brand-logo.svg"
       }
     ],
     "recommended_actions": [

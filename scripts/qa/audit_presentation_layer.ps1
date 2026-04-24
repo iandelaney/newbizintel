@@ -206,19 +206,37 @@ if ($data) {
 
     $expectedCompetitorCount = Get-ItemCount -Value $data.competitive_landscape.table
     $renderedCompetitorCount = [regex]::Matches($html, 'class="[^"]*\bcompetitor-cell\b', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count
+    $competitorFallbackCount = [regex]::Matches($html, 'class="[^"]*\bcompetitor-badge--fallback\b', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count
     $script:audit.checks.expected_competitors = $expectedCompetitorCount
     $script:audit.checks.rendered_competitors = $renderedCompetitorCount
+    $script:audit.checks.competitor_logo_fallbacks = $competitorFallbackCount
     if ($expectedCompetitorCount -gt 0 -and $renderedCompetitorCount -lt $expectedCompetitorCount) {
         Add-Issue -Bucket 'errors' -Message ("Competitor table is incomplete. Expected {0}, found {1}." -f $expectedCompetitorCount, $renderedCompetitorCount)
+    }
+    if ($expectedCompetitorCount -gt 0 -and $competitorFallbackCount -gt 0) {
+        Add-Issue -Bucket 'errors' -Message ("Competitor logos fell back to initials. Fallback count: {0}." -f $competitorFallbackCount)
+    }
+
+    $expectedNewsCount = Get-ItemCount -Value $data.brand_reputation.influential_news
+    $publisherFallbackCount = [regex]::Matches($html, '<div class="publisher-badge">\s*<span>', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count
+    $genericNewsBadgeCount = [regex]::Matches($html, '(?i)src="(?:[^"]*/)?news\.png"', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count
+    $script:audit.checks.expected_news_items = $expectedNewsCount
+    $script:audit.checks.publisher_logo_fallbacks = $publisherFallbackCount
+    $script:audit.checks.generic_news_badges = $genericNewsBadgeCount
+    if ($expectedNewsCount -gt 0 -and $publisherFallbackCount -gt 0) {
+        Add-Issue -Bucket 'errors' -Message ("News source logos fell back to text. Fallback count: {0}." -f $publisherFallbackCount)
+    }
+    if ($expectedNewsCount -gt 0 -and $genericNewsBadgeCount -gt 0) {
+        Add-Issue -Bucket 'errors' -Message ("News source logos include the generic news.png badge. Count: {0}." -f $genericNewsBadgeCount)
     }
 
     $brandLogoUrl = $data.brand.logo_url
     $brandMarkUrl = $data.brand.mark_url
-    $hasBrandFallback = $html -match 'class="[^"]*\bbrand-logo--fallback\b'
-    $usesBrandLogoImage = $html -match '<img\b[^>]*class="[^"]*\bbrand-logo\b[^"]*"'
+    $hasBrandFallback = $html -match 'class="[^"]*\bbrand-logo-slot--fallback\b'
+    $usesBrandLogoImage = $html -match '<div class="brand-logo-slot">\s*<img\b'
     $script:audit.checks.brand_logo_fallback = $hasBrandFallback
-    if (($brandLogoUrl -or $brandMarkUrl) -and $hasBrandFallback -and -not $usesBrandLogoImage) {
-        Add-Issue -Bucket 'errors' -Message 'Brand logo fell back to initials even though a brand logo or mark was provided.'
+    if ($hasBrandFallback -or -not $usesBrandLogoImage) {
+        Add-Issue -Bucket 'errors' -Message 'Brand logo fell back to initials or is absent from the report header.'
     }
 }
 

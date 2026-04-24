@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Competitor A logo">
+  <rect width="128" height="128" rx="30" fill="#283845"/>
+  <path d="M36 92 64 28l28 64" fill="none" stroke="#f5c16c" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48 70h32" stroke="#f5c16c" stroke-width="12" stroke-linecap="round"/>
+</svg>

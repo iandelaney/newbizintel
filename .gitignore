@@ -5,6 +5,7 @@
 examples/archive/newbizintel-report-portable.html
 examples/run-state.json
 */source-badge-manifest.json
+*/required-logo-manifest.json
 vercel/
 
 # Python cache

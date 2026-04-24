@@ -34,11 +34,26 @@ function Resolve-NewsBadge {
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
 
     if ($explicitLogo) {
+        if ((Split-Path -Leaf $explicitLogo) -eq 'news.png') {
+            return [pscustomobject]@{
+                badge = $explicitLogo
+                resolved_path = (Join-Path $AssetDirectory $explicitLogo)
+                exists = $false
+                source = 'generic-not-allowed'
+            }
+        }
+
         $candidate = if ([System.IO.Path]::IsPathRooted($explicitLogo)) {
             $explicitLogo
         }
         else {
-            Join-Path $AssetDirectory $explicitLogo
+            $assetRelative = Join-Path $AssetDirectory $explicitLogo
+            if (Test-Path -LiteralPath $assetRelative) {
+                $assetRelative
+            }
+            else {
+                Join-Path (Split-Path -Parent $AssetDirectory) $explicitLogo
+            }
         }
 
         return [pscustomobject]@{
@@ -90,7 +105,6 @@ function Resolve-NewsBadge {
         }
     }
 
-    $namesToTry.Add('news.png')
     foreach ($name in $namesToTry) {
         $candidate = Join-Path $AssetDirectory $name
         if (Test-Path -LiteralPath $candidate) {
@@ -104,10 +118,10 @@ function Resolve-NewsBadge {
     }
 
     return [pscustomobject]@{
-        badge = 'news.png'
-        resolved_path = (Join-Path $AssetDirectory 'news.png')
+        badge = ''
+        resolved_path = ''
         exists = $false
-        source = 'missing-generic'
+        source = 'missing'
     }
 }
 
@@ -115,15 +129,6 @@ $resolvedDataPath = (Resolve-Path -LiteralPath $DataPath).Path
 $brandFolder = Split-Path -Parent $resolvedDataPath
 $assetDirectory = Join-Path $brandFolder 'slide-assets'
 New-Item -ItemType Directory -Path $assetDirectory -Force | Out-Null
-
-$fallbackBadge = Join-Path $assetDirectory 'news.png'
-if (-not (Test-Path -LiteralPath $fallbackBadge)) {
-    $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-    $repoFallback = Join-Path $repoRoot 'assets\news.png'
-    if (Test-Path -LiteralPath $repoFallback) {
-        Copy-Item -LiteralPath $repoFallback -Destination $fallbackBadge -Force
-    }
-}
 
 $data = Get-Content -LiteralPath $resolvedDataPath -Raw | ConvertFrom-Json
 $brandName = [string]$data.brand.name
@@ -164,7 +169,7 @@ for ($i = 0; $i -lt $newsItems.Count; $i++) {
     $badge = Resolve-NewsBadge -Item $item -AssetDirectory $assetDirectory -BrandName $brandName -BrandLogoPath $brandLogoPath -BrandMarkPath $brandMarkPath
 
     if (-not $badge.exists) {
-        $errors.Add(("brand_reputation.influential_news[{0}] could not resolve badge asset at {1}" -f $i, $badge.resolved_path))
+        $errors.Add(("brand_reputation.influential_news[{0}] could not resolve a specific non-generic badge asset for {1}" -f $i, ([string]$item.source)))
     }
 
     $items += [pscustomobject]@{
@@ -184,7 +189,6 @@ $manifest = [pscustomobject]@{
     ok = ($errors.Count -eq 0)
     data = $resolvedDataPath
     asset_directory = $assetDirectory
-    fallback_badge = $fallbackBadge
     items = $items
     errors = @($errors)
 }
@@ -199,5 +203,4 @@ if ($errors.Count -gt 0) {
     ok = $true
     manifest = $manifestPath
     badge_count = $items.Count
-    fallback_badge = $fallbackBadge
 } | ConvertTo-Json -Depth 6 -Compress

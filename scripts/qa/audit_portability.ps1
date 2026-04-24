@@ -23,12 +23,28 @@ $allowedPathFragments = @(
     '\examples\run-state.json'
 )
 
+$ignoredPathFragments = @(
+    '\node_modules\',
+    '\pptx_runtime\',
+    '\pptx_runtime_env\',
+    '\runtime\',
+    '\vendor\',
+    '\dist\',
+    '\__pycache__\'
+)
+
 $findings = @()
 
 Get-ChildItem -LiteralPath $resolvedRepoRoot -File -Recurse | ForEach-Object {
     $path = $_.FullName
-    if ((Split-Path -Leaf $path) -eq 'source-badge-manifest.json') {
+    if ((Split-Path -Leaf $path) -in @('source-badge-manifest.json', 'required-logo-manifest.json')) {
         return
+    }
+
+    foreach ($fragment in $ignoredPathFragments) {
+        if ($path -like "*$fragment*") {
+            return
+        }
     }
 
     $allowed = $false
@@ -44,7 +60,7 @@ Get-ChildItem -LiteralPath $resolvedRepoRoot -File -Recurse | ForEach-Object {
         return
     }
 
-    $matches = Select-String -Path $path -Pattern $patterns -SimpleMatch
+    $matches = Select-String -Path $path -Pattern $patterns -SimpleMatch -ErrorAction SilentlyContinue
     foreach ($match in @($matches)) {
         $findings += [pscustomobject]@{
             file = $match.Path

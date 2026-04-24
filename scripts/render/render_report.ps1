@@ -257,15 +257,23 @@ function Resolve-CompetitorBadgeAssetUrl {
             "$hostSlug-news.png",
             "$hostSlug-news.jpg",
             "$hostSlug-news.jpeg",
+            "$hostSlug-news.svg",
             "$hostSlug-favicon.png",
             "$hostSlug-favicon.jpg",
             "$hostSlug-favicon.jpeg",
+            "$hostSlug-favicon.svg",
+            "$hostSlug-logo.png",
+            "$hostSlug-logo.jpg",
+            "$hostSlug-logo.jpeg",
+            "$hostSlug-logo.svg",
             "$hostSlug-mark.png",
             "$hostSlug-mark.jpg",
             "$hostSlug-mark.jpeg",
+            "$hostSlug-mark.svg",
             "$hostSlug.png",
             "$hostSlug.jpg",
-            "$hostSlug.jpeg"
+            "$hostSlug.jpeg",
+            "$hostSlug.svg"
         )
     }
 
@@ -275,15 +283,23 @@ function Resolve-CompetitorBadgeAssetUrl {
             "$nameSlug-news.png",
             "$nameSlug-news.jpg",
             "$nameSlug-news.jpeg",
+            "$nameSlug-news.svg",
             "$nameSlug-favicon.png",
             "$nameSlug-favicon.jpg",
             "$nameSlug-favicon.jpeg",
+            "$nameSlug-favicon.svg",
+            "$nameSlug-logo.png",
+            "$nameSlug-logo.jpg",
+            "$nameSlug-logo.jpeg",
+            "$nameSlug-logo.svg",
             "$nameSlug-mark.png",
             "$nameSlug-mark.jpg",
             "$nameSlug-mark.jpeg",
+            "$nameSlug-mark.svg",
             "$nameSlug.png",
             "$nameSlug.jpg",
-            "$nameSlug.jpeg"
+            "$nameSlug.jpeg",
+            "$nameSlug.svg"
         )
     }
 
@@ -1149,7 +1165,15 @@ function ConvertTo-CompetitorCellHtml {
 
     $name = [string]$Item.competitor
     $website = Get-SafeHref ([string]$Item.website)
-    $logoUrl = Resolve-CompetitorBadgeAssetUrl -Name $name -Website $website
+    $logoUrl = @(
+        (Resolve-AssetUrl ([string]$Item.logo_url)),
+        (Resolve-AssetUrl ([string]$Item.competitor_logo_url)),
+        (Resolve-AssetUrl ([string]$Item.badge_url)),
+        (Resolve-AssetUrl ([string]$Item.mark_url))
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($logoUrl)) {
+        $logoUrl = Resolve-CompetitorBadgeAssetUrl -Name $name -Website $website
+    }
     $badgeHtml = ''
     $siteHtml = ''
 

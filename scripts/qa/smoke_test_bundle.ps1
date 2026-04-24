@@ -12,6 +12,7 @@ $results = [ordered]@{}
 
 $results.schema_validation = & (Join-Path $PSScriptRoot '..\structure\validate_report_data.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
 $results.asset_validation = & (Join-Path $PSScriptRoot '..\assets\validate_brand_assets.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
+$results.required_logos = & (Join-Path $PSScriptRoot '..\assets\build_required_logo_manifest.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
 $results.source_badges = & (Join-Path $PSScriptRoot '..\assets\build_source_badge_manifest.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
 $results.editorial = & (Join-Path $PSScriptRoot 'audit_editorial_quality.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
 $results.campaign_art_contract = & (Join-Path $PSScriptRoot 'audit_campaign_art_contract.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
@@ -29,6 +30,9 @@ if ($html -match '(?i)file:///') {
 
 $results.render = $renderResult
 $results.presentation = & (Join-Path $PSScriptRoot 'audit_presentation_layer.ps1') -HtmlPath $renderResult.html -DataPath $resolvedDataPath | ConvertFrom-Json
+if ($results.presentation.ok -ne $true) {
+    throw ("Presentation audit failed: {0}" -f (@($results.presentation.errors) -join '; '))
+}
 
 $exportResult = & (Join-Path $PSScriptRoot '..\render\export_report_bundle.ps1') -HtmlPath $renderResult.html -DataPath $resolvedDataPath | ConvertFrom-Json
 $portableHtml = Get-Content -LiteralPath $exportResult.archive.html -Raw
@@ -50,6 +54,7 @@ $results.bundle = $bundleResult
     data = $resolvedDataPath
     schema_validation = $results.schema_validation
     asset_validation = $results.asset_validation
+    required_logos = $results.required_logos
     source_badges = $results.source_badges
     editorial = $results.editorial
     campaign_art_contract = $results.campaign_art_contract
