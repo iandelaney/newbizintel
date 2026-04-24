@@ -506,12 +506,12 @@
     "illustration_style_mode": "surprise",
     "ideas": [
       {
-        "title": "Proof-led platform story",
+        "title": "The Proof Foundry",
         "illustration_url": "slide-assets/example-brand-campaign-proof-led-platform-story.png",
         "illustration_medium": "tabloid front-page print layout",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'Proof-led platform story'. Use a tabloid front-page print layout treatment. The core idea is: Replace with the core concept in plain English.. Art direction: loud front-page urgency, cropped snippets, heavy blocks, and sensational proof framing with editorial aggression. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'The Proof Foundry'. Use a tabloid front-page print layout treatment. The core idea is: Replace with the core concept in plain English.. Art direction: loud front-page urgency, cropped snippets, heavy blocks, and sensational proof framing with editorial aggression. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
         "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
-        "concept": "Replace with the core concept in plain English.",
+        "concept": "A proof-building campaign that turns the core commercial claim into a visible, repeatable evidence system.",
         "activation": "Replace with a one-sentence activation summary.",
         "activation_plan": {
           "order_of_precedence": [
@@ -563,12 +563,12 @@
         "illustration_generation_backend": "local-scaffold"
       },
       {
-        "title": "Buyer-education campaign",
+        "title": "The Buyer Maze",
         "illustration_url": "slide-assets/example-brand-campaign-buyer-education-campaign.png",
         "illustration_medium": "orbital control atlas interface",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'Buyer-education campaign'. Use a orbital control atlas interface treatment. The core idea is: Replace with the core concept in plain English.. Art direction: cartographic control surfaces, geospatial overlays, and mission-control precision rather than ordinary blueprints. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'The Buyer Maze'. Use a orbital control atlas interface treatment. The core idea is: Replace with the core concept in plain English.. Art direction: cartographic control surfaces, geospatial overlays, and mission-control precision rather than ordinary blueprints. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
         "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
-        "concept": "Replace with the core concept in plain English.",
+        "concept": "A buyer-education campaign that helps prospects navigate the decision path without forcing the title to explain the mechanics.",
         "activation": "Replace with a one-sentence activation summary.",
         "why_it_fits": "Replace with why this idea fits the brand and evidence.",
         "channels": [
@@ -584,12 +584,12 @@
         "illustration_generation_backend": "local-scaffold"
       },
       {
-        "title": "Trust and credibility series",
+        "title": "No Leap of Faith",
         "illustration_url": "slide-assets/example-brand-campaign-trust-and-credibility-series.png",
         "illustration_medium": "pop-art silkscreen print",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'Trust and credibility series'. Use a pop-art silkscreen print treatment. The core idea is: Replace with the core concept in plain English.. Art direction: graphic silkscreen blocks, comic-book punch, halftone rhythm, and poster-bold framing. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'No Leap of Faith'. Use a pop-art silkscreen print treatment. The core idea is: Replace with the core concept in plain English.. Art direction: graphic silkscreen blocks, comic-book punch, halftone rhythm, and poster-bold framing. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
         "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
-        "concept": "Replace with the core concept in plain English.",
+        "concept": "A trust-building campaign series that turns substantiation into a distinctive content platform.",
         "activation": "Replace with a one-sentence activation summary.",
         "why_it_fits": "Replace with why this idea fits the brand and evidence.",
         "channels": [
@@ -605,12 +605,12 @@
         "illustration_generation_backend": "local-scaffold"
       },
       {
-        "title": "Differentiation launch moment",
+        "title": "The Category Thunderclap",
         "illustration_url": "slide-assets/example-brand-campaign-differentiation-launch-moment.png",
         "illustration_medium": "cosmic long-exposure photography",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'Differentiation launch moment'. Use a cosmic long-exposure photography treatment. The core idea is: Replace with the core concept in plain English.. Art direction: night-sky energy photography with observatory drama, luminous trails, and cinematic scientific atmosphere. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'The Category Thunderclap'. Use a cosmic long-exposure photography treatment. The core idea is: Replace with the core concept in plain English.. Art direction: night-sky energy photography with observatory drama, luminous trails, and cinematic scientific atmosphere. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
         "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
-        "concept": "Replace with the core concept in plain English.",
+        "concept": "A high-impact campaign moment that makes the brand's sharpest difference feel vivid, timely, and commercially urgent.",
         "activation": "Replace with a one-sentence activation summary.",
         "why_it_fits": "Replace with why this idea fits the brand and evidence.",
         "channels": [
