@@ -63,6 +63,7 @@ What works today:
 - `run-state.json` is updated as modules complete
 - HTML, portable HTML, and deploy handoff outputs are produced from the copied stable `newbizintel` machinery
 - the full modular chain is proven on the real Univers brand folder through `research -> structure -> assets -> campaign-art -> render -> qa -> deploy-handoff`
+- premium Creative Campaign art now defaults to prompt-driven image-generated raster artwork, with local scaffold placeholders allowed only when a report explicitly opts into scaffold mode
 
 ## Colleague install
 

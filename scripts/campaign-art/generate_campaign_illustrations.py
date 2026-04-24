@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Generate prompt scaffolding and placeholder bitmap art for creative campaigns.
+"""Generate prompt scaffolding and campaign-art contracts for creative campaigns.
 
 This script is intentionally layout-safe and deterministic enough for local bundling,
-but it is not the premium art-direction path for NewBizIntel delivery. The preferred
+but it is not the premium art-direction path for NewBiz2 delivery. The preferred
 workflow is:
 
-1. Use this script to establish the medium, prompt, filenames, and fallback assets.
-2. Replace those placeholders with true raster artwork when the brief calls for
-   vivid, surprising, or medium-specific final campaign visuals.
+1. Use this script to establish the medium, prompt, filenames, and expected asset paths.
+2. Generate true raster artwork from those prompts for premium delivery by default.
+3. Use local scaffold placeholders only when the report explicitly opts into scaffold mode.
 
 The output manifest is therefore a contract for real artwork generation as much as a
 record of any placeholder assets created here.
@@ -27,6 +27,8 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 WIDTH = 900
 HEIGHT = 1600
+PREMIUM_BACKEND = "imagegen"
+SCAFFOLD_BACKEND = "local-scaffold"
 
 
 STYLE_BY_KIND = {
@@ -145,6 +147,54 @@ SURPRISE_STYLE_LIBRARY = {
                 "accent": "#f4a259",
             },
         },
+        {
+            "slug": "infrared-aerial-survey",
+            "medium": "infrared aerial survey photography",
+            "style": "thermal-imaging landscape, hot loss signatures, and eerie operational contrast across a wide estate",
+            "renderer": "drift",
+            "palette": {
+                "sky_top": "#241631",
+                "sky_bottom": "#7a2d1e",
+                "sun": "#ff6b2d",
+                "glow": "#ffd166",
+                "deep": "#291d3b",
+                "mid": "#4e5d75",
+                "light": "#efe6d8",
+                "accent": "#ff9f43",
+            },
+        },
+        {
+            "slug": "noir-comic-storm-front",
+            "medium": "graphic novel storm-front illustration",
+            "style": "high-contrast comic noir with weather-map energy, heavy shadow, and dramatic motion across the full column",
+            "renderer": "drift",
+            "palette": {
+                "sky_top": "#101923",
+                "sky_bottom": "#51606a",
+                "sun": "#f2552c",
+                "glow": "#ffcf5a",
+                "deep": "#1d2a33",
+                "mid": "#395563",
+                "light": "#ece5db",
+                "accent": "#7ab2ff",
+            },
+        },
+        {
+            "slug": "oil-pastel-blackout",
+            "medium": "oil pastel expressionist painting",
+            "style": "thick tactile pigment, smeared light, and emotional blackout-era energy rather than clean corporate polish",
+            "renderer": "drift",
+            "palette": {
+                "sky_top": "#1a2237",
+                "sky_bottom": "#a34d32",
+                "sun": "#ff5a24",
+                "glow": "#ffb84d",
+                "deep": "#253447",
+                "mid": "#596d73",
+                "light": "#f4ddc8",
+                "accent": "#84b0e8",
+            },
+        },
     ],
     "control": [
         {
@@ -195,6 +245,54 @@ SURPRISE_STYLE_LIBRARY = {
                 "soft2": "#3d2031",
             },
         },
+        {
+            "slug": "swiss-spec-sheet",
+            "medium": "Swiss modernist specification plate",
+            "style": "disciplined grid logic, measured hierarchy, and hard engineering order with minimal but assertive control geometry",
+            "renderer": "control",
+            "palette": {
+                "bg": "#edf1f6",
+                "panel": "#dce4ef",
+                "grid": "#9ba8b9",
+                "ink": "#132235",
+                "accent": "#4c7bd9",
+                "highlight": "#4dd6ff",
+                "soft": "#c5d1e0",
+                "soft2": "#b7c6d8",
+            },
+        },
+        {
+            "slug": "chalkboard-systems-map",
+            "medium": "technical chalkboard systems drawing",
+            "style": "layered planning marks, live workshop logic, and hand-drawn systems orchestration with dense operational intent",
+            "renderer": "control",
+            "palette": {
+                "bg": "#173126",
+                "panel": "#214235",
+                "grid": "#406a58",
+                "ink": "#eef6ef",
+                "accent": "#9dd0b5",
+                "highlight": "#7df0d2",
+                "soft": "#284f40",
+                "soft2": "#315b4a",
+            },
+        },
+        {
+            "slug": "satellite-control-atlas",
+            "medium": "orbital control atlas interface",
+            "style": "cartographic control surfaces, geospatial overlays, and mission-control precision rather than ordinary blueprints",
+            "renderer": "control",
+            "palette": {
+                "bg": "#07111d",
+                "panel": "#112238",
+                "grid": "#244564",
+                "ink": "#edf7ff",
+                "accent": "#8bc5ff",
+                "highlight": "#51f0ff",
+                "soft": "#17304a",
+                "soft2": "#1e3b59",
+            },
+        },
     ],
     "proof": [
         {
@@ -237,6 +335,48 @@ SURPRISE_STYLE_LIBRARY = {
                 "cream": "#faf3eb",
                 "mustard": "#c56b2d",
                 "pink": "#b64747",
+            },
+        },
+        {
+            "slug": "risograph-manifesto",
+            "medium": "risograph editorial broadside",
+            "style": "misregistered ink, radical print-shop texture, and manifesto-like proof stacking with visible production grit",
+            "renderer": "proof",
+            "palette": {
+                "paper": "#f7efdf",
+                "black": "#171717",
+                "red": "#3957d6",
+                "cream": "#fff8ef",
+                "mustard": "#ff6b2c",
+                "pink": "#f5427a",
+            },
+        },
+        {
+            "slug": "courtroom-evidence-wall",
+            "medium": "forensic evidence-board collage",
+            "style": "pinned proof fragments, marked exhibits, and investigatory tension that makes claims feel cross-examined",
+            "renderer": "proof",
+            "palette": {
+                "paper": "#ece5d8",
+                "black": "#1d1c1b",
+                "red": "#bb2f2f",
+                "cream": "#faf5ec",
+                "mustard": "#b88a3d",
+                "pink": "#8f4f63",
+            },
+        },
+        {
+            "slug": "tabloid-front-page",
+            "medium": "tabloid front-page print layout",
+            "style": "loud front-page urgency, cropped snippets, heavy blocks, and sensational proof framing with editorial aggression",
+            "renderer": "proof",
+            "palette": {
+                "paper": "#f4eedf",
+                "black": "#121212",
+                "red": "#ef3326",
+                "cream": "#fffaf2",
+                "mustard": "#ffd044",
+                "pink": "#2f5fd0",
             },
         },
     ],
@@ -284,6 +424,51 @@ SURPRISE_STYLE_LIBRARY = {
                 "ink": "#5c6544",
                 "accent": "#7aa35b",
                 "highlight": "#4d7e5f",
+            },
+        },
+        {
+            "slug": "bronze-tabletop-sculpture",
+            "medium": "bronze tabletop sculpture photography",
+            "style": "weighty cast-metal forms, museum lighting, and a sense of durable portfolio-scale infrastructure",
+            "renderer": "portfolio",
+            "palette": {
+                "bg": "#efe7dc",
+                "surface": "#aa7b57",
+                "surface2": "#d1b391",
+                "shadow": "#6b5240",
+                "ink": "#4b3a31",
+                "accent": "#5e8a7a",
+                "highlight": "#c48a43",
+            },
+        },
+        {
+            "slug": "paper-cut-masterplan",
+            "medium": "paper-cut masterplan relief",
+            "style": "layered paper topography, crisp shadows, and strategic growth pathways laid out like a physical planning model",
+            "renderer": "portfolio",
+            "palette": {
+                "bg": "#f3f0e8",
+                "surface": "#d9dcc8",
+                "surface2": "#f8f5ef",
+                "shadow": "#9ca08e",
+                "ink": "#5f6557",
+                "accent": "#7a9985",
+                "highlight": "#94b06a",
+            },
+        },
+        {
+            "slug": "ceramic-terrain-installation",
+            "medium": "ceramic installation photography",
+            "style": "glazed modular terrain, handcrafted physical surfaces, and a more artistic gallery-installation reading of scale-up",
+            "renderer": "portfolio",
+            "palette": {
+                "bg": "#eef1eb",
+                "surface": "#c9d2c5",
+                "surface2": "#f7faf4",
+                "shadow": "#889487",
+                "ink": "#4f5d52",
+                "accent": "#6ea38c",
+                "highlight": "#cfd9b1",
             },
         },
     ],
@@ -342,6 +527,14 @@ def build_bitmap_prompt(title: str, concept: str, profile: dict) -> str:
         "Avoid generic flat corporate vector art. "
         "Make it visually distinct from the other campaign ideas and premium in finish."
     )
+
+
+def scaffold_allowed(delivery_mode: str, generation_backend: str) -> bool:
+    return delivery_mode == "scaffold-allowed" or generation_backend in {
+        SCAFFOLD_BACKEND,
+        "placeholder-scaffold",
+        "scaffold",
+    }
 
 
 def hex_to_rgb(value: str) -> tuple[int, int, int]:
@@ -728,7 +921,7 @@ def output_path_for_idea(asset_dir: Path, brand_slug: str, title: str, raw_value
     return asset_dir / f"{brand_slug}-campaign-{slugify(title)}.png"
 
 
-def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path]]:
+def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path], int]:
     data = json.loads(data_path.read_text(encoding="utf-8"))
     brand = data.get("brand", {})
     brand_slug = slugify(brand.get("slug") or brand.get("name") or data_path.parent.name)
@@ -740,6 +933,12 @@ def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path]]:
     if not delivery_mode:
         delivery_mode = "final-raster-required"
         section["artwork_delivery_mode"] = delivery_mode
+    generation_backend = str(section.get("illustration_generation_backend") or "").strip().lower()
+    if not generation_backend:
+        generation_backend = PREMIUM_BACKEND if delivery_mode != "scaffold-allowed" else SCAFFOLD_BACKEND
+        section["illustration_generation_backend"] = generation_backend
+    allow_scaffold = scaffold_allowed(delivery_mode, generation_backend)
+    style_mode = str(section.get("illustration_style_mode") or "").strip().lower()
     surprise_mode = str(section.get("illustration_style_mode") or "").strip().lower() in {
         "surprise",
         "wild",
@@ -748,6 +947,7 @@ def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path]]:
     }
     ideas: Iterable[dict] = section.get("ideas") or []
     written: list[Path] = []
+    pending = 0
     prompt_manifest: list[dict[str, str]] = []
     used_slugs: set[str] = set()
 
@@ -767,6 +967,8 @@ def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path]]:
             medium = existing_medium or profile["medium"]
             profile["medium"] = medium
             prompt = idea.get("illustration_prompt") or build_bitmap_prompt(title, concept, profile)
+        destination = output_path_for_idea(asset_dir, brand_slug, title, idea.get("illustration_url") or "")
+        destination.parent.mkdir(parents=True, exist_ok=True)
         prompt_manifest.append(
             {
                 "title": title,
@@ -774,23 +976,43 @@ def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path]]:
                 "style_slug": profile["slug"],
                 "medium": medium,
                 "delivery_target": "true-raster-artwork",
-                "generator_role": "placeholder-scaffold",
+                "generation_backend": generation_backend,
+                "generator_role": "placeholder-scaffold" if allow_scaffold else "prompt-only-premium-default",
+                "expected_asset_path": relative_asset_path(asset_dir, destination),
                 "prompt": prompt,
             }
         )
-
-        destination = output_path_for_idea(asset_dir, brand_slug, title, idea.get("illustration_url") or "")
-        destination.parent.mkdir(parents=True, exist_ok=True)
         idea["illustration_url"] = relative_asset_path(asset_dir, destination)
         idea["illustration_medium"] = medium
         idea["illustration_prompt"] = prompt
         idea["illustration_style_name"] = profile["slug"]
         idea["illustration_delivery_target"] = "true-raster-artwork"
+        idea["illustration_generation_backend"] = generation_backend
 
         existing_asset_role = str(idea.get("illustration_asset_role") or "").strip()
         if destination.exists() and not overwrite:
+            if existing_asset_role == "final-raster-artwork":
+                pass
+            elif style_mode == "custom-raster":
+                idea["illustration_asset_role"] = "final-raster-artwork"
+            elif not existing_asset_role:
+                idea["illustration_asset_role"] = "unverified-existing-artwork"
+            continue
+
+        if destination.exists() and not allow_scaffold:
+            if existing_asset_role == "final-raster-artwork":
+                continue
+            if style_mode == "custom-raster":
+                idea["illustration_asset_role"] = "final-raster-artwork"
+                continue
             if not existing_asset_role:
                 idea["illustration_asset_role"] = "unverified-existing-artwork"
+            continue
+
+        if not destination.exists() and not allow_scaffold:
+            idea["illustration_url"] = ""
+            idea["illustration_asset_role"] = "pending-final-raster-artwork"
+            pending += 1
             continue
 
         image = build_bitmap(profile)
@@ -805,12 +1027,12 @@ def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path]]:
     )
     section["illustration_prompt_manifest"] = relative_asset_path(asset_dir, manifest_path)
     data_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return len(written), written
+    return len(written), written, pending
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate portrait-friendly placeholder bitmap campaign illustrations and prompt manifests."
+        description="Generate campaign-art prompt manifests and optional scaffold bitmap illustrations."
     )
     parser.add_argument("--data", required=True, help="Path to report-data.json")
     parser.add_argument(
@@ -818,10 +1040,11 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    count, written = generate(Path(args.data).resolve(), overwrite=args.overwrite)
+    count, written, pending = generate(Path(args.data).resolve(), overwrite=args.overwrite)
     payload = {
         "data": str(Path(args.data).resolve()),
         "generated": count,
+        "pending_final_raster": pending,
         "files": [str(path) for path in written],
         "overwrite": bool(args.overwrite),
     }

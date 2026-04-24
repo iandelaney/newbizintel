@@ -20,8 +20,19 @@ if ($LASTEXITCODE -ne 0) {
     throw "Campaign-art generation failed with exit code $LASTEXITCODE."
 }
 
-$state.status.campaign_art = 'passed'
-$state.gates.gate_5b_campaign_art = 'passed'
+$pendingFinalRaster = 0
+if ($null -ne $generation.pending_final_raster) {
+    $pendingFinalRaster = [int]$generation.pending_final_raster
+}
+
+if ($pendingFinalRaster -gt 0) {
+    $state.status.campaign_art = 'blocked'
+    $state.gates.gate_5b_campaign_art = 'blocked'
+}
+else {
+    $state.status.campaign_art = 'passed'
+    $state.gates.gate_5b_campaign_art = 'passed'
+}
 & $context.save_run_state -Path $context.run_state_path -State $state
 
 [pscustomobject]@{

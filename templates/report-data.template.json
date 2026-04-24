@@ -501,6 +501,7 @@
   },
   "creative_campaign_ideas": {
     "artwork_delivery_mode": "final-raster-required",
+    "illustration_generation_backend": "imagegen",
     "illustration_style_mode": "surprise",
     "ideas": [
       {
