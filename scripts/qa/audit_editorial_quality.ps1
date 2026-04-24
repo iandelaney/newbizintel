@@ -57,6 +57,38 @@ function Get-ObjectProperty {
     return $null
 }
 
+function Test-FlatCampaignTitle {
+    param([string]$Title)
+
+    if ([string]::IsNullOrWhiteSpace($Title)) {
+        return $false
+    }
+
+    $normalized = $Title.Trim().ToLowerInvariant()
+    $knownFlatTitles = @(
+        'proof-led platform story',
+        'buyer-education campaign',
+        'trust and credibility series',
+        'differentiation launch moment'
+    )
+
+    if ($knownFlatTitles -contains $normalized) {
+        return $true
+    }
+
+    return ($normalized -match '(?i)\b(campaign|series|platform story|launch moment)\b$')
+}
+
+function Test-CampaignConceptOpening {
+    param([string]$Concept)
+
+    if ([string]::IsNullOrWhiteSpace($Concept)) {
+        return $true
+    }
+
+    return ($Concept.Trim() -match '(?i)^(a|an|the)\s+.+\bcampaign\b')
+}
+
 function Find-TextFindings {
     param(
         [object]$Value,
@@ -150,6 +182,16 @@ for ($i = 0; $i -lt $campaignIdeas.Count; $i++) {
         if (-not (Test-HasValue (Get-ObjectProperty -Object $idea -Name $field))) {
             Add-EditorialIssue "Missing or empty editorial field: creative_campaign_ideas.ideas[$i].$field"
         }
+    }
+
+    $ideaTitle = [string](Get-ObjectProperty -Object $idea -Name 'title')
+    if (Test-FlatCampaignTitle -Title $ideaTitle) {
+        Add-EditorialIssue "Creative campaign title is too flat/descriptive at creative_campaign_ideas.ideas[$i].title ('$ideaTitle'). Use an imaginative campaign name, and move the descriptive campaign nature into the opening Concept paragraph."
+    }
+
+    $ideaConcept = [string](Get-ObjectProperty -Object $idea -Name 'concept')
+    if (-not (Test-CampaignConceptOpening -Concept $ideaConcept)) {
+        Add-EditorialIssue "creative_campaign_ideas.ideas[$i].concept should open by describing the nature of the campaign, e.g. 'A ... campaign that ...'."
     }
 
     $sequence = @()
