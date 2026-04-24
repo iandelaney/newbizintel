@@ -1,0 +1,30 @@
+# Copy this whole file into your Codex config file.
+# Then find YOUR_TAVILY_API_KEY and replace only those words with your real Tavily key.
+# Do not add extra quote marks.
+
+# This is the Codex model to use.
+model = "gpt-5.4"
+
+# Tavily lets Codex search the web.
+# Replace YOUR_TAVILY_API_KEY with your real Tavily key.
+# Example:
+# ...tavilyApiKey=abc123yourrealkeyhere
+[mcp_servers.tavily]
+command = "npx"
+args = ["-y", "mcp-remote", "https://mcp.tavily.com/mcp/?tavilyApiKey=YOUR_TAVILY_API_KEY"]
+
+# Composio lets Codex reach SEMrush through a hosted MCP server.
+# You do not need to change this part.
+[mcp_servers.composio]
+url = "https://connect.composio.dev/mcp"
+
+# Playwright lets Codex open and check web pages.
+# You do not need to change this part.
+[mcp_servers.playwright]
+command = "npx"
+args = ["@playwright/mcp@latest"]
+
+# OpenAI Docs MCP lets Codex read OpenAI documentation.
+# You do not need to change this part.
+[mcp_servers.openaiDeveloperDocs]
+url = "https://developers.openai.com/mcp"

@@ -1,0 +1,112 @@
+{
+  "mode": "bootstrap-from-report-data",
+  "data_path": "C:\\codex projects\\newbiz2-skill-repo\\examples\\report-data.sample.json",
+  "brand_name": "Example Brand",
+  "brand_website": "https://example.com/",
+  "competitors": [
+    {
+      "name": "Competitor A",
+      "website": "https://www.competitor-a.com/",
+      "why_it_matters": "Replace with why this competitor matters."
+    },
+    {
+      "name": "Competitor B",
+      "website": null,
+      "why_it_matters": null
+    },
+    {
+      "name": "Competitor C",
+      "website": null,
+      "why_it_matters": null
+    }
+  ],
+  "influential_news": [
+    {
+      "date": "11 March 2026",
+      "headline": "Replace with influential story #1.",
+      "source": "Example Brand",
+      "url": "https://example.com/news/story-1",
+      "why_it_matters": "Replace with why this story shapes buyer or market perception."
+    },
+    {
+      "date": "12 March 2026",
+      "headline": "Replace with influential story #2.",
+      "source": "Example Brand",
+      "url": "https://example.com/news/story-2",
+      "why_it_matters": "Replace with why this story shapes buyer or market perception."
+    },
+    {
+      "date": "13 March 2026",
+      "headline": "Replace with influential story #3.",
+      "source": "Example Brand",
+      "url": "https://example.com/news/story-3",
+      "why_it_matters": "Replace with why this story shapes buyer or market perception."
+    },
+    {
+      "date": "14 March 2026",
+      "headline": "Replace with influential story #4.",
+      "source": "Example Brand",
+      "url": "https://example.com/news/story-4",
+      "why_it_matters": "Replace with why this story shapes buyer or market perception."
+    },
+    {
+      "date": "15 March 2026",
+      "headline": "Replace with influential story #5.",
+      "source": "Example Brand",
+      "url": "https://example.com/news/story-5",
+      "why_it_matters": "Replace with why this story shapes buyer or market perception."
+    }
+  ],
+  "reputation": {
+    "platform_readout": [
+      "Replace with the platform readout or public-web monitoring note."
+    ],
+    "recommended_actions": [
+      "Replace with the first reputation action.",
+      "Replace with the second reputation action."
+    ]
+  },
+  "seo": {
+    "semrush_evidence": [
+      {
+        "title": "Visibility direction",
+        "body": "Replace with the first compact SEMrush-backed proof point."
+      },
+      {
+        "title": "Ranking or overlap signal",
+        "body": "Replace with the second compact SEMrush-backed proof point."
+      }
+    ],
+    "priority_issues": [
+      {
+        "issue": "Replace with the highest-priority issue.",
+        "evidence": "Replace with the supporting evidence.",
+        "why_it_matters": "Replace with why this issue matters commercially.",
+        "recommended_fix": "Replace with the recommended fix."
+      }
+    ]
+  },
+  "locked_sets": {
+    "competitors": [
+      "Competitor A",
+      "Competitor B",
+      "Competitor C"
+    ],
+    "influential_news": [
+      "Replace with influential story #1.",
+      "Replace with influential story #2.",
+      "Replace with influential story #3.",
+      "Replace with influential story #4.",
+      "Replace with influential story #5."
+    ]
+  },
+  "status": {
+    "competitor_discovery": "passed",
+    "recent_news": "passed",
+    "reputation_public_web": "passed",
+    "semrush": "passed"
+  },
+  "notes": [
+    "Bootstrap summary created from report-data.json rather than live Tavily or Composio calls."
+  ]
+}

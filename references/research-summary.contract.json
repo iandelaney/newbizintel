@@ -1,0 +1,117 @@
+{
+  "mode": "live-assisted",
+  "data_path": "C:/codex projects/newbiz2-skill-repo/examples/report-data.json",
+  "brand_name": "Example Brand",
+  "brand_website": "https://example.com/",
+  "competitors": [
+    {
+      "name": "Competitor A",
+      "website": "https://www.competitor-a.com/",
+      "why_it_matters": "Reason this competitor matters."
+    }
+  ],
+  "influential_news": [
+    {
+      "date": "2026-03-11",
+      "headline": "Example story",
+      "source": "Example Source",
+      "url": "https://example.com/story",
+      "why_it_matters": "Reason this story matters."
+    }
+  ],
+  "reputation": {
+    "platform_readout": [],
+    "recommended_actions": []
+  },
+  "seo": {
+    "semrush_evidence": [],
+    "priority_issues": []
+  },
+  "tavily_validation": {
+    "competitor_discovery": {
+      "status": "passed",
+      "tool": "tavily",
+      "validated_on": "2026-04-24",
+      "query_summary": [
+        "Example Brand competitors energy platform"
+      ],
+      "source_count": 3,
+      "used_in_sections": [
+        "competitive_landscape"
+      ],
+      "why_passed": "Competitor set was gathered from current web evidence using Tavily."
+    },
+    "recent_news": {
+      "status": "passed",
+      "tool": "tavily",
+      "validated_on": "2026-04-24",
+      "query_summary": [
+        "Example Brand recent news 2025 2026"
+      ],
+      "source_count": 3,
+      "used_in_sections": [
+        "brand_reputation"
+      ],
+      "why_passed": "Recent stories were gathered from current web evidence using Tavily."
+    },
+    "reputation_public_web": {
+      "status": "passed",
+      "tool": "jina",
+      "validated_on": "2026-04-24",
+      "query_summary": [
+        "Example Brand reviews controversy trust public web"
+      ],
+      "source_count": 3,
+      "used_in_sections": [
+        "brand_reputation"
+      ],
+      "why_passed": "Public-web trust signals were gathered using Jina as the current-web fallback."
+    },
+    "source_gathering": {
+      "status": "passed",
+      "tool": "tavily+jina",
+      "validated_on": "2026-04-24",
+      "query_summary": [
+        "site:example.com Example Brand solutions case study"
+      ],
+      "source_count": 4,
+      "used_in_sections": [
+        "appendix",
+        "seo_audit",
+        "storybrand"
+      ],
+      "why_passed": "Owned and third-party sources were gathered and mapped using Tavily with Jina available as fallback."
+    }
+  },
+  "source_provenance_summary": {
+    "tavily_backed_sources": 6,
+    "owned_sources": 2,
+    "third_party_sources": 4
+  },
+  "source_map": [
+    {
+      "title": "Example source",
+      "url": "https://example.com/source",
+      "source": "Example Source",
+      "used_for": [
+        "competitive_landscape",
+        "brand_reputation"
+      ]
+    }
+  ],
+  "locked_sets": {
+    "competitors": [],
+    "influential_news": []
+  },
+  "status": {
+    "competitor_discovery": "passed",
+    "recent_news": "passed",
+    "reputation_public_web": "passed",
+    "source_gathering": "passed",
+    "semrush": "blocked"
+  },
+  "notes": [
+    "Live-assisted research summary created in Codex from current-web tools and imported into newbiz2.",
+    "Use Jina as the backup current-web layer when Tavily is blocked or quota-limited."
+  ]
+}

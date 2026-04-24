@@ -1,0 +1,705 @@
+{
+  "brand": {
+    "name": "Example Brand",
+    "website": "https://example.com/",
+    "logo_url": "",
+    "date": "11 March 2026",
+    "slug": "example-brand"
+  },
+  "report_meta": {
+    "audience": "Internal Archetype new business team",
+    "distribution": "Internal only",
+    "purpose": "Assess client fit, growth blockers, and likely agency opportunity areas.",
+    "note": "Prepared for internal agency planning rather than external sharing or direct client delivery."
+  },
+  "cover": {
+    "summary": "Integrated assessment of Example Brand's market position, messaging clarity, competitive pressure, search opportunity, public reputation, and the content strategy needed to improve visibility, trust, and conversion.",
+    "scope": "Public-site review, competitor benchmarking, messaging analysis, SEO review, reputation scan, and integrated content strategy planning",
+    "competitors": [
+      "Competitor A",
+      "Competitor B",
+      "Competitor C"
+    ],
+    "assumptions": [
+      "Primary site assumption goes here.",
+      "State any competitor or market assumptions here.",
+      "State whether reputation findings are based on public-web evidence here."
+    ]
+  },
+  "company_snapshot": {
+    "summary": "Condensed company-status block covering operating status, leadership, ownership, and funding context.",
+    "items": [
+      {
+        "label": "Company status",
+        "value": "Replace with verified company detail from the current run."
+      },
+      {
+        "label": "Sector",
+        "value": "Replace with verified company detail from the current run."
+      },
+      {
+        "label": "Core proposition",
+        "value": "Replace with verified company detail from the current run."
+      },
+      {
+        "label": "Founded",
+        "value": "Replace with verified company detail from the current run."
+      },
+      {
+        "label": "Headquarters",
+        "value": "Replace with verified company detail from the current run."
+      },
+      {
+        "label": "Founders",
+        "value": "Replace with verified company detail from the current run.",
+        "profiles": [
+          {
+            "platform": "linkedin",
+            "name": "Add verified profile owner",
+            "url": "https://example.com/profile"
+          },
+          {
+            "platform": "x",
+            "name": "Add verified profile owner",
+            "url": "https://example.com/profile"
+          },
+          {
+            "platform": "bluesky",
+            "name": "Add verified profile owner",
+            "url": "https://example.com/profile"
+          }
+        ]
+      },
+      {
+        "label": "Current leadership",
+        "value": "Replace with verified company detail from the current run.",
+        "profiles": [
+          {
+            "platform": "linkedin",
+            "name": "Add verified profile owner",
+            "url": "https://example.com/profile"
+          },
+          {
+            "platform": "x",
+            "name": "Add verified profile owner",
+            "url": "https://example.com/profile"
+          },
+          {
+            "platform": "bluesky",
+            "name": "Add verified profile owner",
+            "url": "https://example.com/profile"
+          }
+        ]
+      },
+      {
+        "label": "Board",
+        "value": "Replace with verified company detail from the current run."
+      },
+      {
+        "label": "Ownership",
+        "value": "Replace with verified company detail from the current run."
+      },
+      {
+        "label": "Funding status",
+        "value": "Replace with verified company detail from the current run."
+      }
+    ]
+  },
+  "executive_summary": {
+    "cards": [
+      {
+        "title": "What stands out most",
+        "body": "Replace with a short evidence-backed takeaway before delivery."
+      },
+      {
+        "title": "Biggest commercial risk",
+        "body": "Replace with a short evidence-backed takeaway before delivery."
+      },
+      {
+        "title": "Biggest messaging opportunity",
+        "body": "Replace with a short evidence-backed takeaway before delivery."
+      },
+      {
+        "title": "Biggest reputation insight",
+        "body": "Replace with a short evidence-backed takeaway before delivery."
+      },
+      {
+        "title": "Biggest SEO opportunity",
+        "body": "Replace with a short evidence-backed takeaway before delivery."
+      },
+      {
+        "title": "Biggest content strategy opportunity",
+        "body": "Replace with a short evidence-backed takeaway before delivery."
+      }
+    ],
+    "overall_recommendation": "Replace with the overall recommendation once research is complete."
+  },
+  "agency_opportunity": {
+    "score": "0.0 / 10",
+    "score_summary": "Replace with a plain-English explanation of the score.",
+    "summary": "Replace with the evidence-backed summary of agency fit.",
+    "lead_offering": {
+      "name": "Lead service recommendation goes here",
+      "lead_department": "Content",
+      "supporting_departments": [
+        "Digital Marketing",
+        "Insights & Intelligence"
+      ],
+      "verdict": "Replace with the clearest recommendation once the research is complete.",
+      "why_this_leads": [
+        "Replace with the first reason this department should lead.",
+        "Replace with the second reason this department should lead."
+      ],
+      "why_not_first": [
+        "Replace with the main reason another department should not lead first.",
+        "Replace with the second constraint on alternative leads."
+      ],
+      "best_buyer": "Replace with the best internal buyer or decision-maker.",
+      "expected_outcomes": [
+        "Replace with the first expected outcome.",
+        "Replace with the second expected outcome."
+      ]
+    },
+    "cards": [
+      {
+        "title": "Best-fit services",
+        "body": "Replace with evidence-backed agency opportunity detail."
+      },
+      {
+        "title": "Most likely first brief",
+        "body": "Replace with evidence-backed agency opportunity detail."
+      },
+      {
+        "title": "Highest-value contribution",
+        "body": "Replace with evidence-backed agency opportunity detail."
+      },
+      {
+        "title": "Retention path",
+        "body": "Replace with evidence-backed agency opportunity detail."
+      }
+    ],
+    "priority_workstreams": [
+      "Replace with the first workstream.",
+      "Replace with the second workstream."
+    ],
+    "archetype_advantages": [
+      "Replace with the first archetype advantage.",
+      "Replace with the second archetype advantage."
+    ],
+    "department_opportunity_map": [
+      {
+        "department": "PR & Comms",
+        "tone": "good",
+        "opportunity": "Green",
+        "cost_multiplier": "1.1",
+        "value_note": "Give this a modest edge only when a real PR and communications opening exists. Treat that edge as roughly 10% rather than a dominant override, and let the objectively strongest opportunity lead.",
+        "rationale": "Replace with the rationale for this department score."
+      },
+      {
+        "department": "Content",
+        "tone": "good",
+        "opportunity": "Green",
+        "cost_multiplier": "1",
+        "value_note": "Best when the main need is message clarity, proof packaging, and better web journeys.",
+        "rationale": "Replace with the rationale for this department score."
+      },
+      {
+        "department": "Digital Marketing",
+        "tone": "good",
+        "opportunity": "Green",
+        "cost_multiplier": "1",
+        "value_note": "Best when the sharper story needs turning into search, traffic, and conversion gains.",
+        "rationale": "Replace with the rationale for this department score."
+      },
+      {
+        "department": "Brands",
+        "tone": "good",
+        "opportunity": "Green",
+        "cost_multiplier": "2",
+        "value_note": "Best when the existing brand expression is actively limiting how the proposition lands.",
+        "rationale": "Replace with the rationale for this department score."
+      },
+      {
+        "department": "Creative Services",
+        "tone": "warn",
+        "opportunity": "Amber",
+        "cost_multiplier": "1.5",
+        "value_note": "Best after the message and proof architecture are set, so assets and campaigns have clearer foundations.",
+        "rationale": "Replace with the rationale for this department score."
+      },
+      {
+        "department": "Insights & Intelligence",
+        "tone": "good",
+        "opportunity": "Green",
+        "cost_multiplier": "1.5",
+        "value_note": "Best when buyer-language testing, category framing, or proof-gap diagnosis will materially improve the lead engagement.",
+        "rationale": "Replace with the rationale for this department score."
+      }
+    ]
+  },
+  "storybrand": {
+    "score": "0.0 / 10",
+    "score_summary": "Replace with a short explanation of the messaging score.",
+    "cards": [
+      {
+        "title": "Hero",
+        "body": "Replace with the evidence-backed StoryBrand finding for this card."
+      },
+      {
+        "title": "Primary desire",
+        "body": "Replace with the evidence-backed StoryBrand finding for this card."
+      },
+      {
+        "title": "Problems",
+        "body": "<p><strong>External:</strong> </p><p><strong>Internal:</strong> </p><p><strong>Philosophical:</strong> </p>"
+      },
+      {
+        "title": "Villain",
+        "body": "Replace with the evidence-backed StoryBrand finding for this card."
+      },
+      {
+        "title": "Guide signals",
+        "body": "Replace with the evidence-backed StoryBrand finding for this card."
+      },
+      {
+        "title": "Plan",
+        "body": "Replace with the evidence-backed StoryBrand finding for this card."
+      },
+      {
+        "title": "Call to action review",
+        "body": "<p><strong>Direct call to action:</strong> </p><p><strong>Supporting call to action:</strong> </p>"
+      },
+      {
+        "title": "Failure and success",
+        "body": "<p><strong>Failure stakes:</strong> </p><p><strong>Success outcome:</strong> </p>"
+      }
+    ],
+    "one_liner": "Replace with a one-line message that makes the offer and outcome clear.",
+    "messaging_fixes": [
+      "Replace with the first messaging fix.",
+      "Replace with the second messaging fix."
+    ],
+    "content_implications": [
+      "Replace with the first content implication.",
+      "Replace with the second content implication."
+    ]
+  },
+  "competitive_landscape": {
+    "table": [
+      {
+        "competitor": "Competitor A",
+        "website": "https://www.competitor-a.com/",
+        "why_it_matters": "Replace with why this competitor matters.",
+        "positioning_pattern": "Replace with the positioning pattern observed.",
+        "implication": "Replace with the implication for the subject brand."
+      }
+    ],
+    "why_each_competitor_matters": "Replace with a short summary of why the locked competitor set matters.",
+    "charts": [
+      {
+        "title": "Example comparison chart",
+        "subtitle": "Replace with a chart subtitle only when the chart earns its place.",
+        "value_suffix": "",
+        "series": [
+          {
+            "label": "Example Brand",
+            "value": 0,
+            "display_value": "0",
+            "note": "Replace with an evidence-backed chart note.",
+            "tone": "blue"
+          }
+        ]
+      }
+    ],
+    "messaging_patterns": [
+      "Replace with the first competitor messaging pattern.",
+      "Replace with the second competitor messaging pattern."
+    ],
+    "content_patterns": [
+      "Replace with the first competitor content pattern.",
+      "Replace with the second competitor content pattern."
+    ],
+    "status_summary": [
+      "Ahead: Replace with the existing strength.",
+      "Matched: Replace with the baseline expectation.",
+      "Behind: Replace with the biggest competitive gap."
+    ]
+  },
+  "seo_audit": {
+    "cards": [
+      {
+        "title": "Search intent and positioning",
+        "body": "Replace with an evidence-backed SEO finding."
+      },
+      {
+        "title": "On-page findings",
+        "body": "Replace with an evidence-backed SEO finding."
+      },
+      {
+        "title": "Technical findings",
+        "body": "Replace with an evidence-backed SEO finding."
+      },
+      {
+        "title": "Content and architecture findings",
+        "body": "Replace with an evidence-backed SEO finding."
+      }
+    ],
+    "semrush_evidence": [
+      {
+        "title": "Visibility direction",
+        "body": "Replace with the first compact SEMrush-backed proof point."
+      },
+      {
+        "title": "Ranking or overlap signal",
+        "body": "Replace with the second compact SEMrush-backed proof point."
+      }
+    ],
+    "charts": [
+      {
+        "title": "Example SEO chart",
+        "subtitle": "Replace only when a chart materially sharpens the diagnosis.",
+        "value_suffix": "",
+        "series": [
+          {
+            "label": "Example Brand",
+            "value": 0,
+            "display_value": "0",
+            "note": "Replace with a short chart note.",
+            "tone": "teal"
+          }
+        ]
+      }
+    ],
+    "priority_issues": [
+      {
+        "issue": "Replace with the highest-priority issue.",
+        "evidence": "Replace with the supporting evidence.",
+        "why_it_matters": "Replace with why this issue matters commercially.",
+        "recommended_fix": "Replace with the recommended fix."
+      }
+    ],
+    "content_implications": [
+      "Replace with the first SEO-driven content implication.",
+      "Replace with the second SEO-driven content implication."
+    ]
+  },
+  "brand_reputation": {
+    "pills": [
+      {
+        "tone": "good",
+        "label": "Positive: "
+      },
+      {
+        "tone": "warn",
+        "label": "Mixed: "
+      },
+      {
+        "tone": "warn",
+        "label": "Confidence: "
+      }
+    ],
+    "cards": [
+      {
+        "title": "Monitoring method and coverage notes",
+        "body": "Replace with a public-web reputation finding."
+      },
+      {
+        "title": "Positive themes",
+        "body": "Replace with a public-web reputation finding."
+      },
+      {
+        "title": "Negative themes",
+        "body": "Replace with a public-web reputation finding."
+      },
+      {
+        "title": "Trust signals and risks",
+        "body": "Replace with a public-web reputation finding."
+      }
+    ],
+    "platform_readout": [
+      "Replace with the platform readout or public-web monitoring note."
+    ],
+    "influential_news": [
+      {
+        "date": "11 March 2026",
+        "headline": "Replace with influential story #1.",
+        "source": "Example Brand",
+        "url": "https://example.com/news/story-1",
+        "why_it_matters": "Replace with why this story shapes buyer or market perception.",
+        "publisher_logo_url": "news.png"
+      },
+      {
+        "date": "12 March 2026",
+        "headline": "Replace with influential story #2.",
+        "source": "Example Brand",
+        "url": "https://example.com/news/story-2",
+        "why_it_matters": "Replace with why this story shapes buyer or market perception.",
+        "publisher_logo_url": "news.png"
+      },
+      {
+        "date": "13 March 2026",
+        "headline": "Replace with influential story #3.",
+        "source": "Example Brand",
+        "url": "https://example.com/news/story-3",
+        "why_it_matters": "Replace with why this story shapes buyer or market perception.",
+        "publisher_logo_url": "news.png"
+      },
+      {
+        "date": "14 March 2026",
+        "headline": "Replace with influential story #4.",
+        "source": "Example Brand",
+        "url": "https://example.com/news/story-4",
+        "why_it_matters": "Replace with why this story shapes buyer or market perception.",
+        "publisher_logo_url": "news.png"
+      },
+      {
+        "date": "15 March 2026",
+        "headline": "Replace with influential story #5.",
+        "source": "Example Brand",
+        "url": "https://example.com/news/story-5",
+        "why_it_matters": "Replace with why this story shapes buyer or market perception.",
+        "publisher_logo_url": "news.png"
+      }
+    ],
+    "recommended_actions": [
+      "Replace with the first reputation action.",
+      "Replace with the second reputation action."
+    ],
+    "content_implications": [
+      "Replace with the first trust or reputation content implication.",
+      "Replace with the second trust or reputation content implication."
+    ]
+  },
+  "content_strategy": {
+    "cards": [
+      {
+        "title": "Core themes the brand should own",
+        "body": "Replace with a practical content strategy recommendation."
+      },
+      {
+        "title": "Recommended page types and formats",
+        "body": "Replace with a practical content strategy recommendation."
+      },
+      {
+        "title": "Audience-specific paths",
+        "body": "Replace with a practical content strategy recommendation."
+      },
+      {
+        "title": "Best commercial opportunity",
+        "body": "Replace with a practical content strategy recommendation."
+      }
+    ],
+    "priority_opportunities": [
+      "Replace with the first content opportunity.",
+      "Replace with the second content opportunity."
+    ],
+    "example_ideas": [
+      "Replace with the first example content idea.",
+      "Replace with the second example content idea."
+    ],
+    "response_to_findings": "Replace with how the content strategy directly answers the report findings."
+  },
+  "creative_campaign_ideas": {
+    "illustration_style_mode": "surprise",
+    "ideas": [
+      {
+        "title": "Proof-led platform story",
+        "illustration_url": "slide-assets/example-brand-campaign-proof-led-platform-story.png",
+        "illustration_medium": "Cubist editorial collage",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'Proof-led platform story'. Use a Cubist editorial collage treatment. The core idea is: Replace with the core concept in plain English.. Art direction: fractured document planes, angular evidence blocks, and sharp avant-garde editorial tension. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
+        "concept": "Replace with the core concept in plain English.",
+        "activation": "Replace with a one-sentence activation summary.",
+        "activation_plan": {
+          "order_of_precedence": [
+            {
+              "name": "Flagship asset",
+              "primary_goal": "Replace with why this comes first.",
+              "contains": [
+                "Replace with the main components inside the flagship asset.",
+                "Replace with the proof or data hook."
+              ],
+              "inputs_needed": [
+                "Replace with proof inputs, source material, or approvals needed.",
+                "Replace with audience, CTA, or asset requirements."
+              ]
+            },
+            {
+              "name": "Destination page",
+              "primary_goal": "Replace with why this follows the flagship asset.",
+              "contains": [
+                "Replace with the page modules, proof blocks, or CTA components."
+              ],
+              "inputs_needed": [
+                "Replace with the content, design, or proof inputs required."
+              ]
+            },
+            {
+              "name": "Sales conversion asset",
+              "primary_goal": "Replace with how this helps active opportunities move forward.",
+              "contains": [
+                "Replace with the commercial proof, objection handling, or CTA components."
+              ],
+              "inputs_needed": [
+                "Replace with the proof points, case studies, or buyer inputs needed."
+              ]
+            }
+          ]
+        },
+        "why_it_fits": "Replace with why this idea fits the brand and evidence.",
+        "channels": [
+          "Owned content",
+          "PR"
+        ],
+        "press_angle": "Replace with the amplification angle.",
+        "why_it_will_work": "Replace with the mechanism that should make the idea work.",
+        "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
+        "illustration_style_name": "cubist-dossier"
+      },
+      {
+        "title": "Buyer-education campaign",
+        "illustration_url": "slide-assets/example-brand-campaign-buyer-education-campaign.png",
+        "illustration_medium": "editorial artwork",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'Buyer-education campaign'. Use a editorial artwork treatment. The core idea is: Replace with the core concept in plain English.. Art direction: distinctive premium campaign artwork with clear depth, texture, and a strong portrait composition. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
+        "concept": "Replace with the core concept in plain English.",
+        "activation": "Replace with a one-sentence activation summary.",
+        "why_it_fits": "Replace with why this idea fits the brand and evidence.",
+        "channels": [
+          "Owned content",
+          "PR"
+        ],
+        "press_angle": "Replace with the amplification angle.",
+        "why_it_will_work": "Replace with the mechanism that should make the idea work.",
+        "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
+        "illustration_style_name": "generic"
+      },
+      {
+        "title": "Trust and credibility series",
+        "illustration_url": "slide-assets/example-brand-campaign-trust-and-credibility-series.png",
+        "illustration_medium": "punk xerox zine poster",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'Trust and credibility series'. Use a punk xerox zine poster treatment. The core idea is: Replace with the core concept in plain English.. Art direction: chaotic photocopy collage, slashed geometry, blunt contrast, and agit-prop energy. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
+        "concept": "Replace with the core concept in plain English.",
+        "activation": "Replace with a one-sentence activation summary.",
+        "why_it_fits": "Replace with why this idea fits the brand and evidence.",
+        "channels": [
+          "Owned content",
+          "PR"
+        ],
+        "press_angle": "Replace with the amplification angle.",
+        "why_it_will_work": "Replace with the mechanism that should make the idea work.",
+        "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
+        "illustration_style_name": "punk-xerox-zine"
+      },
+      {
+        "title": "Differentiation launch moment",
+        "illustration_url": "slide-assets/example-brand-campaign-differentiation-launch-moment.png",
+        "illustration_medium": "editorial artwork",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'Differentiation launch moment'. Use a editorial artwork treatment. The core idea is: Replace with the core concept in plain English.. Art direction: distinctive premium campaign artwork with clear depth, texture, and a strong portrait composition. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
+        "concept": "Replace with the core concept in plain English.",
+        "activation": "Replace with a one-sentence activation summary.",
+        "why_it_fits": "Replace with why this idea fits the brand and evidence.",
+        "channels": [
+          "Owned content",
+          "PR"
+        ],
+        "press_angle": "Replace with the amplification angle.",
+        "why_it_will_work": "Replace with the mechanism that should make the idea work.",
+        "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
+        "illustration_style_name": "generic"
+      }
+    ],
+    "illustration_prompt_manifest": "slide-assets/example-brand-campaign-illustration-prompts.json"
+  },
+  "opportunities": {
+    "timelines": [
+      {
+        "title": "Next 30 days",
+        "items": [
+          "Replace with the first 30-day action.",
+          "Replace with the second 30-day action."
+        ]
+      },
+      {
+        "title": "Next 60 days",
+        "items": [
+          "Replace with the first 60-day action.",
+          "Replace with the second 60-day action."
+        ]
+      },
+      {
+        "title": "Next 90 days",
+        "items": [
+          "Replace with the first 90-day action.",
+          "Replace with the second 90-day action."
+        ]
+      }
+    ]
+  },
+  "appendix": {
+    "sources_reviewed": [],
+    "missing_data": [],
+    "assumptions_and_confidence_notes": [
+      "Bootstrap summary created from report-data.json rather than live Tavily or Composio calls.",
+      "Replace with the platform readout or public-web monitoring note."
+    ],
+    "locked_sets": {
+      "competitors": [
+        "Competitor A",
+        "Competitor B",
+        "Competitor C"
+      ],
+      "influential_news": [
+        "Replace with influential story #1.",
+        "Replace with influential story #2.",
+        "Replace with influential story #3.",
+        "Replace with influential story #4.",
+        "Replace with influential story #5."
+      ]
+    }
+  },
+  "footer_note": "Prepared in UK English. This report distinguishes observed facts from inference where evidence is limited and is designed to be decision-useful without requiring manual cleanup.",
+  "usp_ksp_review": {
+    "summary": "Replace with the overall read on how distinctive and provable the claims are.",
+    "rows": [
+      {
+        "claim_type": "Claimed USP",
+        "claim_summary": "Replace with the claim being reviewed.",
+        "proof_points": "Replace with the proof currently visible.",
+        "proof_feedback": "Replace with the verdict on whether the proof is strong enough.",
+        "icon_key": "summary"
+      }
+    ],
+    "overall_verdict": {
+      "headline": "Replace with the overall headline verdict.",
+      "uniqueness_verdict": "Replace with the view on whether the proposition is truly distinct.",
+      "who_for": "Replace with who the current proposition seems strongest for."
+    },
+    "cross_section_readout": [
+      {
+        "area": "Messaging implication",
+        "informs_section": "Replace with the linked section.",
+        "sharpens_usp_ksp": "Replace with how that section sharpens the USP/KSP read."
+      },
+      {
+        "area": "Competitive implication",
+        "informs_section": "Replace with the linked section.",
+        "sharpens_usp_ksp": "Replace with how that section sharpens the USP/KSP read."
+      },
+      {
+        "area": "Trust implication",
+        "informs_section": "Replace with the linked section.",
+        "sharpens_usp_ksp": "Replace with how that section sharpens the USP/KSP read."
+      },
+      {
+        "area": "Content implication",
+        "informs_section": "Replace with the linked section.",
+        "sharpens_usp_ksp": "Replace with how that section sharpens the USP/KSP read."
+      }
+    ],
+    "score": "0.0 / 10",
+    "score_summary": "Replace with a short explanation of the USP/KSP score."
+  }
+}

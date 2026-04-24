@@ -1,0 +1,17 @@
+# Skill outputs
+*/newbizintel-report.html
+*/report-data.json
+!examples/report-data.json
+examples/archive/newbizintel-report-portable.html
+examples/run-state.json
+vercel/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# PowerShell temp artifacts
+*.tmp
+
+# Local release artifacts
+dist/

@@ -1,0 +1,30 @@
+{
+  "brand_folder": "C:/codex projects/output/example-brand",
+  "status": {
+    "intake": "pending",
+    "research": "pending",
+    "structure": "pending",
+    "assets": "pending",
+    "campaign_art": "pending",
+    "render": "pending",
+    "qa": "pending",
+    "deploy": "pending"
+  },
+  "gates": {
+    "gate_1_intake": "pending",
+    "gate_2_competitors": "pending",
+    "gate_3_research": "pending",
+    "gate_3a_semrush": "pending",
+    "gate_4_report_data": "pending",
+    "gate_5_assets": "pending",
+    "gate_5a_source_badges": "pending",
+    "gate_5b_campaign_art": "pending",
+    "gate_6_render_outputs": "pending",
+    "gate_7_delivery": "pending"
+  },
+  "locked_sets": {
+    "competitors": [],
+    "influential_news": []
+  },
+  "notes": []
+}

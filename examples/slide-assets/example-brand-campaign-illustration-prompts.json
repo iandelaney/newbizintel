@@ -1,0 +1,40 @@
+{
+  "ideas": [
+    {
+      "title": "Proof-led platform story",
+      "kind": "proof",
+      "style_slug": "cubist-dossier",
+      "medium": "Cubist editorial collage",
+      "delivery_target": "true-raster-artwork",
+      "generator_role": "placeholder-scaffold",
+      "prompt": "Create a tall portrait campaign illustration for 'Proof-led platform story'. Use a Cubist editorial collage treatment. The core idea is: Replace with the core concept in plain English.. Art direction: fractured document planes, angular evidence blocks, and sharp avant-garde editorial tension. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+    },
+    {
+      "title": "Buyer-education campaign",
+      "kind": "generic",
+      "style_slug": "generic",
+      "medium": "editorial artwork",
+      "delivery_target": "true-raster-artwork",
+      "generator_role": "placeholder-scaffold",
+      "prompt": "Create a tall portrait campaign illustration for 'Buyer-education campaign'. Use a editorial artwork treatment. The core idea is: Replace with the core concept in plain English.. Art direction: distinctive premium campaign artwork with clear depth, texture, and a strong portrait composition. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+    },
+    {
+      "title": "Trust and credibility series",
+      "kind": "proof",
+      "style_slug": "punk-xerox-zine",
+      "medium": "punk xerox zine poster",
+      "delivery_target": "true-raster-artwork",
+      "generator_role": "placeholder-scaffold",
+      "prompt": "Create a tall portrait campaign illustration for 'Trust and credibility series'. Use a punk xerox zine poster treatment. The core idea is: Replace with the core concept in plain English.. Art direction: chaotic photocopy collage, slashed geometry, blunt contrast, and agit-prop energy. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+    },
+    {
+      "title": "Differentiation launch moment",
+      "kind": "generic",
+      "style_slug": "generic",
+      "medium": "editorial artwork",
+      "delivery_target": "true-raster-artwork",
+      "generator_role": "placeholder-scaffold",
+      "prompt": "Create a tall portrait campaign illustration for 'Differentiation launch moment'. Use a editorial artwork treatment. The core idea is: Replace with the core concept in plain English.. Art direction: distinctive premium campaign artwork with clear depth, texture, and a strong portrait composition. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+    }
+  ]
+}
