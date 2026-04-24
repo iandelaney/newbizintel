@@ -4,7 +4,10 @@ param(
     [string]$BrandFolder,
     [ValidateSet('bootstrap', 'live-summary')]
     [string]$ResearchMode = 'bootstrap',
-    [string]$ResearchSummaryPath
+    [string]$ResearchSummaryPath,
+    [switch]$UseSemrushApi,
+    [ValidateSet('uk', 'us')]
+    [string]$SemrushDatabase = 'uk'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,6 +26,7 @@ $state.gates.gate_3a_semrush = 'in_progress'
 & $context.save_run_state -Path $context.run_state_path -State $state
 
 $summaryPath = Join-Path $context.brand_folder 'research-summary.json'
+$semrushApiResult = $null
 
 if ($ResearchMode -eq 'bootstrap') {
     $summaryBuild = & $buildResearchSummary -DataPath $context.data_path -OutputPath $summaryPath | ConvertFrom-Json
@@ -46,6 +50,15 @@ else {
         summary = $summaryPath
         mode = $importedSummary.mode
         imported_from = $resolvedResearchSummaryPath
+    }
+}
+
+if ($UseSemrushApi) {
+    $semrushOutputPath = Join-Path $context.brand_folder 'semrush-api-evidence.json'
+    $semrushJson = & (Join-Path $PSScriptRoot 'collect_semrush_api.ps1') -DataPath $context.data_path -Database $SemrushDatabase -OutputPath $semrushOutputPath
+    $semrushApiResult = $semrushJson | ConvertFrom-Json
+    if ([string]$semrushApiResult.status -in @('passed', 'partial')) {
+        & (Join-Path $PSScriptRoot 'apply_semrush_api_evidence.ps1') -ResearchSummaryPath $summaryPath -SemrushEvidencePath $semrushOutputPath | Out-Null
     }
 }
 
@@ -107,5 +120,6 @@ elseif ([string]$summary.status.semrush -eq 'quota-limited') {
     run_state = $context.run_state_path
     research_summary = $summaryPath
     research_mode = $ResearchMode
+    semrush_api = $semrushApiResult
     summary = $summaryBuild
 } | ConvertTo-Json -Depth 8 -Compress

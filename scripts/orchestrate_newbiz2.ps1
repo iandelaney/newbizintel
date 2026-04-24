@@ -5,6 +5,9 @@ param(
     [ValidateSet('bootstrap', 'live-summary')]
     [string]$ResearchMode = 'bootstrap',
     [string]$ResearchSummaryPath,
+    [switch]$UseSemrushApi,
+    [ValidateSet('uk', 'us')]
+    [string]$SemrushDatabase = 'uk',
     [ValidateSet('full','research-only','render-stack','qa-only','deploy-handoff','art-refresh','assets-refresh')]
     [string]$Mode = 'full'
 )
@@ -47,6 +50,8 @@ if ($BrandName) { $baseParams.BrandName = $BrandName }
 if ($BrandFolder) { $baseParams.BrandFolder = $BrandFolder }
 $baseParams.ResearchMode = $ResearchMode
 if ($ResearchSummaryPath) { $baseParams.ResearchSummaryPath = $ResearchSummaryPath }
+if ($UseSemrushApi) { $baseParams.UseSemrushApi = $true }
+if ($SemrushDatabase) { $baseParams.SemrushDatabase = $SemrushDatabase }
 
 $results = [ordered]@{
     mode = $Mode

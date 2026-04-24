@@ -27,6 +27,7 @@ This root skill is only the entrypoint and routing policy. It should not absorb 
 - Use `run-state.json` to support resumable modular runs.
 - Prefer wrapping the copied `newbizintel` scripts over rewriting them.
 - Use the hybrid execution model in `references\hybrid-parallel-agentic-workflow.md`: deterministic parallel jobs for isolated repeatable work, agentic workers only for synthesis, source judgement, campaign thinking, and art direction.
+- For SEMrush, prefer the direct API collector when `SEMRUSH_API_KEY` is available; otherwise use Composio MCP and then Jina/public-web fallback. Never write SEMrush credentials into repo files or report artifacts.
 - Keep the gating discipline. Modularization must not lower the evidence or QA standard.
 - Keep `newbiz2` self-contained and cleanly shareable with colleagues.
 - Do not introduce hidden dependencies on sibling folders or local workspace-only helper paths.
