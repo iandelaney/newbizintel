@@ -30,11 +30,20 @@ WIDTH = 900
 HEIGHT = 1600
 PREMIUM_BACKEND = "imagegen"
 SCAFFOLD_BACKEND = "local-scaffold"
+NEGATIVE_ART_DIRECTION = (
+    "Hard constraints: no words, no letters, no numbers, no captions, no labels, "
+    "no typography, no readable text, no UI copy, no signage. Do not show the target "
+    "brand's logo, no logos, no target brand assets, no wordmark, no colour-coded "
+    "brand assets, no product marks, no app screens, no packaging, and no recognisable "
+    "owned brand identity. Use abstract or symbolic "
+    "forms only for company/product references."
+)
 
 
 STYLE_BY_KIND = {
     "drift": {
         "medium": "cinematic photograph",
+        "family": "photography",
         "style": "vivid photographic realism with atmospheric industrial light, energy glow, and physical depth",
         "palette": {
             "sky_top": "#20303e",
@@ -49,6 +58,7 @@ STYLE_BY_KIND = {
     },
     "control": {
         "medium": "technical diagram",
+        "family": "technical-diagram",
         "style": "precise blueprint systems graphic with crisp linework, deep navy field, and luminous control nodes",
         "palette": {
             "bg": "#071524",
@@ -63,6 +73,7 @@ STYLE_BY_KIND = {
     },
     "proof": {
         "medium": "punk pop-art poster",
+        "family": "print-poster",
         "style": "bold editorial collage with zine energy, halftone texture, torn paper, stamps, and confrontational contrast",
         "palette": {
             "paper": "#f6efe4",
@@ -75,6 +86,7 @@ STYLE_BY_KIND = {
     },
     "portfolio": {
         "medium": "photographed sculpture or maquette",
+        "family": "sculptural-photography",
         "style": "gallery-quality sculptural terrain model with tactile material surfaces, top light, and physical relief",
         "palette": {
             "bg": "#edf2e7",
@@ -88,6 +100,7 @@ STYLE_BY_KIND = {
     },
     "generic": {
         "medium": "editorial artwork",
+        "family": "editorial-artwork",
         "style": "distinctive premium campaign artwork with clear depth, texture, and a strong portrait composition",
         "palette": {
             "bg": "#f2f0ec",
@@ -103,6 +116,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "cosmic-observatory-photo",
             "medium": "cosmic long-exposure photography",
+            "family": "photography",
             "style": "night-sky energy photography with observatory drama, luminous trails, and cinematic scientific atmosphere",
             "renderer": "drift",
             "palette": {
@@ -119,6 +133,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "brushstroke-heatwave",
             "medium": "gestural brushstroke painting",
+            "family": "painting",
             "style": "expressive painterly strokes, hot and cool energy swells, and visible texture from top to bottom",
             "renderer": "drift",
             "palette": {
@@ -135,6 +150,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "seventies-energy-advert",
             "medium": "1970s print advert illustration",
+            "family": "graphic-print-collage",
             "style": "retro ad-art, sun-faded warmth, punchy circles, and optimistic analog campaign drama",
             "renderer": "drift",
             "palette": {
@@ -151,6 +167,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "infrared-aerial-survey",
             "medium": "infrared aerial survey photography",
+            "family": "photography",
             "style": "thermal-imaging landscape, hot loss signatures, and eerie operational contrast across a wide estate",
             "renderer": "drift",
             "palette": {
@@ -167,6 +184,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "noir-comic-storm-front",
             "medium": "graphic novel storm-front illustration",
+            "family": "comic-art",
             "style": "high-contrast comic noir with weather-map energy, heavy shadow, and dramatic motion across the full column",
             "renderer": "drift",
             "palette": {
@@ -183,6 +201,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "oil-pastel-blackout",
             "medium": "oil pastel expressionist painting",
+            "family": "painting",
             "style": "thick tactile pigment, smeared light, and emotional blackout-era energy rather than clean corporate polish",
             "renderer": "drift",
             "palette": {
@@ -201,6 +220,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "neon-schematic",
             "medium": "neon systems schematic",
+            "family": "technical-diagram",
             "style": "dense futuristic circuit map with electric cyan signal paths and disciplined technical geometry",
             "renderer": "control",
             "palette": {
@@ -217,6 +237,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "brutalist-blueprint",
             "medium": "brutalist blueprint diagram",
+            "family": "technical-diagram",
             "style": "spare technical plan, heavier structure, blueprint linework, and hard industrial rigor",
             "renderer": "control",
             "palette": {
@@ -233,6 +254,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "infrared-network-map",
             "medium": "infrared technical interface",
+            "family": "technical-interface",
             "style": "dark operational UI, glowing routing logic, and intense signal contrast for control systems",
             "renderer": "control",
             "palette": {
@@ -249,6 +271,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "swiss-spec-sheet",
             "medium": "Swiss modernist specification plate",
+            "family": "technical-diagram",
             "style": "disciplined grid logic, measured hierarchy, and hard engineering order with minimal but assertive control geometry",
             "renderer": "control",
             "palette": {
@@ -265,6 +288,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "chalkboard-systems-map",
             "medium": "technical chalkboard systems drawing",
+            "family": "hand-drawn-diagram",
             "style": "layered planning marks, live workshop logic, and hand-drawn systems orchestration with dense operational intent",
             "renderer": "control",
             "palette": {
@@ -281,6 +305,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "satellite-control-atlas",
             "medium": "orbital control atlas interface",
+            "family": "technical-interface",
             "style": "cartographic control surfaces, geospatial overlays, and mission-control precision rather than ordinary blueprints",
             "renderer": "control",
             "palette": {
@@ -299,6 +324,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "punk-xerox-zine",
             "medium": "punk xerox zine poster",
+            "family": "graphic-print-collage",
             "style": "chaotic photocopy collage, slashed geometry, blunt contrast, and agit-prop energy",
             "renderer": "proof",
             "palette": {
@@ -313,6 +339,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "pop-silkscreen",
             "medium": "pop-art silkscreen print",
+            "family": "graphic-print-collage",
             "style": "graphic silkscreen blocks, comic-book punch, halftone rhythm, and poster-bold framing",
             "renderer": "proof",
             "palette": {
@@ -327,6 +354,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "cubist-dossier",
             "medium": "Cubist editorial collage",
+            "family": "graphic-print-collage",
             "style": "fractured document planes, angular evidence blocks, and sharp avant-garde editorial tension",
             "renderer": "proof",
             "palette": {
@@ -341,6 +369,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "risograph-manifesto",
             "medium": "risograph editorial broadside",
+            "family": "graphic-print-collage",
             "style": "misregistered ink, radical print-shop texture, and manifesto-like proof stacking with visible production grit",
             "renderer": "proof",
             "palette": {
@@ -355,6 +384,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "courtroom-evidence-wall",
             "medium": "forensic evidence-board collage",
+            "family": "graphic-print-collage",
             "style": "pinned proof fragments, marked exhibits, and investigatory tension that makes claims feel cross-examined",
             "renderer": "proof",
             "palette": {
@@ -369,6 +399,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "tabloid-front-page",
             "medium": "tabloid front-page print layout",
+            "family": "graphic-print-collage",
             "style": "loud front-page urgency, cropped snippets, heavy blocks, and sensational proof framing with editorial aggression",
             "renderer": "proof",
             "palette": {
@@ -385,6 +416,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "clay-maquette",
             "medium": "photographed clay maquette",
+            "family": "sculptural-photography",
             "style": "tactile clay forms, gallery light, and materially real terrain-scale objects",
             "renderer": "portfolio",
             "palette": {
@@ -400,6 +432,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "architectural-foam-model",
             "medium": "architectural foam-core model photography",
+            "family": "sculptural-photography",
             "style": "clean physical model, gallery plinth sensibility, and controlled structural relief",
             "renderer": "portfolio",
             "palette": {
@@ -415,6 +448,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "land-art-relief",
             "medium": "land-art relief sculpture",
+            "family": "sculpture",
             "style": "earthwork topography, carved contour arcs, and tactile landscape-scale growth movement",
             "renderer": "portfolio",
             "palette": {
@@ -430,6 +464,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "bronze-tabletop-sculpture",
             "medium": "bronze tabletop sculpture photography",
+            "family": "sculptural-photography",
             "style": "weighty cast-metal forms, museum lighting, and a sense of durable portfolio-scale infrastructure",
             "renderer": "portfolio",
             "palette": {
@@ -445,6 +480,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "paper-cut-masterplan",
             "medium": "paper-cut masterplan relief",
+            "family": "paper-art",
             "style": "layered paper topography, crisp shadows, and strategic growth pathways laid out like a physical planning model",
             "renderer": "portfolio",
             "palette": {
@@ -460,6 +496,7 @@ SURPRISE_STYLE_LIBRARY = {
         {
             "slug": "ceramic-terrain-installation",
             "medium": "ceramic installation photography",
+            "family": "sculptural-photography",
             "style": "glazed modular terrain, handcrafted physical surfaces, and a more artistic gallery-installation reading of scale-up",
             "renderer": "portfolio",
             "palette": {
@@ -504,6 +541,8 @@ def build_premium_art_brief(
         "- Expected output: one portrait raster image per campaign idea",
         "- Recommended aspect: 9:16 portrait",
         "- Recommended minimum size: 900x1600",
+        "- Hard rule: images must contain no words, letters, numbers, captions, labels, UI copy, signage, logos, wordmarks, product marks, app screens, packaging, or target-brand assets.",
+        "- Style rule: each campaign idea must use a visibly different media family; avoid repeating collage/poster/vector-like treatments across a set.",
         "- Import rule: keep prompt order aligned with image order when importing a generated batch",
         "",
         "## Workflow",
@@ -523,6 +562,7 @@ def build_premium_art_brief(
                 "",
                 f"- Kind: `{item['kind']}`",
                 f"- Style: `{item['style_slug']}`",
+                f"- Media family: `{item['style_family']}`",
                 f"- Medium: `{item['medium']}`",
                 f"- Expected asset path: `{item['expected_asset_path']}`",
                 "",
@@ -561,6 +601,7 @@ def base_profile_for_kind(kind: str) -> dict:
         "slug": kind,
         "kind": kind,
         "medium": profile["medium"],
+        "family": profile.get("family", kind),
         "style": profile["style"],
         "renderer": kind,
         "palette": dict(profile["palette"]),
@@ -575,8 +616,17 @@ def build_bitmap_prompt(title: str, concept: str, profile: dict) -> str:
         f"Art direction: {profile['style']}. "
         "Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. "
         "Avoid generic flat corporate vector art. "
-        "Make it visually distinct from the other campaign ideas and premium in finish."
+        "Make it visually distinct from the other campaign ideas and premium in finish. "
+        f"{NEGATIVE_ART_DIRECTION}"
     )
+
+
+def enforce_prompt_contract(prompt: str) -> str:
+    prompt = (prompt or "").strip()
+    if not prompt:
+        return NEGATIVE_ART_DIRECTION
+    prompt = re.sub(r"\s*Hard constraints:.*$", "", prompt, flags=re.IGNORECASE | re.DOTALL).strip()
+    return f"{prompt} {NEGATIVE_ART_DIRECTION}"
 
 
 def scaffold_allowed(delivery_mode: str, generation_backend: str) -> bool:
@@ -935,7 +985,9 @@ def build_bitmap(profile: dict) -> Image.Image:
     return draw_generic(palette)
 
 
-def choose_profile(kind: str, used_slugs: set[str], surprise_mode: bool) -> dict:
+def choose_profile(
+    kind: str, used_slugs: set[str], used_families: set[str], surprise_mode: bool
+) -> dict:
     if not surprise_mode:
         return base_profile_for_kind(kind)
 
@@ -946,8 +998,25 @@ def choose_profile(kind: str, used_slugs: set[str], surprise_mode: bool) -> dict
     else:
         pool = [dict(item, kind=kind) for item in SURPRISE_STYLE_LIBRARY.get(kind, [])]
 
-    available = [item for item in pool if item["slug"] not in used_slugs]
+    available = [
+        item
+        for item in pool
+        if item["slug"] not in used_slugs and item.get("family") not in used_families
+    ]
     if not available and kind != "generic":
+        fallback_pool = []
+        for library_kind, items in SURPRISE_STYLE_LIBRARY.items():
+            fallback_pool.extend(dict(item, kind=library_kind) for item in items)
+        available = [
+            item
+            for item in fallback_pool
+            if item["slug"] not in used_slugs and item.get("family") not in used_families
+        ]
+
+    if not available:
+        available = [item for item in pool if item["slug"] not in used_slugs]
+
+    if not available:
         fallback_pool = []
         for library_kind, items in SURPRISE_STYLE_LIBRARY.items():
             fallback_pool.extend(dict(item, kind=library_kind) for item in items)
@@ -958,6 +1027,7 @@ def choose_profile(kind: str, used_slugs: set[str], surprise_mode: bool) -> dict
 
     profile = random.SystemRandom().choice(available)
     used_slugs.add(profile["slug"])
+    used_families.add(profile.get("family", profile["slug"]))
     return profile
 
 
@@ -1003,6 +1073,7 @@ def generate(
     pending = 0
     prompt_manifest: list[dict[str, str]] = []
     used_slugs: set[str] = set()
+    used_families: set[str] = set()
 
     for idea in ideas:
         title = (idea.get("title") or "").strip()
@@ -1010,16 +1081,26 @@ def generate(
             continue
         concept = (idea.get("concept") or idea.get("addresses") or "").strip()
         existing_medium = idea.get("illustration_medium") or ""
+        existing_style_name = (idea.get("illustration_style_name") or "").strip()
+        existing_style_family = (idea.get("illustration_style_family") or "").strip()
         kind = motif_key(title, concept, existing_medium)
         if surprise_mode:
-            profile = choose_profile(kind, used_slugs, surprise_mode=True)
+            profile = choose_profile(kind, used_slugs, used_families, surprise_mode=True)
             medium = profile["medium"]
             prompt = build_bitmap_prompt(title, concept, profile)
         else:
             profile = base_profile_for_kind(kind)
             medium = existing_medium or profile["medium"]
             profile["medium"] = medium
+            if existing_style_name:
+                profile["slug"] = existing_style_name
+            if existing_style_family:
+                profile["family"] = existing_style_family
+            profile["family"] = profile.get("family", kind)
             prompt = idea.get("illustration_prompt") or build_bitmap_prompt(title, concept, profile)
+            used_slugs.add(profile["slug"])
+            used_families.add(profile.get("family", profile["slug"]))
+        prompt = enforce_prompt_contract(prompt)
         destination = output_path_for_idea(asset_dir, brand_slug, title, idea.get("illustration_url") or "")
         destination.parent.mkdir(parents=True, exist_ok=True)
         prompt_manifest.append(
@@ -1028,6 +1109,7 @@ def generate(
                 "title": title,
                 "kind": kind,
                 "style_slug": profile["slug"],
+                "style_family": profile.get("family", profile["slug"]),
                 "medium": medium,
                 "delivery_target": "true-raster-artwork",
                 "generation_backend": generation_backend,
@@ -1041,6 +1123,7 @@ def generate(
         idea["illustration_medium"] = medium
         idea["illustration_prompt"] = prompt
         idea["illustration_style_name"] = profile["slug"]
+        idea["illustration_style_family"] = profile.get("family", profile["slug"])
         idea["illustration_delivery_target"] = "true-raster-artwork"
         idea["illustration_generation_backend"] = generation_backend
 
