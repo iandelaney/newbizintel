@@ -27,6 +27,21 @@
     "semrush_evidence": [],
     "priority_issues": []
   },
+  "semrush_plan": {
+    "provider": "Composio MCP",
+    "backup_provider": "Jina AI",
+    "requests": [
+      {
+        "priority": 1,
+        "tool": "SEMRUSH_DOMAIN_ORGANIC_SEARCH_KEYWORDS",
+        "parameters": {
+          "domain": "example.com",
+          "database": "uk"
+        },
+        "why": "Primary evidence for keyword demand, ranking gaps, and SEO opportunity sizing."
+      }
+    ]
+  },
   "tavily_validation": {
     "competitor_discovery": {
       "status": "passed",
@@ -108,10 +123,11 @@
     "recent_news": "passed",
     "reputation_public_web": "passed",
     "source_gathering": "passed",
-    "semrush": "blocked"
+    "semrush": "quota-limited"
   },
   "notes": [
     "Live-assisted research summary created in Codex from current-web tools and imported into newbiz2.",
-    "Use Jina as the backup current-web layer when Tavily is blocked or quota-limited."
+    "Use Composio, not Rube, for SEMrush access.",
+    "Use Jina as the backup current-web layer when Tavily or SEMrush is blocked or quota-limited."
   ]
 }

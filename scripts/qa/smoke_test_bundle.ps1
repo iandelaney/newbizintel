@@ -12,6 +12,8 @@ $results = [ordered]@{}
 
 $results.schema_validation = & (Join-Path $PSScriptRoot '..\structure\validate_report_data.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
 $results.asset_validation = & (Join-Path $PSScriptRoot '..\assets\validate_brand_assets.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
+$results.source_badges = & (Join-Path $PSScriptRoot '..\assets\build_source_badge_manifest.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
+$results.editorial = & (Join-Path $PSScriptRoot 'audit_editorial_quality.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
 
 $renderParams = @{ DataPath = $resolvedDataPath }
 if ($TemplatePath) {
@@ -37,6 +39,7 @@ if ($portableHtml -match '(?i)<img\b[^>]*\bsrc="https?://') {
 }
 
 $results.export = $exportResult
+$results.pptx = & (Join-Path $PSScriptRoot 'audit_pptx_output.ps1') -PptxPath $exportResult.pptx | ConvertFrom-Json
 
 $bundleResult = & (Join-Path $PSScriptRoot '..\render\build_report_bundle.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
 $results.bundle = $bundleResult
@@ -46,9 +49,12 @@ $results.bundle = $bundleResult
     data = $resolvedDataPath
     schema_validation = $results.schema_validation
     asset_validation = $results.asset_validation
+    source_badges = $results.source_badges
+    editorial = $results.editorial
     render_html = $results.render.html
     presentation = $results.presentation
     archive_html = $results.export.archive.html
     pptx = $results.export.pptx
+    pptx_audit = $results.pptx
     bundle = $results.bundle
 } | ConvertTo-Json -Depth 8 -Compress

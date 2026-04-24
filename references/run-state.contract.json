@@ -20,7 +20,13 @@
     "gate_5a_source_badges": "pending",
     "gate_5b_campaign_art": "pending",
     "gate_6_render_outputs": "pending",
+    "gate_6a_editorial_quality": "pending",
     "gate_7_delivery": "pending"
+  },
+  "freshness": {
+    "research_summary_hash": "",
+    "report_data_hash": "",
+    "stale_reason": ""
   },
   "locked_sets": {
     "competitors": [],

@@ -17,7 +17,7 @@ function Test-HasValue {
     return $true
 }
 
-$allowedStatuses = @('pending', 'passed', 'blocked', 'failed')
+$allowedStatuses = @('pending', 'passed', 'partial', 'quota-limited', 'blocked', 'failed')
 $allowedCurrentWebTools = @('tavily', 'jina', 'tavily+jina', 'jina+tavily')
 $requiredValidationKeys = @('competitor_discovery', 'recent_news', 'reputation_public_web', 'source_gathering')
 $errors = New-Object System.Collections.Generic.List[string]

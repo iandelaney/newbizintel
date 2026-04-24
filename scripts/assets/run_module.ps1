@@ -11,8 +11,10 @@ $state = $context.state
 
 $state.status.assets = 'in_progress'
 $state.gates.gate_5_assets = 'in_progress'
+$state.gates.gate_5a_source_badges = 'in_progress'
 & $context.save_run_state -Path $context.run_state_path -State $state
 
+$sourceBadges = & (Join-Path $PSScriptRoot 'build_source_badge_manifest.ps1') -DataPath $context.data_path | ConvertFrom-Json
 $validation = & (Join-Path $PSScriptRoot 'validate_brand_assets.ps1') -DataPath $context.data_path | ConvertFrom-Json
 
 $state.status.assets = 'passed'
@@ -25,5 +27,6 @@ $state.gates.gate_5a_source_badges = 'passed'
     data = $context.data_path
     brand_folder = $context.brand_folder
     run_state = $context.run_state_path
+    source_badges = $sourceBadges
     validation = $validation
 } | ConvertTo-Json -Depth 8 -Compress

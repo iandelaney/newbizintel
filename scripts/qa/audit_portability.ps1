@@ -27,6 +27,10 @@ $findings = @()
 
 Get-ChildItem -LiteralPath $resolvedRepoRoot -File -Recurse | ForEach-Object {
     $path = $_.FullName
+    if ((Split-Path -Leaf $path) -eq 'source-badge-manifest.json') {
+        return
+    }
+
     $allowed = $false
 
     foreach ($fragment in $allowedPathFragments) {

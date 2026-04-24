@@ -10,12 +10,17 @@ $context = & (Join-Path $PSScriptRoot '..\common\get_run_context.ps1') -DataPath
 $state = $context.state
 
 $state.status.qa = 'in_progress'
+$state.gates.gate_6_render_outputs = 'in_progress'
+$state.gates.gate_6a_editorial_quality = 'in_progress'
 & $context.save_run_state -Path $context.run_state_path -State $state
 
 $qa = & (Join-Path $PSScriptRoot 'smoke_test_bundle.ps1') -DataPath $context.data_path | ConvertFrom-Json
+$editorial = & (Join-Path $PSScriptRoot 'audit_editorial_quality.ps1') -DataPath $context.data_path | ConvertFrom-Json
+$pptx = & (Join-Path $PSScriptRoot 'audit_pptx_output.ps1') -PptxPath $qa.pptx | ConvertFrom-Json
 
 $state.status.qa = 'passed'
 $state.gates.gate_6_render_outputs = 'passed'
+$state.gates.gate_6a_editorial_quality = 'passed'
 & $context.save_run_state -Path $context.run_state_path -State $state
 
 [pscustomobject]@{
@@ -24,4 +29,6 @@ $state.gates.gate_6_render_outputs = 'passed'
     brand_folder = $context.brand_folder
     run_state = $context.run_state_path
     qa = $qa
+    editorial = $editorial
+    pptx = $pptx
 } | ConvertTo-Json -Depth 8 -Compress

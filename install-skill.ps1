@@ -28,6 +28,7 @@ New-Item -ItemType Directory -Path $destination | Out-Null
 $items = @(
     'SKILL.md',
     'agents',
+    'assets',
     'package.json',
     'package-lock.json',
     'references',

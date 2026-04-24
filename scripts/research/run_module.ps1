@@ -10,6 +10,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $context = & (Join-Path $PSScriptRoot '..\common\get_run_context.ps1') -DataPath $DataPath -BrandName $BrandName -BrandFolder $BrandFolder
+. (Join-Path $PSScriptRoot '..\common\state_freshness.ps1')
 $state = $context.state
 $buildResearchSummary = Join-Path $PSScriptRoot 'build_research_summary.ps1'
 $validateResearchSummary = Join-Path $PSScriptRoot 'validate_research_summary.ps1'
@@ -49,13 +50,15 @@ else {
 }
 
 $summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
+Update-ResearchSummaryFreshness -State $state -SummaryPath $summaryPath
 
 $state.locked_sets.competitors = @($summary.locked_sets.competitors)
 $state.locked_sets.influential_news = @($summary.locked_sets.influential_news)
 $state.notes = @($state.notes | Where-Object {
     $_ -ne 'Research module currently runs in bootstrap-from-report-data mode.' -and
     $_ -ne 'Research module is using an imported live research summary.' -and
-    $_ -ne 'SEMrush evidence is currently blocked in the imported live research summary.'
+    $_ -ne 'SEMrush evidence is currently blocked in the imported live research summary.' -and
+    $_ -ne 'SEMrush evidence is quota-limited; keep the Composio request plan with the workpack and use Jina/public web as backup evidence.'
 })
 
 if ([string]$summary.mode -eq 'bootstrap-from-report-data') {
@@ -90,6 +93,9 @@ $state.gates.gate_3_research = $state.status.research
 $state.gates.gate_3a_semrush = $summary.status.semrush
 if ([string]$summary.status.semrush -eq 'blocked') {
     $state.notes += 'SEMrush evidence is currently blocked in the imported live research summary.'
+}
+elseif ([string]$summary.status.semrush -eq 'quota-limited') {
+    $state.notes += 'SEMrush evidence is quota-limited; keep the Composio request plan with the workpack and use Jina/public web as backup evidence.'
 }
 
 & $context.save_run_state -Path $context.run_state_path -State $state
