@@ -1,48 +1,62 @@
 {
+  "generated_at": "2026-04-24T13:10:07.395096+00:00",
+  "brand_name": "Example Brand",
+  "brand_slug": "example-brand",
+  "delivery_mode": "scaffold-allowed",
+  "generation_backend": "local-scaffold",
+  "asset_dir": "slide-assets",
   "ideas": [
     {
+      "sequence": 1,
       "title": "Proof-led platform story",
       "kind": "proof",
-      "style_slug": "risograph-manifesto",
-      "medium": "risograph editorial broadside",
+      "style_slug": "tabloid-front-page",
+      "medium": "tabloid front-page print layout",
       "delivery_target": "true-raster-artwork",
       "generation_backend": "local-scaffold",
       "generator_role": "placeholder-scaffold",
       "expected_asset_path": "slide-assets/example-brand-campaign-proof-led-platform-story.png",
-      "prompt": "Create a tall portrait campaign illustration for 'Proof-led platform story'. Use a risograph editorial broadside treatment. The core idea is: Replace with the core concept in plain English.. Art direction: misregistered ink, radical print-shop texture, and manifesto-like proof stacking with visible production grit. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+      "expected_filename": "example-brand-campaign-proof-led-platform-story.png",
+      "prompt": "Create a tall portrait campaign illustration for 'Proof-led platform story'. Use a tabloid front-page print layout treatment. The core idea is: Replace with the core concept in plain English.. Art direction: loud front-page urgency, cropped snippets, heavy blocks, and sensational proof framing with editorial aggression. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
     },
     {
+      "sequence": 2,
       "title": "Buyer-education campaign",
-      "kind": "drift",
-      "style_slug": "noir-comic-storm-front",
-      "medium": "graphic novel storm-front illustration",
+      "kind": "control",
+      "style_slug": "satellite-control-atlas",
+      "medium": "orbital control atlas interface",
       "delivery_target": "true-raster-artwork",
       "generation_backend": "local-scaffold",
       "generator_role": "placeholder-scaffold",
       "expected_asset_path": "slide-assets/example-brand-campaign-buyer-education-campaign.png",
-      "prompt": "Create a tall portrait campaign illustration for 'Buyer-education campaign'. Use a graphic novel storm-front illustration treatment. The core idea is: Replace with the core concept in plain English.. Art direction: high-contrast comic noir with weather-map energy, heavy shadow, and dramatic motion across the full column. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+      "expected_filename": "example-brand-campaign-buyer-education-campaign.png",
+      "prompt": "Create a tall portrait campaign illustration for 'Buyer-education campaign'. Use a orbital control atlas interface treatment. The core idea is: Replace with the core concept in plain English.. Art direction: cartographic control surfaces, geospatial overlays, and mission-control precision rather than ordinary blueprints. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
     },
     {
+      "sequence": 3,
       "title": "Trust and credibility series",
       "kind": "proof",
-      "style_slug": "courtroom-evidence-wall",
-      "medium": "forensic evidence-board collage",
+      "style_slug": "pop-silkscreen",
+      "medium": "pop-art silkscreen print",
       "delivery_target": "true-raster-artwork",
       "generation_backend": "local-scaffold",
       "generator_role": "placeholder-scaffold",
       "expected_asset_path": "slide-assets/example-brand-campaign-trust-and-credibility-series.png",
-      "prompt": "Create a tall portrait campaign illustration for 'Trust and credibility series'. Use a forensic evidence-board collage treatment. The core idea is: Replace with the core concept in plain English.. Art direction: pinned proof fragments, marked exhibits, and investigatory tension that makes claims feel cross-examined. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+      "expected_filename": "example-brand-campaign-trust-and-credibility-series.png",
+      "prompt": "Create a tall portrait campaign illustration for 'Trust and credibility series'. Use a pop-art silkscreen print treatment. The core idea is: Replace with the core concept in plain English.. Art direction: graphic silkscreen blocks, comic-book punch, halftone rhythm, and poster-bold framing. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
     },
     {
+      "sequence": 4,
       "title": "Differentiation launch moment",
-      "kind": "portfolio",
-      "style_slug": "land-art-relief",
-      "medium": "land-art relief sculpture",
+      "kind": "generic",
+      "style_slug": "cosmic-observatory-photo",
+      "medium": "cosmic long-exposure photography",
       "delivery_target": "true-raster-artwork",
       "generation_backend": "local-scaffold",
       "generator_role": "placeholder-scaffold",
       "expected_asset_path": "slide-assets/example-brand-campaign-differentiation-launch-moment.png",
-      "prompt": "Create a tall portrait campaign illustration for 'Differentiation launch moment'. Use a land-art relief sculpture treatment. The core idea is: Replace with the core concept in plain English.. Art direction: earthwork topography, carved contour arcs, and tactile landscape-scale growth movement. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+      "expected_filename": "example-brand-campaign-differentiation-launch-moment.png",
+      "prompt": "Create a tall portrait campaign illustration for 'Differentiation launch moment'. Use a cosmic long-exposure photography treatment. The core idea is: Replace with the core concept in plain English.. Art direction: night-sky energy photography with observatory drama, luminous trails, and cinematic scientific atmosphere. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
     }
   ]
 }

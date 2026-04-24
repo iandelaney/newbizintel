@@ -65,6 +65,35 @@ What works today:
 - the full modular chain is proven on the real Univers brand folder through `research -> structure -> assets -> campaign-art -> render -> qa -> deploy-handoff`
 - premium Creative Campaign art now defaults to prompt-driven image-generated raster artwork, with local scaffold placeholders allowed only when a report explicitly opts into scaffold mode
 
+## Premium campaign art
+
+The premium Creative Campaign path is now:
+
+1. Prepare prompts and handoff files:
+
+```powershell
+& .\scripts\campaign-art\run_module.ps1 -DataPath .\output\<brand>\report-data.json
+```
+
+2. Generate one raster image per prompt from the produced brief and manifest:
+
+- `slide-assets/<brand>-campaign-illustration-prompts.json`
+- `slide-assets/<brand>-campaign-art-brief.md`
+
+3. Import the resulting batch and clear the campaign-art gate:
+
+```powershell
+& .\scripts\campaign-art\run_module.ps1 -DataPath .\output\<brand>\report-data.json -ImportSourceDir <folder-with-final-images>
+```
+
+Or, when the images were just created by Codex image generation:
+
+```powershell
+& .\scripts\campaign-art\run_module.ps1 -DataPath .\output\<brand>\report-data.json -ImportLatestGeneratedBatch
+```
+
+The import step normalizes the images into the expected portrait PNG outputs, marks them as `final-raster-artwork`, and lets QA distinguish true final art from placeholder scaffold output.
+
 ## Colleague install
 
 `newbiz2` is intended to be installable on both Windows and macOS.

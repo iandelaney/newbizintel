@@ -506,8 +506,8 @@
       {
         "title": "Proof-led platform story",
         "illustration_url": "slide-assets/example-brand-campaign-proof-led-platform-story.png",
-        "illustration_medium": "punk xerox zine poster",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'Proof-led platform story'. Use a punk xerox zine poster treatment. The core idea is: Replace with the core concept in plain English.. Art direction: chaotic photocopy collage, slashed geometry, blunt contrast, and agit-prop energy. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "illustration_medium": "tabloid front-page print layout",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'Proof-led platform story'. Use a tabloid front-page print layout treatment. The core idea is: Replace with the core concept in plain English.. Art direction: loud front-page urgency, cropped snippets, heavy blocks, and sensational proof framing with editorial aggression. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
         "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
         "concept": "Replace with the core concept in plain English.",
         "activation": "Replace with a one-sentence activation summary.",
@@ -555,15 +555,16 @@
         "press_angle": "Replace with the amplification angle.",
         "why_it_will_work": "Replace with the mechanism that should make the idea work.",
         "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
-        "illustration_style_name": "punk-xerox-zine",
+        "illustration_style_name": "tabloid-front-page",
         "illustration_delivery_target": "true-raster-artwork",
-        "illustration_asset_role": "placeholder-scaffold"
+        "illustration_asset_role": "placeholder-scaffold",
+        "illustration_generation_backend": "local-scaffold"
       },
       {
         "title": "Buyer-education campaign",
         "illustration_url": "slide-assets/example-brand-campaign-buyer-education-campaign.png",
-        "illustration_medium": "infrared technical interface",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'Buyer-education campaign'. Use a infrared technical interface treatment. The core idea is: Replace with the core concept in plain English.. Art direction: dark operational UI, glowing routing logic, and intense signal contrast for control systems. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "illustration_medium": "orbital control atlas interface",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'Buyer-education campaign'. Use a orbital control atlas interface treatment. The core idea is: Replace with the core concept in plain English.. Art direction: cartographic control surfaces, geospatial overlays, and mission-control precision rather than ordinary blueprints. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
         "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
         "concept": "Replace with the core concept in plain English.",
         "activation": "Replace with a one-sentence activation summary.",
@@ -575,15 +576,16 @@
         "press_angle": "Replace with the amplification angle.",
         "why_it_will_work": "Replace with the mechanism that should make the idea work.",
         "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
-        "illustration_style_name": "infrared-network-map",
+        "illustration_style_name": "satellite-control-atlas",
         "illustration_delivery_target": "true-raster-artwork",
-        "illustration_asset_role": "placeholder-scaffold"
+        "illustration_asset_role": "placeholder-scaffold",
+        "illustration_generation_backend": "local-scaffold"
       },
       {
         "title": "Trust and credibility series",
         "illustration_url": "slide-assets/example-brand-campaign-trust-and-credibility-series.png",
-        "illustration_medium": "Cubist editorial collage",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'Trust and credibility series'. Use a Cubist editorial collage treatment. The core idea is: Replace with the core concept in plain English.. Art direction: fractured document planes, angular evidence blocks, and sharp avant-garde editorial tension. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "illustration_medium": "pop-art silkscreen print",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'Trust and credibility series'. Use a pop-art silkscreen print treatment. The core idea is: Replace with the core concept in plain English.. Art direction: graphic silkscreen blocks, comic-book punch, halftone rhythm, and poster-bold framing. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
         "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
         "concept": "Replace with the core concept in plain English.",
         "activation": "Replace with a one-sentence activation summary.",
@@ -595,15 +597,16 @@
         "press_angle": "Replace with the amplification angle.",
         "why_it_will_work": "Replace with the mechanism that should make the idea work.",
         "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
-        "illustration_style_name": "cubist-dossier",
+        "illustration_style_name": "pop-silkscreen",
         "illustration_delivery_target": "true-raster-artwork",
-        "illustration_asset_role": "placeholder-scaffold"
+        "illustration_asset_role": "placeholder-scaffold",
+        "illustration_generation_backend": "local-scaffold"
       },
       {
         "title": "Differentiation launch moment",
         "illustration_url": "slide-assets/example-brand-campaign-differentiation-launch-moment.png",
-        "illustration_medium": "land-art relief sculpture",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'Differentiation launch moment'. Use a land-art relief sculpture treatment. The core idea is: Replace with the core concept in plain English.. Art direction: earthwork topography, carved contour arcs, and tactile landscape-scale growth movement. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "illustration_medium": "cosmic long-exposure photography",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'Differentiation launch moment'. Use a cosmic long-exposure photography treatment. The core idea is: Replace with the core concept in plain English.. Art direction: night-sky energy photography with observatory drama, luminous trails, and cinematic scientific atmosphere. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
         "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
         "concept": "Replace with the core concept in plain English.",
         "activation": "Replace with a one-sentence activation summary.",
@@ -615,12 +618,15 @@
         "press_angle": "Replace with the amplification angle.",
         "why_it_will_work": "Replace with the mechanism that should make the idea work.",
         "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
-        "illustration_style_name": "land-art-relief",
+        "illustration_style_name": "cosmic-observatory-photo",
         "illustration_delivery_target": "true-raster-artwork",
-        "illustration_asset_role": "placeholder-scaffold"
+        "illustration_asset_role": "placeholder-scaffold",
+        "illustration_generation_backend": "local-scaffold"
       }
     ],
-    "illustration_prompt_manifest": "slide-assets/example-brand-campaign-illustration-prompts.json"
+    "illustration_prompt_manifest": "slide-assets/example-brand-campaign-illustration-prompts.json",
+    "illustration_generation_backend": "local-scaffold",
+    "illustration_prompt_brief": "slide-assets/example-brand-campaign-art-brief.md"
   },
   "opportunities": {
     "timelines": [

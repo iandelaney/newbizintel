@@ -19,6 +19,7 @@ import json
 import math
 import random
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
@@ -484,6 +485,55 @@ def relative_asset_path(asset_dir: Path, path: Path) -> str:
     return path.relative_to(asset_dir.parent).as_posix()
 
 
+def build_premium_art_brief(
+    *,
+    brand_name: str,
+    brand_slug: str,
+    generation_backend: str,
+    delivery_mode: str,
+    manifest_path: Path,
+    prompt_manifest: list[dict[str, str]],
+) -> str:
+    lines = [
+        f"# {brand_name} creative campaign artwork brief",
+        "",
+        f"- Brand slug: `{brand_slug}`",
+        f"- Delivery mode: `{delivery_mode}`",
+        f"- Generation backend: `{generation_backend}`",
+        f"- Prompt manifest: `{manifest_path.name}`",
+        "- Expected output: one portrait raster image per campaign idea",
+        "- Recommended aspect: 9:16 portrait",
+        "- Recommended minimum size: 900x1600",
+        "- Import rule: keep prompt order aligned with image order when importing a generated batch",
+        "",
+        "## Workflow",
+        "",
+        "1. Generate one final raster image for each prompt below.",
+        "2. Keep the output order aligned with the numbered prompts.",
+        "3. Import the resulting batch back into newbiz2 using the campaign-art module.",
+        "",
+        "## Prompts",
+        "",
+    ]
+
+    for item in prompt_manifest:
+        lines.extend(
+            [
+                f"### {item['sequence']}. {item['title']}",
+                "",
+                f"- Kind: `{item['kind']}`",
+                f"- Style: `{item['style_slug']}`",
+                f"- Medium: `{item['medium']}`",
+                f"- Expected asset path: `{item['expected_asset_path']}`",
+                "",
+                item["prompt"].strip(),
+                "",
+            ]
+        )
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def motif_key(title: str, concept: str, medium: str = "") -> str:
     source = f"{medium} {title} {concept}".lower()
     if "sculpt" in source or "maquette" in source or "relief" in source:
@@ -921,9 +971,12 @@ def output_path_for_idea(asset_dir: Path, brand_slug: str, title: str, raw_value
     return asset_dir / f"{brand_slug}-campaign-{slugify(title)}.png"
 
 
-def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path], int]:
+def generate(
+    data_path: Path, overwrite: bool
+) -> tuple[int, list[Path], int, Path, Path]:
     data = json.loads(data_path.read_text(encoding="utf-8"))
     brand = data.get("brand", {})
+    brand_name = brand.get("name") or data_path.parent.name
     brand_slug = slugify(brand.get("slug") or brand.get("name") or data_path.parent.name)
     asset_dir = data_path.parent / "slide-assets"
     asset_dir.mkdir(parents=True, exist_ok=True)
@@ -971,6 +1024,7 @@ def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path], int]:
         destination.parent.mkdir(parents=True, exist_ok=True)
         prompt_manifest.append(
             {
+                "sequence": len(prompt_manifest) + 1,
                 "title": title,
                 "kind": kind,
                 "style_slug": profile["slug"],
@@ -979,6 +1033,7 @@ def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path], int]:
                 "generation_backend": generation_backend,
                 "generator_role": "placeholder-scaffold" if allow_scaffold else "prompt-only-premium-default",
                 "expected_asset_path": relative_asset_path(asset_dir, destination),
+                "expected_filename": destination.name,
                 "prompt": prompt,
             }
         )
@@ -1021,13 +1076,35 @@ def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path], int]:
         written.append(destination)
 
     manifest_path = asset_dir / f"{brand_slug}-campaign-illustration-prompts.json"
+    manifest_payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "brand_name": brand_name,
+        "brand_slug": brand_slug,
+        "delivery_mode": delivery_mode,
+        "generation_backend": generation_backend,
+        "asset_dir": asset_dir.name,
+        "ideas": prompt_manifest,
+    }
     manifest_path.write_text(
-        json.dumps({"ideas": prompt_manifest}, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(manifest_payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    brief_path = asset_dir / f"{brand_slug}-campaign-art-brief.md"
+    brief_path.write_text(
+        build_premium_art_brief(
+            brand_name=brand_name,
+            brand_slug=brand_slug,
+            generation_backend=generation_backend,
+            delivery_mode=delivery_mode,
+            manifest_path=manifest_path,
+            prompt_manifest=prompt_manifest,
+        ),
         encoding="utf-8",
     )
     section["illustration_prompt_manifest"] = relative_asset_path(asset_dir, manifest_path)
+    section["illustration_prompt_brief"] = relative_asset_path(asset_dir, brief_path)
     data_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return len(written), written, pending
+    return len(written), written, pending, manifest_path, brief_path
 
 
 def main() -> int:
@@ -1040,12 +1117,16 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    count, written, pending = generate(Path(args.data).resolve(), overwrite=args.overwrite)
+    count, written, pending, manifest_path, brief_path = generate(
+        Path(args.data).resolve(), overwrite=args.overwrite
+    )
     payload = {
         "data": str(Path(args.data).resolve()),
         "generated": count,
         "pending_final_raster": pending,
         "files": [str(path) for path in written],
+        "prompt_manifest": str(manifest_path),
+        "prompt_brief": str(brief_path),
         "overwrite": bool(args.overwrite),
     }
     print(json.dumps(payload, separators=(",", ":")))

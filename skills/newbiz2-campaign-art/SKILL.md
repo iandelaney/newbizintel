@@ -28,3 +28,15 @@ Rules:
 - treat `illustration_generation_backend: "imagegen"` as the premium default
 - do not overwrite existing campaign artwork by default when a report may already contain approved final raster assets
 - mark scaffold output honestly so QA can distinguish placeholder art from final artwork
+
+Premium workflow:
+
+1. Run the campaign-art module once to generate:
+   - `illustration_prompt_manifest`
+   - `illustration_prompt_brief`
+   - expected output filenames
+2. Generate one real raster image per prompt.
+3. Import those images back into the report with:
+   - `run_module.ps1 -ImportSourceDir <folder>`
+   - or `run_module.ps1 -ImportLatestGeneratedBatch`
+4. Only treat the campaign-art gate as passed when ideas are marked `final-raster-artwork`.
