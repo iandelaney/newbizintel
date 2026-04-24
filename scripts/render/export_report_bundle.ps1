@@ -76,7 +76,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if ($DataPath) {
-    & $python -c "import pptx" 2>$null
+    & $python (Join-Path $PSScriptRoot 'report_data_to_pptx.py') --help >$null 2>$null
     if ($LASTEXITCODE -eq 0) {
         & $python (Join-Path $PSScriptRoot 'report_data_to_pptx.py') --data $DataPath --pptx $pptxPath | Out-Null
         if ($LASTEXITCODE -ne 0) {
@@ -84,7 +84,7 @@ if ($DataPath) {
         }
     }
     else {
-        $archiveWarnings += 'PPTX export skipped because python-pptx is not installed in the active runtime.'
+        $archiveWarnings += 'PPTX export skipped because the PPTX runtime is unavailable.'
         $archivePptxPath = $null
     }
 }

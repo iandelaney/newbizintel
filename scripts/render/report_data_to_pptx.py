@@ -10,7 +10,7 @@ import urllib.request
 from pathlib import Path
 
 def enable_vendor_site(runtime_name):
-    vendor_site = Path(__file__).resolve().parents[1] / 'vendor' / runtime_name
+    vendor_site = Path(__file__).resolve().parents[2] / 'vendor' / runtime_name
     if not vendor_site.exists():
         return
     if sys.platform != "win32" and any(vendor_site.rglob("*.pyd")):
