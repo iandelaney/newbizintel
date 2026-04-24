@@ -8,6 +8,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$taskListScript = Join-Path $PSScriptRoot 'task_list.ps1'
+if (Test-Path -LiteralPath $taskListScript) {
+    . $taskListScript
+    Ensure-NewBizTaskList -State $State
+    Sync-NewBizTaskStatusFromGates -State $State
+}
+
 $directory = Split-Path -Parent $Path
 if ($directory) {
     New-Item -ItemType Directory -Force -Path $directory | Out-Null

@@ -11,6 +11,7 @@ $loadRunState = Join-Path $repoRoot 'scripts\common\load_run_state.ps1'
 $saveRunState = Join-Path $repoRoot 'scripts\common\save_run_state.ps1'
 $initBrandWorkspace = Join-Path $repoRoot 'scripts\intake\init_brand_workspace.ps1'
 $contractPath = Join-Path $repoRoot 'references\run-state.contract.json'
+. (Join-Path $repoRoot 'scripts\common\task_list.ps1')
 
 if (-not $DataPath) {
     if (-not $BrandName) {
@@ -42,6 +43,9 @@ else {
     $state = Get-Content -LiteralPath $contractPath -Raw | ConvertFrom-Json
     $state.brand_folder = $resolvedBrandFolder
 }
+
+Ensure-NewBizTaskList -State $state
+Sync-NewBizTaskStatusFromGates -State $state
 
 [pscustomobject]@{
     repo_root = $repoRoot

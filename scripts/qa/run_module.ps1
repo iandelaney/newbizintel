@@ -23,6 +23,7 @@ $state.status.qa = 'passed'
 $state.gates.gate_6_render_outputs = 'passed'
 $state.gates.gate_6a_editorial_quality = 'passed'
 & $context.save_run_state -Path $context.run_state_path -State $state
+$taskList = & (Join-Path $PSScriptRoot 'audit_task_list.ps1') -DataPath $context.data_path | ConvertFrom-Json
 
 [pscustomobject]@{
     module = 'qa'
@@ -32,5 +33,6 @@ $state.gates.gate_6a_editorial_quality = 'passed'
     qa = $qa
     editorial = $editorial
     campaign_art_contract = $campaignArt
+    task_list = $taskList
     pptx = $pptx
 } | ConvertTo-Json -Depth 8 -Compress

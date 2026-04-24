@@ -18,6 +18,7 @@
     "gate_4_report_data": "pending",
     "gate_5_assets": "pending",
     "gate_5a_source_badges": "pending",
+    "gate_5b_required_logos": "pending",
     "gate_5b_campaign_art": "pending",
     "gate_6_render_outputs": "pending",
     "gate_6a_editorial_quality": "pending",
@@ -32,5 +33,107 @@
     "competitors": [],
     "influential_news": []
   },
+  "task_list": [
+    {
+      "id": 1,
+      "key": "intake",
+      "title": "Intake and workspace",
+      "status": "pending",
+      "gates": ["gate_1_intake"],
+      "trust_test": "Brand folder, report-data.json, and run-state.json exist.",
+      "evidence": [],
+      "updated_at": null
+    },
+    {
+      "id": 2,
+      "key": "competitor_set",
+      "title": "Competitor set",
+      "status": "pending",
+      "gates": ["gate_2_competitors"],
+      "trust_test": "Competitor set is present in the research summary or report data.",
+      "evidence": [],
+      "updated_at": null
+    },
+    {
+      "id": 3,
+      "key": "current_research",
+      "title": "Current research and source map",
+      "status": "pending",
+      "gates": ["gate_3_research"],
+      "trust_test": "Research summary exists with news, reputation/source status, and locked sets.",
+      "evidence": [],
+      "updated_at": null
+    },
+    {
+      "id": 4,
+      "key": "semrush_seo_evidence",
+      "title": "SEMrush and SEO evidence",
+      "status": "pending",
+      "gates": ["gate_3a_semrush"],
+      "trust_test": "At least two SEO evidence points are available for the report.",
+      "evidence": [],
+      "updated_at": null
+    },
+    {
+      "id": 5,
+      "key": "report_structure",
+      "title": "Report structure and data contract",
+      "status": "pending",
+      "gates": ["gate_4_report_data"],
+      "trust_test": "report-data.json passes schema validation and freshness is updated.",
+      "evidence": [],
+      "updated_at": null
+    },
+    {
+      "id": 6,
+      "key": "logos_and_assets",
+      "title": "Brand, competitor, and source logos",
+      "status": "pending",
+      "gates": ["gate_5_assets", "gate_5a_source_badges", "gate_5b_required_logos"],
+      "trust_test": "Brand, competitor, and news/source logos resolve without generic fallbacks.",
+      "evidence": [],
+      "updated_at": null
+    },
+    {
+      "id": 7,
+      "key": "campaign_ideas_and_art",
+      "title": "Creative campaign ideas and artwork",
+      "status": "pending",
+      "gates": ["gate_5b_campaign_art"],
+      "trust_test": "Campaign ideas pass editorial checks and artwork is final raster, not scaffold.",
+      "evidence": [],
+      "updated_at": null
+    },
+    {
+      "id": 8,
+      "key": "render_outputs",
+      "title": "HTML, portable HTML, and PPTX render",
+      "status": "pending",
+      "gates": ["gate_6_render_outputs"],
+      "trust_test": "Rendered HTML, portable HTML, and PPTX exist and are current.",
+      "evidence": [],
+      "updated_at": null
+    },
+    {
+      "id": 9,
+      "key": "quality_review",
+      "title": "Quality, trust, and presentation QA",
+      "status": "pending",
+      "gates": ["gate_6a_editorial_quality"],
+      "trust_test": "Editorial, presentation, logo, campaign-art, and PPTX audits pass.",
+      "evidence": [],
+      "updated_at": null
+    },
+    {
+      "id": 10,
+      "key": "delivery_handoff",
+      "title": "Delivery handoff",
+      "status": "pending",
+      "gates": ["gate_7_delivery"],
+      "trust_test": "Deploy handoff folder is refreshed from the latest report outputs.",
+      "evidence": [],
+      "updated_at": null
+    }
+  ],
   "notes": []
 }

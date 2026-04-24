@@ -27,11 +27,13 @@ $handoff = & (Join-Path $PSScriptRoot 'refresh_vercel_handoff.ps1') -BrandFolder
 $state.status.deploy = 'passed'
 $state.gates.gate_7_delivery = 'passed'
 & $context.save_run_state -Path $context.run_state_path -State $state
+$taskList = & (Join-Path $PSScriptRoot '..\qa\audit_task_list.ps1') -DataPath $context.data_path | ConvertFrom-Json
 
 [pscustomobject]@{
     module = 'deploy'
     data = $context.data_path
     brand_folder = $context.brand_folder
     run_state = $context.run_state_path
+    task_list = $taskList
     handoff = $handoff
 } | ConvertTo-Json -Depth 8 -Compress

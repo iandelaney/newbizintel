@@ -6,10 +6,11 @@ Use this checklist before sharing `newbiz2` with colleagues or publishing it to 
 
 - Run [audit_portability.ps1](C:\codex projects\newbiz2-skill-repo\scripts\qa\audit_portability.ps1) and confirm `ok: true`
 - Run [smoke_test_install.ps1](C:\codex projects\newbiz2-skill-repo\scripts\qa\smoke_test_install.ps1) and confirm `ok: true`
-- Run a sample render stack proof with:
+- Run a sample full gated proof with:
   - [run_newbiz2.ps1](C:\codex projects\newbiz2-skill-repo\scripts\run_newbiz2.ps1)
-  - `-DataPath .\examples\report-data.sample.json -Mode render-stack`
+  - `-DataPath .\examples\report-data.sample.json -Mode full`
 - Confirm the QA smoke test still uses the hybrid parallel path, with deterministic jobs only writing isolated audit outputs before render.
+- Confirm `scripts\qa\audit_task_list.ps1` passes and reports the 10 primary workflow steps in order.
 - Confirm fresh sample outputs exist:
   - `examples\newbizintel-report.html`
   - `examples\archive\newbizintel-report-portable.html`

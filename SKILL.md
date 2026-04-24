@@ -25,6 +25,7 @@ This root skill is only the entrypoint and routing policy. It should not absorb 
 
 - Keep `report-data.json` as the canonical final payload.
 - Use `run-state.json` to support resumable modular runs.
+- Maintain the 10-step `task_list` in `run-state.json`; each passed task must be backed by its trust test, and later tasks must not pass while earlier tasks are incomplete.
 - Prefer wrapping the copied `newbizintel` scripts over rewriting them.
 - Use the hybrid execution model in `references\hybrid-parallel-agentic-workflow.md`: deterministic parallel jobs for isolated repeatable work, agentic workers only for synthesis, source judgement, campaign thinking, and art direction.
 - For SEMrush, prefer the direct API collector when `SEMRUSH_API_KEY` is available; otherwise use Composio MCP and then Jina/public-web fallback. Never write SEMrush credentials into repo files or report artifacts.

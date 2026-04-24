@@ -46,7 +46,7 @@ Assert-True ($portability.ok -eq $true) 'Portability audit failed.'
 $installSmoke = Invoke-JsonScript -Path $installSmokeScript
 Assert-True ($installSmoke.ok -eq $true) 'Install smoke test failed.'
 
-$null = & $runnerScript -DataPath $sampleDataPath -Mode 'render-stack'
+$null = & $runnerScript -DataPath $sampleDataPath -Mode 'full'
 
 Assert-True (Test-Path -LiteralPath $sampleHtmlPath) "Expected sample HTML output at $sampleHtmlPath."
 Assert-True (Test-Path -LiteralPath $samplePortablePath) "Expected portable HTML output at $samplePortablePath."
@@ -67,9 +67,9 @@ Assert-True (Test-Path -LiteralPath $sampleRunStatePath) "Expected run-state out
             detail = 'Repo-local install smoke test passed.'
         },
         [pscustomobject]@{
-            key = 'sample-render-stack'
+            key = 'sample-full-gated-run'
             ok = $true
-            detail = 'Sample render-stack run produced HTML, portable HTML, and run-state outputs.'
+            detail = 'Sample full gated run produced HTML, portable HTML, and run-state outputs.'
         }
     )
     outputs = [pscustomobject]@{

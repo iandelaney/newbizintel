@@ -90,6 +90,22 @@ foreach ($item in @($data.seo_audit.priority_issues)) {
     }
 }
 
+$sourceMap = @()
+foreach ($item in @($data.appendix.source_map)) {
+    $sourceMap += $item
+}
+if ($sourceMap.Count -eq 0) {
+    foreach ($url in @($data.appendix.sources_reviewed)) {
+        if ([string]::IsNullOrWhiteSpace([string]$url)) { continue }
+        $sourceMap += [pscustomobject]@{
+            title = [string]$url
+            url = [string]$url
+            source = ''
+            used_for = @('appendix')
+        }
+    }
+}
+
 $summary = [ordered]@{
     mode = 'bootstrap-from-report-data'
     data_path = $resolvedDataPath
@@ -134,21 +150,21 @@ $summary = [ordered]@{
             why_passed = 'Bootstrap mode reused existing reputation notes from report-data.json and did not run Tavily in this pass.'
         }
         source_gathering = [ordered]@{
-            status = 'blocked'
+            status = $(if ($sourceMap.Count -gt 0) { 'passed' } else { 'blocked' })
             tool = 'tavily'
             validated_on = $null
             query_summary = @()
-            source_count = 0
+            source_count = $sourceMap.Count
             used_in_sections = @('appendix')
-            why_passed = 'Bootstrap mode did not perform a Tavily-backed source-gathering pass.'
+            why_passed = $(if ($sourceMap.Count -gt 0) { 'Bootstrap mode reused source-map evidence already present in report-data.json.' } else { 'Bootstrap mode did not perform a Tavily-backed source-gathering pass.' })
         }
     }
     source_provenance_summary = [ordered]@{
         tavily_backed_sources = 0
         owned_sources = 0
-        third_party_sources = 0
+        third_party_sources = $sourceMap.Count
     }
-    source_map = @()
+    source_map = @($sourceMap)
     locked_sets = [ordered]@{
         competitors = @($competitors | ForEach-Object { $_.name })
         influential_news = @($news | ForEach-Object { $_.headline })
@@ -157,7 +173,7 @@ $summary = [ordered]@{
         competitor_discovery = $(if ($competitors.Count -gt 0) { 'passed' } else { 'pending' })
         recent_news = $(if ($news.Count -gt 0) { 'passed' } else { 'pending' })
         reputation_public_web = $(if ((@($data.brand_reputation.platform_readout)).Count -gt 0 -or (@($data.brand_reputation.recommended_actions)).Count -gt 0) { 'passed' } else { 'pending' })
-        source_gathering = 'blocked'
+        source_gathering = $(if ($sourceMap.Count -gt 0) { 'passed' } else { 'blocked' })
         semrush = $(if ($semrushEvidence.Count -gt 0) { 'passed' } else { 'pending' })
     }
     notes = @(
