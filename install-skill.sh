@@ -32,21 +32,33 @@ items=(
   "vendor"
 )
 
+installed=()
+skipped=()
+
 for item in "${items[@]}"; do
+  if [[ ! -e "$SOURCE_ROOT/$item" ]]; then
+    skipped+=("$item")
+    continue
+  fi
+
   cp -R "$SOURCE_ROOT/$item" "$destination/$item"
+  installed+=("$item")
 done
 
-python3 - <<'PY' "$SOURCE_ROOT" "$destination" "${items[@]}"
+python3 - <<'PY' "$SOURCE_ROOT" "$destination" "${installed[@]}" --skipped "${skipped[@]}"
 import json
 import sys
 
+separator = sys.argv.index("--skipped")
 source = sys.argv[1]
 destination = sys.argv[2]
-items = sys.argv[3:]
+items = sys.argv[3:separator]
+skipped = sys.argv[separator + 1:]
 
 print(json.dumps({
     "source": source,
     "destination": destination,
     "installed_items": items,
+    "skipped_missing_items": skipped,
 }, separators=(",", ":")))
 PY

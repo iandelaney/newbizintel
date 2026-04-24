@@ -34,12 +34,23 @@ $items = @(
     'vendor'
 )
 
+$installedItems = @()
+$skippedItems = @()
+
 foreach ($item in $items) {
-    Copy-Item -LiteralPath (Join-Path $sourceRoot $item) -Destination (Join-Path $destination $item) -Recurse -Force
+    $sourcePath = Join-Path $sourceRoot $item
+    if (-not (Test-Path -LiteralPath $sourcePath)) {
+        $skippedItems += $item
+        continue
+    }
+
+    Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $destination $item) -Recurse -Force
+    $installedItems += $item
 }
 
 [pscustomobject]@{
     source = $sourceRoot
     destination = $destination
-    installed_items = $items
+    installed_items = $installedItems
+    skipped_missing_items = $skippedItems
 } | ConvertTo-Json -Compress
