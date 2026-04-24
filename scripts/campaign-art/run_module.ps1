@@ -15,7 +15,7 @@ $state.gates.gate_5b_campaign_art = 'in_progress'
 & $context.save_run_state -Path $context.run_state_path -State $state
 
 $python = & $resolvePython
-& $python (Join-Path $PSScriptRoot 'generate_campaign_illustrations.py') --data $context.data_path --overwrite | Out-Null
+$generation = & $python (Join-Path $PSScriptRoot 'generate_campaign_illustrations.py') --data $context.data_path | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) {
     throw "Campaign-art generation failed with exit code $LASTEXITCODE."
 }
@@ -29,4 +29,5 @@ $state.gates.gate_5b_campaign_art = 'passed'
     data = $context.data_path
     brand_folder = $context.brand_folder
     run_state = $context.run_state_path
+    generation = $generation
 } | ConvertTo-Json -Depth 8 -Compress

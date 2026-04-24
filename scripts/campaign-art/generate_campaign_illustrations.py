@@ -695,10 +695,24 @@ def build_bitmap(profile: dict) -> Image.Image:
 def choose_profile(kind: str, used_slugs: set[str], surprise_mode: bool) -> dict:
     if not surprise_mode:
         return base_profile_for_kind(kind)
-    pool = [dict(item, kind=kind) for item in SURPRISE_STYLE_LIBRARY.get(kind, [])]
+
+    if kind == "generic":
+        pool = []
+        for library_kind, items in SURPRISE_STYLE_LIBRARY.items():
+            pool.extend(dict(item, kind=library_kind) for item in items)
+    else:
+        pool = [dict(item, kind=kind) for item in SURPRISE_STYLE_LIBRARY.get(kind, [])]
+
     available = [item for item in pool if item["slug"] not in used_slugs]
+    if not available and kind != "generic":
+        fallback_pool = []
+        for library_kind, items in SURPRISE_STYLE_LIBRARY.items():
+            fallback_pool.extend(dict(item, kind=library_kind) for item in items)
+        available = [item for item in fallback_pool if item["slug"] not in used_slugs]
+
     if not available:
         available = pool or [base_profile_for_kind(kind)]
+
     profile = random.SystemRandom().choice(available)
     used_slugs.add(profile["slug"])
     return profile
@@ -722,6 +736,10 @@ def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path]]:
     asset_dir.mkdir(parents=True, exist_ok=True)
 
     section = data.get("creative_campaign_ideas", {})
+    delivery_mode = str(section.get("artwork_delivery_mode") or "").strip().lower()
+    if not delivery_mode:
+        delivery_mode = "final-raster-required"
+        section["artwork_delivery_mode"] = delivery_mode
     surprise_mode = str(section.get("illustration_style_mode") or "").strip().lower() in {
         "surprise",
         "wild",
@@ -763,15 +781,21 @@ def generate(data_path: Path, overwrite: bool) -> tuple[int, list[Path]]:
 
         destination = output_path_for_idea(asset_dir, brand_slug, title, idea.get("illustration_url") or "")
         destination.parent.mkdir(parents=True, exist_ok=True)
-        if destination.exists() and not overwrite:
-            continue
-
-        image = build_bitmap(profile)
-        image.save(destination, format="PNG", optimize=True)
         idea["illustration_url"] = relative_asset_path(asset_dir, destination)
         idea["illustration_medium"] = medium
         idea["illustration_prompt"] = prompt
         idea["illustration_style_name"] = profile["slug"]
+        idea["illustration_delivery_target"] = "true-raster-artwork"
+
+        existing_asset_role = str(idea.get("illustration_asset_role") or "").strip()
+        if destination.exists() and not overwrite:
+            if not existing_asset_role:
+                idea["illustration_asset_role"] = "unverified-existing-artwork"
+            continue
+
+        image = build_bitmap(profile)
+        image.save(destination, format="PNG", optimize=True)
+        idea["illustration_asset_role"] = "placeholder-scaffold"
         written.append(destination)
 
     manifest_path = asset_dir / f"{brand_slug}-campaign-illustration-prompts.json"
@@ -799,6 +823,7 @@ def main() -> int:
         "data": str(Path(args.data).resolve()),
         "generated": count,
         "files": [str(path) for path in written],
+        "overwrite": bool(args.overwrite),
     }
     print(json.dumps(payload, separators=(",", ":")))
     return 0

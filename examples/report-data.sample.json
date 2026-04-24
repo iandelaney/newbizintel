@@ -495,6 +495,7 @@
     "response_to_findings": "Replace with how the content strategy directly answers the report findings."
   },
   "creative_campaign_ideas": {
+    "artwork_delivery_mode": "scaffold-allowed",
     "illustration_style_mode": "surprise",
     "ideas": [
       {

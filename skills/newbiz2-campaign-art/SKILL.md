@@ -22,3 +22,5 @@ Rules:
 - treat surprise as a feature
 - push the 4 campaign visuals apart when the brief calls for contrast
 - do not accept one repeated house style with mild variation as final premium art
+- do not overwrite existing campaign artwork by default when a report may already contain approved final raster assets
+- mark scaffold output honestly so QA can distinguish placeholder art from final artwork

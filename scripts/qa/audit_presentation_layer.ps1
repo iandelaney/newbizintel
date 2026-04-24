@@ -145,10 +145,13 @@ $script:audit.checks.external_image_count = @($externalImages).Count
 
 if ($data) {
     $creativeIdeas = $null
+    $creativeSection = $null
     if ($null -ne $data.creative_campaign_ideas) {
+        $creativeSection = $data.creative_campaign_ideas
         $creativeIdeas = $data.creative_campaign_ideas.ideas
     }
     elseif ($null -ne $data.creative_campaigns) {
+        $creativeSection = $data.creative_campaigns
         $creativeIdeas = $data.creative_campaigns.ideas
     }
 
@@ -158,6 +161,32 @@ if ($data) {
     $script:audit.checks.rendered_idea_cards = $renderedIdeaCount
     if ($expectedIdeaCount -gt 0 -and $renderedIdeaCount -lt $expectedIdeaCount) {
         Add-Issue -Bucket 'errors' -Message ("Creative campaign cards are incomplete. Expected {0}, found {1}." -f $expectedIdeaCount, $renderedIdeaCount)
+    }
+
+    $creativeDeliveryMode = ''
+    if ($null -ne $creativeSection) {
+        $creativeDeliveryMode = [string]$creativeSection.artwork_delivery_mode
+    }
+    $creativeStyleMode = ''
+    if ($null -ne $creativeSection) {
+        $creativeStyleMode = [string]$creativeSection.illustration_style_mode
+    }
+    if ([string]::IsNullOrWhiteSpace($creativeDeliveryMode) -and $creativeStyleMode -match '^(?i)surprise|wild|shuffle|random$') {
+        $creativeDeliveryMode = 'final-raster-required'
+    }
+    $script:audit.checks.campaign_artwork_delivery_mode = $creativeDeliveryMode
+
+    if ($creativeDeliveryMode -eq 'final-raster-required') {
+        $nonFinalArtIdeas = @()
+        foreach ($idea in @($creativeIdeas)) {
+            $role = [string]$idea.illustration_asset_role
+            if ([string]::IsNullOrWhiteSpace($role) -or $role -ne 'final-raster-artwork') {
+                $nonFinalArtIdeas += ([string]$idea.title)
+            }
+        }
+        if ($nonFinalArtIdeas.Count -gt 0) {
+            Add-Issue -Bucket 'errors' -Message ("Creative campaign artwork is still scaffold or unverified for a final-raster-required report: {0}" -f ($nonFinalArtIdeas -join ', '))
+        }
     }
 
     $expectedChartCount = Get-ItemCount -Value $data.seo_audit.charts
