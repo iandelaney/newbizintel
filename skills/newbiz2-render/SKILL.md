@@ -9,7 +9,7 @@ Own:
 
 - HTML render
 - portable HTML export
-- PPTX export
+- PPTX export via the native `slides`/PptxGenJS path
 - bundle build
 
 Use the copied render scripts under `scripts\render\`.

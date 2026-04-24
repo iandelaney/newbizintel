@@ -40,6 +40,12 @@ $checks += [pscustomobject]@{
 }
 
 $checks += [pscustomobject]@{
+    key = 'node'
+    ok = (Test-CommandExists -Name 'node') -and (Test-CommandExists -Name 'npm')
+    detail = 'Requires Node.js and npm for native PPTX export via PptxGenJS.'
+}
+
+$checks += [pscustomobject]@{
     key = 'companion_skills'
     ok = (Test-Path -LiteralPath $companionRoot)
     detail = "Expected companion-skills folder at $companionRoot."

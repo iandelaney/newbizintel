@@ -1,0 +1,10 @@
+{
+  "name": "newbiz2-skill",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Modular new-business intelligence workflow with native PPTX export.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "pptxgenjs": "^4.0.1"
+  }
+}

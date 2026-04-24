@@ -49,6 +49,7 @@ if ($DataPath -and -not $SkipAssetValidation) {
 }
 
 $python = & (Join-Path $PSScriptRoot '..\common\resolve_python.ps1')
+$nodeCommand = Get-Command node -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $ArchiveDir | Out-Null
 
 $archiveHtmlPath = Join-Path $ArchiveDir ($BaseName + '-portable.html')
@@ -76,15 +77,17 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if ($DataPath) {
-    & $python (Join-Path $PSScriptRoot 'report_data_to_pptx.py') --help >$null 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        & $python (Join-Path $PSScriptRoot 'report_data_to_pptx.py') --data $DataPath --pptx $pptxPath | Out-Null
+    if ($nodeCommand) {
+        & $nodeCommand.Source (Join-Path $PSScriptRoot 'report_data_to_pptx.js') --help >$null 2>$null
+    }
+    if ($nodeCommand -and $LASTEXITCODE -eq 0) {
+        & $nodeCommand.Source (Join-Path $PSScriptRoot 'report_data_to_pptx.js') --data $DataPath --pptx $pptxPath | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "PPTX export failed with exit code $LASTEXITCODE."
         }
     }
     else {
-        $archiveWarnings += 'PPTX export skipped because the PPTX runtime is unavailable.'
+        $archiveWarnings += 'PPTX export skipped because the native PPTX runtime is unavailable.'
         $archivePptxPath = $null
     }
 }

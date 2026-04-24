@@ -10,8 +10,15 @@ vercel/
 __pycache__/
 *.pyc
 
+# Node
+node_modules/
+
 # PowerShell temp artifacts
 *.tmp
 
 # Local release artifacts
 dist/
+pptx_runtime/
+pptx_runtime_env/
+runtime/
+vendor/

@@ -61,7 +61,7 @@ What works today:
 - `research-summary.json` can also be imported in `live-summary` mode after Codex gathers current-web evidence with Tavily, falls back to Jina when needed, and attaches SEMrush evidence through the installed Composio MCP server
 - `newbiz2-structure` now consumes `research-summary.json` when present and writes the live research layer back into `report-data.json` before validation
 - `run-state.json` is updated as modules complete
-- HTML, portable HTML, and deploy handoff outputs are produced from the copied stable `newbizintel` machinery
+- HTML, portable HTML, native PPTX, and deploy handoff outputs are produced from the copied stable `newbizintel` machinery plus a PptxGenJS deck path aligned to the `slides` skill
 - the full modular chain is proven on the real Univers brand folder through `research -> structure -> assets -> campaign-art -> render -> qa -> deploy-handoff`
 - premium Creative Campaign art now defaults to prompt-driven image-generated raster artwork, with local scaffold placeholders allowed only when a report explicitly opts into scaffold mode
 
@@ -100,8 +100,8 @@ The import step normalizes the images into the expected portrait PNG outputs, ma
 
 Prerequisites:
 
-- Windows: PowerShell and Python available
-- macOS: `pwsh` and `python3` available on `PATH`
+- Windows: PowerShell, Python, Node.js, and npm available
+- macOS: `pwsh`, `python3`, `node`, and `npm` available on `PATH`
 
 Windows PowerShell:
 
@@ -114,6 +114,8 @@ macOS or other Unix-like shells:
 ```bash
 ./install-local.sh
 ```
+
+The install path also runs `npm install --omit=dev` inside the installed `newbiz2` skill so the native PptxGenJS deck exporter is ready for PPTX generation.
 
 If you only want to install the skill files without updating Codex config:
 
@@ -289,7 +291,6 @@ Expected outcome:
 What is still intentionally incomplete:
 
 - the local PowerShell runner does not call MCP tools directly; live research is gathered in Codex through Tavily, Jina as backup, and the installed Composio MCP server, then imported through `live-summary` mode
-- PPTX export depends on Python packages that may not exist in the active runtime
 
 ## Shareability guardrails
 

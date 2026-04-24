@@ -54,6 +54,8 @@ Assert-True ($firstRun.installed -eq $true) 'First install run did not report su
 Assert-True (Test-Path -LiteralPath $mainSkillRoot) "Main skill root was not created at $mainSkillRoot."
 Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'SKILL.md')) 'Installed main skill is missing SKILL.md.'
 Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'scripts')) 'Installed main skill is missing scripts.'
+Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'package.json')) 'Installed main skill is missing package.json for native PPTX export.'
+Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'node_modules\pptxgenjs')) 'Installed main skill is missing the local pptxgenjs dependency.'
 Assert-True (Test-Path -LiteralPath $configPath) "Config file was not created at $configPath."
 Assert-True (Test-Path -LiteralPath $snippetPath) "Config snippet was not created at $snippetPath."
 
@@ -101,6 +103,7 @@ Assert-True ($prereq.ok -eq $true) 'Prerequisite checker did not pass against th
     checks = @(
         'repo-local install completed',
         'main skill files copied',
+        'native PPTX package installed',
         'companion skills copied',
         'config and snippet written',
         'Composio and Tavily settings present',

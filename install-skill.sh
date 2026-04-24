@@ -26,6 +26,8 @@ mkdir -p "$destination"
 items=(
   "SKILL.md"
   "agents"
+  "package.json"
+  "package-lock.json"
   "references"
   "scripts"
   "templates"
@@ -44,6 +46,17 @@ for item in "${items[@]}"; do
   cp -R "$SOURCE_ROOT/$item" "$destination/$item"
   installed+=("$item")
 done
+
+if [[ -f "$destination/package.json" ]]; then
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "Node.js and npm are required to install the native PPTX export dependency." >&2
+    exit 1
+  fi
+  (
+    cd "$destination"
+    npm install --omit=dev >/dev/null
+  )
+fi
 
 python3 - <<'PY' "$SOURCE_ROOT" "$destination" "${installed[@]}" --skipped "${skipped[@]}"
 import json

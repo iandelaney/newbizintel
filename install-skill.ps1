@@ -28,6 +28,8 @@ New-Item -ItemType Directory -Path $destination | Out-Null
 $items = @(
     'SKILL.md',
     'agents',
+    'package.json',
+    'package-lock.json',
     'references',
     'scripts',
     'templates',
@@ -46,6 +48,23 @@ foreach ($item in $items) {
 
     Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $destination $item) -Recurse -Force
     $installedItems += $item
+}
+
+if (Test-Path -LiteralPath (Join-Path $destination 'package.json')) {
+    $npm = Get-Command npm -ErrorAction SilentlyContinue
+    if (-not $npm) {
+        throw 'Node.js and npm are required to install the native PPTX export dependency.'
+    }
+    Push-Location $destination
+    try {
+        & $npm.Source install --omit=dev | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "npm install failed with exit code $LASTEXITCODE."
+        }
+    }
+    finally {
+        Pop-Location
+    }
 }
 
 [pscustomobject]@{
