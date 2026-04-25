@@ -902,6 +902,51 @@ def square_quality_ok(path: Path, minimum: int = 96) -> bool:
     return 0.75 <= aspect_ratio <= 1.33
 
 
+def visible_content_bbox(path: Path, threshold: int = 18) -> tuple[int, int, int, int] | None:
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            image = image.convert("RGBA")
+            width, height = image.size
+            corners = [
+                image.getpixel((0, 0)),
+                image.getpixel((width - 1, 0)),
+                image.getpixel((0, height - 1)),
+                image.getpixel((width - 1, height - 1)),
+            ]
+            background = tuple(sorted(corners)[len(corners) // 2])
+            left, top, right, bottom = width, height, -1, -1
+            for y in range(height):
+                for x in range(width):
+                    pixel = image.getpixel((x, y))
+                    alpha_delta = abs(pixel[3] - background[3])
+                    colour_delta = max(abs(pixel[i] - background[i]) for i in range(3))
+                    if pixel[3] > 20 and (alpha_delta > threshold or colour_delta > threshold):
+                        left = min(left, x)
+                        top = min(top, y)
+                        right = max(right, x + 1)
+                        bottom = max(bottom, y + 1)
+            if right < left or bottom < top:
+                alpha_bbox = image.getchannel("A").getbbox()
+                return alpha_bbox
+            return (left, top, right, bottom)
+    except Exception:
+        return None
+
+
+def visible_logo_occupancy_ok(path: Path, minimum_span: float = 0.38) -> bool:
+    quality = asset_quality(path)
+    if not quality["exists"] or not quality["valid_image"] or not quality["width"] or not quality["height"]:
+        return False
+    bbox = visible_content_bbox(path)
+    if not bbox:
+        return False
+    content_width = bbox[2] - bbox[0]
+    content_height = bbox[3] - bbox[1]
+    return max(content_width / quality["width"], content_height / quality["height"]) >= minimum_span
+
+
 def normalize_svg_size(text: str) -> str:
     if re.search(r"<svg\b[^>]*\bwidth=", text, re.I):
         text = re.sub(r'(<svg\b[^>]*?)\swidth=["\'][^"\']+["\']', r'\1 width="256"', text, count=1, flags=re.I)
@@ -986,7 +1031,7 @@ def acquire_square_logo(name: str, website: str, asset_dir: Path, slug: str) -> 
     for stem in stems:
         for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
             candidate = asset_dir / f"{stem}{suffix}"
-            if candidate.exists() and square_quality_ok(candidate):
+            if candidate.exists() and square_quality_ok(candidate) and visible_logo_occupancy_ok(candidate):
                 return True, "local-square"
     if not website:
         return False, "no website for square logo acquisition"
@@ -1009,7 +1054,7 @@ def acquire_square_logo(name: str, website: str, asset_dir: Path, slug: str) -> 
         if suffix not in {".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"}:
             suffix = ".png"
         target = asset_dir / f"{slug}-mark{suffix}"
-        if download(url, target) and square_quality_ok(target):
+        if download(url, target) and square_quality_ok(target) and visible_logo_occupancy_ok(target):
             return True, url
         if target.exists():
             target.unlink(missing_ok=True)
@@ -1024,18 +1069,20 @@ def create_square_badge_from_logo(source: Path, destination: Path, canvas_size: 
 
         with Image.open(source) as image:
             image = image.convert("RGBA")
-            alpha_bbox = image.getchannel("A").getbbox()
-            if alpha_bbox:
-                cropped = image.crop(alpha_bbox)
-            else:
-                background = Image.new("RGBA", image.size, image.getpixel((0, 0)))
-                diff = ImageChops.difference(image, background)
-                bbox = diff.getbbox()
-                cropped = image.crop(bbox) if bbox else image
+            bbox = visible_content_bbox(source)
+            if not bbox:
+                alpha_bbox = image.getchannel("A").getbbox()
+                if alpha_bbox:
+                    bbox = alpha_bbox
+                else:
+                    background = Image.new("RGBA", image.size, image.getpixel((0, 0)))
+                    diff = ImageChops.difference(image, background)
+                    bbox = diff.getbbox()
+            cropped = image.crop(bbox) if bbox else image
 
             if not cropped.width or not cropped.height:
                 return False
-            max_content = int(canvas_size * 0.72)
+            max_content = int(canvas_size * 0.86)
             scale = min(max_content / cropped.width, max_content / cropped.height)
             resized = cropped.resize((max(1, int(cropped.width * scale)), max(1, int(cropped.height * scale))), Image.LANCZOS)
             canvas = Image.new("RGBA", (canvas_size, canvas_size), (255, 255, 255, 0))
@@ -1055,7 +1102,7 @@ def preferred_logo_asset(asset_dir: Path, stem: str, prefer_square: bool = False
         for candidate_stem in (f"{base}-mark", f"{base}-favicon", base, stem):
             for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
                 candidate = asset_dir / f"{candidate_stem}{suffix}"
-                if candidate.exists() and square_quality_ok(candidate):
+                if candidate.exists() and square_quality_ok(candidate) and visible_logo_occupancy_ok(candidate):
                     return candidate
     for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
         candidate = asset_dir / f"{stem}{suffix}"
@@ -1272,6 +1319,11 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
                 quality = asset_quality(selected_path)
                 non_square_competitor_logos.append(
                     f"{name}: {selected} ({quality.get('width')}x{quality.get('height')})"
+                )
+            elif selected_path.exists() and not visible_logo_occupancy_ok(selected_path):
+                quality = asset_quality(selected_path)
+                non_square_competitor_logos.append(
+                    f"{name}: {selected} has too little visible logo content ({quality.get('width')}x{quality.get('height')})"
                 )
         else:
             non_square_competitor_logos.append(f"{name}: missing")
