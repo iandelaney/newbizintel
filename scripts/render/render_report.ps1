@@ -486,17 +486,37 @@ function ConvertTo-SourceListHtml {
 
     $listItems = foreach ($item in $Items) {
         if ($item -is [string]) {
-            '<li>{0}</li>' -f (ConvertTo-HtmlEncoded $item)
+            $label = ConvertTo-HtmlEncoded $item
+            $url = Get-SafeHref ([string]$item)
+            if ([string]::IsNullOrWhiteSpace($url)) {
+                '<li>{0}</li>' -f $label
+                continue
+            }
+            '<li>{0} <a class="source-ref" href="{1}" target="_blank" rel="noopener noreferrer">[link]</a></li>' -f $label, (ConvertTo-HtmlEncoded $url)
             continue
         }
 
-        $label = ConvertTo-HtmlEncoded ([string]$item.label)
+        $labelText = [string]$item.label
+        if ([string]::IsNullOrWhiteSpace($labelText)) {
+            $labelText = [string]$item.title
+        }
+        if ([string]::IsNullOrWhiteSpace($labelText)) {
+            $labelText = [string]$item.source
+        }
+        if ([string]::IsNullOrWhiteSpace($labelText)) {
+            $labelText = [string]$item.url
+        }
+
+        $label = ConvertTo-HtmlEncoded $labelText
         $url = Get-SafeHref ([string]$item.url)
+        if ([string]::IsNullOrWhiteSpace($url)) {
+            $url = Get-SafeHref ([string]$item.source_url)
+        }
         if ([string]::IsNullOrWhiteSpace($url)) {
             '<li>{0}</li>' -f $label
             continue
         }
-        '<li><a href="{0}">{1}</a></li>' -f (ConvertTo-HtmlEncoded $url), $label
+        '<li>{0} <a class="source-ref" href="{1}" target="_blank" rel="noopener noreferrer">[link]</a></li>' -f $label, (ConvertTo-HtmlEncoded $url)
     }
 
     return "<ul>`n{0}`n</ul>" -f ($listItems -join "`n")
@@ -1696,6 +1716,11 @@ function Get-ReportBodyHtml {
         [string]$brandWebsiteHtml
     )
 
+    $appendixSources = @($data.appendix.source_map)
+    if (-not $appendixSources -or $appendixSources.Count -eq 0) {
+        $appendixSources = @($data.appendix.sources_reviewed)
+    }
+
     return @"
     <section class="hero">
       <div class="hero-head">
@@ -1844,7 +1869,7 @@ $(ConvertTo-BackToContentsHtml)
   $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Appendix' -IconKey 'appendix' -Id 'appendix')
     <div class="source-list">
       $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Sources Reviewed' -IconKey 'sources' -Class 'category-heading')
-$(ConvertTo-SourceListHtml @($data.appendix.sources_reviewed))
+$(ConvertTo-SourceListHtml @($appendixSources))
       $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Missing Data' -IconKey 'missing' -Class 'category-heading')
 $(ConvertTo-ListHtml @($data.appendix.missing_data))
       $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Assumptions and Confidence Notes' -IconKey 'notes' -Class 'category-heading')

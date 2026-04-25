@@ -124,6 +124,7 @@ The `agency_opportunity.department_opportunity_map` items are an external-facing
 - The closing Opportunities section must lead with `opportunities.marketing_strategy`: a concise articulation of the recommended marketing strategy for the target brand. It must synthesise findings from across the report, not introduce a disconnected generic plan. The strategy must explicitly draw on reputation, messaging/proof, search/SEO, competitor, and campaign/content findings before the 30/60/90 recommendations.
 - Render `Creative Campaign Ideas` after `Opportunities`, not before it. The campaign ideas are examples of the recommended strategy in action, so the reader must see the strategy and 30/60/90 priorities before the creative territories.
 - Render `Content Strategy Recommendations` after `Creative Campaign Ideas`. The content recommendations and asset ideas should be read as the channel/content expression of the strategy and campaign territories, not as a disconnected plan that precedes them.
+- Appendix sources must be verifiable without turning the section into a sea of blue links. Render each source label as normal text followed by a compact hyperlinked `[link]` marker when a URL is available, and prefer the richer `appendix.source_map` labels over bare `appendix.sources_reviewed` URLs.
 - Keep the gating discipline. Modularization must not lower the evidence or QA standard.
 - Keep `newbiz2` self-contained and cleanly shareable with colleagues.
 - Do not introduce hidden dependencies on sibling folders or local workspace-only helper paths.

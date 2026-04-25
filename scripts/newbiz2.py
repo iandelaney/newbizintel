@@ -1638,6 +1638,25 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
         errors.append("Department Opportunity Signals cards must describe target-brand opportunities, not value labels or lead/status chips.")
 
     data = read_json(data_path)
+    appendix = data.get("appendix", {})
+    if isinstance(appendix, dict):
+        appendix_sources = appendix.get("source_map") or appendix.get("sources_reviewed") or []
+        appendix_source_count = 0
+        if isinstance(appendix_sources, list):
+            for item in appendix_sources:
+                if isinstance(item, dict):
+                    url = str(item.get("url") or item.get("source_url") or "").strip()
+                else:
+                    url = str(item or "").strip()
+                if re.match(r"^https?://", url, flags=re.I):
+                    appendix_source_count += 1
+        if appendix_source_count:
+            appendix_link_count = len(re.findall(r'class="source-ref"[^>]*>\[link\]</a>', text))
+            if appendix_link_count < appendix_source_count:
+                errors.append(
+                    f"Appendix sources must render compact [link] markers for every source URL "
+                    f"({appendix_link_count}/{appendix_source_count} found)."
+                )
     generated_competitor_logos: list[str] = []
     non_square_competitor_logos: list[str] = []
     for row in data.get("competitive_landscape", {}).get("table", []):
@@ -1726,6 +1745,24 @@ def card_html(title: str, body: str) -> str:
 
 def list_html(items: list[Any]) -> str:
     return "<ul>" + "".join(f"<li>{html.escape(str(item))}</li>" for item in items if has_value(item)) + "</ul>"
+
+
+def source_list_html(items: list[Any]) -> str:
+    rows: list[str] = []
+    for item in items:
+        if isinstance(item, dict):
+            url = str(item.get("url") or item.get("source_url") or "").strip()
+            label = str(item.get("label") or item.get("title") or item.get("source") or url).strip()
+        else:
+            url = str(item or "").strip()
+            label = url
+        if not label:
+            continue
+        link = ""
+        if re.match(r"^https?://", url, flags=re.I):
+            link = f' <a class="source-ref" href="{html.escape(url)}" target="_blank" rel="noopener noreferrer">[link]</a>'
+        rows.append(f"<li>{html.escape(label)}{link}</li>")
+    return "<ul>" + "".join(rows) + "</ul>" if rows else ""
 
 
 def render_html(data_path: Path, output_path: Path | None = None) -> Path:
@@ -1818,6 +1855,16 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
         if content_strategy.get("response_to_findings"):
             content_blocks += f"<p>{html.escape(str(content_strategy.get('response_to_findings')))}</p>"
         sections.append("<section><h2>Content Strategy Recommendations</h2>" + content_blocks + "</section>")
+    appendix = data.get("appendix", {})
+    if isinstance(appendix, dict):
+        appendix_sources = appendix.get("source_map") or appendix.get("sources_reviewed") or []
+        appendix_blocks = ""
+        if appendix_sources:
+            appendix_blocks += "<h3>Sources Reviewed</h3>" + source_list_html(appendix_sources)
+        appendix_blocks += list_html(appendix.get("missing_data", []))
+        appendix_blocks += list_html(appendix.get("assumptions_and_confidence_notes", []))
+        if appendix_blocks:
+            sections.append("<section><h2>Appendix</h2>" + appendix_blocks + "</section>")
     css = """
     :root{--ink:#09213b;--muted:#5d6b7a;--line:#d8e2ec;--panel:#f7fafc;--accent:#153a5b}
     *{box-sizing:border-box} body{margin:0;font-family:Aptos,Segoe UI,Arial,sans-serif;color:var(--ink);background:#f4f7fa;line-height:1.55}
@@ -1827,6 +1874,7 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
     .brand-logo{width:108px;height:108px;flex:0 0 108px;border-radius:26px;border:1px solid var(--line);display:grid;place-items:center;background:#fff;padding:18px;font-weight:900;font-size:28px}.brand-logo img,.logo-card img,.news img{max-width:100%;max-height:76px;object-fit:contain}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.card,.logo-card,.news{padding:18px}.score{display:inline-block;padding:8px 12px;background:#edf5fb;border-radius:999px;font-weight:800}
     table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--line);padding:10px;vertical-align:top}th{width:28%}.campaign{display:grid;grid-template-columns:minmax(260px,42%) 1fr;gap:26px;padding:18px;margin:18px 0}.campaign img{width:100%;height:100%;max-height:760px;object-fit:cover;border-radius:16px}@media(max-width:760px){.hero,.campaign{grid-template-columns:1fr;display:grid}h1{font-size:34px}}
+    .source-ref{display:inline-block;margin-left:.35em;font-size:.88em;font-weight:700;white-space:nowrap}
     """
     html_text = f"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{html.escape(title)}</title><style>{css}</style></head><body><main>{''.join(sections)}</main></body></html>"
     output_path.write_text(html_text, encoding="utf-8")
