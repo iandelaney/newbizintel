@@ -64,6 +64,24 @@ REPUTATION_SCORE_WEIGHTS = {
     "novelty": 0.10,
     "recency": 0.05,
 }
+PLACEHOLDER_MARKERS = (
+    ("Replace with", "template instruction text"),
+    ("Example Brand", "template brand name"),
+    ("Competitor A", "template competitor"),
+    ("Competitor B", "template competitor"),
+    ("Competitor C", "template competitor"),
+    ("Example National Business Source", "template news source"),
+    ("Example Trade Source", "template news source"),
+    ("Example Investor Source", "template news source"),
+    ("Example Review Platform", "template news source"),
+    ("Example Consumer Source", "template news source"),
+    ("https://example.com", "template URL"),
+    ("http://example.com", "template URL"),
+    ("www.example.com", "template URL"),
+    ("competitor-a.com", "template competitor URL"),
+    ("competitor-b.com", "template competitor URL"),
+    ("competitor-c.com", "template competitor URL"),
+)
 
 
 TASK_DEFINITIONS = [
@@ -424,6 +442,48 @@ def normalised_source(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip()).lower()
 
 
+def is_repo_example_path(path: Path | None) -> bool:
+    if path is None:
+        return False
+    try:
+        path.resolve().relative_to((SKILL_ROOT / "examples").resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def audit_placeholder_content(payload: Any, *, root_label: str = "payload", allow_examples: bool = False) -> dict[str, Any]:
+    matches: list[dict[str, str]] = []
+
+    def walk(value: Any, path: str) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                walk(child, f"{path}.{key}" if path else str(key))
+            return
+        if isinstance(value, list):
+            for index, child in enumerate(value):
+                walk(child, f"{path}[{index}]")
+            return
+        if not isinstance(value, str):
+            return
+
+        for marker, reason in PLACEHOLDER_MARKERS:
+            if marker.lower() in value.lower():
+                matches.append({"path": path or root_label, "marker": marker, "reason": reason})
+
+    walk(payload, root_label)
+    if allow_examples:
+        return {"ok": True, "matches": matches, "warnings": [f"Example fixture contains {len(matches)} placeholder markers."] if matches else []}
+
+    errors = [
+        f"{item['path']} contains {item['reason']} marker '{item['marker']}'"
+        for item in matches[:25]
+    ]
+    if len(matches) > 25:
+        errors.append(f"{len(matches) - 25} additional placeholder markers found.")
+    return {"ok": not matches, "matches": matches, "errors": errors}
+
+
 def calculate_reputation_influence_score(subscores: dict[str, Any]) -> int | None:
     total = 0.0
     for factor, weight in REPUTATION_SCORE_WEIGHTS.items():
@@ -658,6 +718,15 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     data = read_json(data_path)
     errors: list[str] = []
     warnings: list[str] = []
+    placeholder_audit = audit_placeholder_content(
+        data,
+        root_label="report_data",
+        allow_examples=is_repo_example_path(data_path),
+    )
+    if not placeholder_audit["ok"]:
+        errors.extend(f"anti_placeholder_audit: {error}" for error in placeholder_audit.get("errors", []))
+    else:
+        warnings.extend(placeholder_audit.get("warnings", []))
     required = [
         "brand.name",
         "brand.website",
@@ -751,8 +820,8 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
             if not any(token in text.lower() for token in ("reputation", "trust", "review", "service", "growth", "proof", "technology", "customer")):
                 errors.append(f"storybrand.{field}[{index}] must show read-across from reputation findings or customer evidence.")
     if errors:
-        return {"ok": False, "data": str(data_path), "errors": errors, "warnings": warnings}
-    return {"ok": True, "data": str(data_path), "warnings": warnings}
+        return {"ok": False, "data": str(data_path), "errors": errors, "warnings": warnings, "anti_placeholder_audit": placeholder_audit}
+    return {"ok": True, "data": str(data_path), "warnings": warnings, "anti_placeholder_audit": placeholder_audit}
 
 
 def first_items(value: Any, limit: int = 3) -> list[Any]:
@@ -843,9 +912,18 @@ def build_summary_from_data(data_path: Path, mode: str = "bootstrap-from-report-
     }
 
 
-def validate_research_summary(summary: dict[str, Any]) -> dict[str, Any]:
+def validate_research_summary(summary: dict[str, Any], *, allow_examples: bool = False) -> dict[str, Any]:
     errors = []
     warnings = []
+    placeholder_audit = audit_placeholder_content(
+        summary,
+        root_label="research_summary",
+        allow_examples=allow_examples,
+    )
+    if not placeholder_audit["ok"]:
+        errors.extend(f"anti_placeholder_audit: {error}" for error in placeholder_audit.get("errors", []))
+    else:
+        warnings.extend(placeholder_audit.get("warnings", []))
     status = summary.get("status", {})
     for key in ("competitor_discovery", "recent_news", "reputation_public_web", "source_gathering", "semrush"):
         if key not in status:
@@ -862,7 +940,7 @@ def validate_research_summary(summary: dict[str, Any]) -> dict[str, Any]:
             warnings,
             prefix="influential_news",
         )
-    return {"ok": not errors, "errors": errors, "warnings": warnings}
+    return {"ok": not errors, "errors": errors, "warnings": warnings, "anti_placeholder_audit": placeholder_audit}
 
 
 def module_research(args: argparse.Namespace) -> dict[str, Any]:
@@ -894,11 +972,12 @@ def module_research(args: argparse.Namespace) -> dict[str, Any]:
         summary = read_json(Path(args.research_summary_path).expanduser().resolve())
     else:
         summary = build_summary_from_data(data_path)
-    validation = validate_research_summary(summary)
+    validation = validate_research_summary(summary, allow_examples=is_repo_example_path(data_path))
     if not validation["ok"]:
         set_status(state, "research", "failed")
         set_gate(state, "gate_2_competitors", "failed")
         set_gate(state, "gate_3_research", "failed")
+        set_gate(state, "gate_3a_semrush", "failed")
         save_state(brand_folder, state)
         raise SystemExit("Research summary validation failed: " + "; ".join(validation["errors"]))
 

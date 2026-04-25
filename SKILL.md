@@ -107,6 +107,7 @@ The `agency_opportunity.department_opportunity_map` items are an external-facing
 - Keep `report-data.json` as the canonical final payload.
 - Use `run-state.json` to support resumable modular runs.
 - Maintain the canonical 10-step `task_list` in `run-state.json`; each passed task must be backed by its trust test, and later tasks must not pass while earlier tasks are incomplete.
+- Run the anti-placeholder audit before research, structure, render, or QA gates can pass. Production report data and research summaries must not contain template markers such as `Example Brand`, `Competitor A`, fake example publishers, `example.com` URLs, or `Replace with...` instructions. Only repo-local fixture examples may retain intentional placeholder content, and that must be reported as a warning rather than a pass condition for real reports.
 - Prefer wrapping the copied `newbizintel` scripts over rewriting them.
 - Use the hybrid execution model in `references\hybrid-parallel-agentic-workflow.md`: deterministic parallel jobs for isolated repeatable work, agentic workers only for synthesis, source judgement, campaign thinking, and art direction.
 - The default execution model is `hybrid`. Each run must record required fan-out and reducer events in `run-state.json`; QA must fail if a run claims to be hybrid but has not recorded the required research, asset, campaign-art, and QA fan-out/reducer evidence.
