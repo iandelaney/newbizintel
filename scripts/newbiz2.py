@@ -112,7 +112,7 @@ TASK_DEFINITIONS = [
         "title": "Brand, competitor, and source logos",
         "gates": ["gate_6_logos_and_assets"],
         "legacy_gates": ["gate_5_assets", "gate_5a_source_badges", "gate_5b_required_logos"],
-        "trust_test": "Brand, competitor, and news/source logos resolve without generic fallbacks; competitor badges prefer square marks/icons over wide wordmarks.",
+        "trust_test": "Brand, competitor, and news/source logos resolve without generic fallbacks; competitor badges prefer square marks/icons, with wide wordmarks converted to square initial-letter marks.",
     },
     {
         "id": 7,
@@ -947,6 +947,35 @@ def visible_logo_occupancy_ok(path: Path, minimum_span: float = 0.38) -> bool:
     return max(content_width / quality["width"], content_height / quality["height"]) >= minimum_span
 
 
+def has_distinct_square_background(path: Path) -> bool:
+    quality = asset_quality(path)
+    if not quality["exists"] or not quality["valid_image"] or not quality["width"] or not quality["height"]:
+        return False
+    if not square_quality_ok(path):
+        return False
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            image = image.convert("RGBA")
+            width, height = image.size
+            sample_points = [
+                (0, 0),
+                (width - 1, 0),
+                (0, height - 1),
+                (width - 1, height - 1),
+                (width // 2, height // 2),
+            ]
+            filled = 0
+            for point in sample_points:
+                red, green, blue, alpha = image.getpixel(point)
+                if alpha > 220 and min(abs(red - 255), abs(green - 255), abs(blue - 255)) > 24:
+                    filled += 1
+            return filled >= 3
+    except Exception:
+        return False
+
+
 def normalize_svg_size(text: str) -> str:
     if re.search(r"<svg\b[^>]*\bwidth=", text, re.I):
         text = re.sub(r'(<svg\b[^>]*?)\swidth=["\'][^"\']+["\']', r'\1 width="256"', text, count=1, flags=re.I)
@@ -1027,7 +1056,7 @@ def acquire_logo(name: str, website: str, destination: Path, candidates: list[st
 
 
 def acquire_square_logo(name: str, website: str, asset_dir: Path, slug: str) -> tuple[bool, str]:
-    stems = [f"{slug}-mark", f"{slug}-favicon", slug]
+    stems = [f"{slug}-mark", f"{slug}-favicon", f"{slug}-initial-mark", slug]
     for stem in stems:
         for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
             candidate = asset_dir / f"{stem}{suffix}"
@@ -1096,6 +1125,156 @@ def create_square_badge_from_logo(source: Path, destination: Path, canvas_size: 
         return False
 
 
+def create_initial_mark_from_logo(source: Path, destination: Path, label: str = "", canvas_size: int = 256) -> bool:
+    """Create a square mark by isolating the first visible letter from a wide wordmark."""
+    if not source.exists() or not quality_ok(source):
+        return False
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+
+        with Image.open(source) as image:
+            image = image.convert("RGBA")
+            bbox = visible_content_bbox(source)
+            if not bbox:
+                bbox = image.getchannel("A").getbbox()
+            if not bbox:
+                return False
+
+            width, height = image.size
+            corners = [
+                image.getpixel((0, 0)),
+                image.getpixel((width - 1, 0)),
+                image.getpixel((0, height - 1)),
+                image.getpixel((width - 1, height - 1)),
+            ]
+            background = tuple(sorted(corners)[len(corners) // 2])
+            left, top, right, bottom = bbox
+
+            def is_logo_ink(pixel: tuple[int, int, int, int]) -> bool:
+                red, green, blue, alpha = pixel
+                if alpha <= 20:
+                    return False
+                if red > 245 and green > 245 and blue > 245:
+                    return False
+                return max(red, green, blue) - min(red, green, blue) > 18 or min(red, green, blue) < 210
+
+            ink_left, ink_top, ink_right, ink_bottom = width, height, -1, -1
+            colour_counts: Counter[tuple[int, int, int]] = Counter()
+            for y in range(top, bottom):
+                for x in range(left, right):
+                    pixel = image.getpixel((x, y))
+                    if is_logo_ink(pixel):
+                        ink_left = min(ink_left, x)
+                        ink_top = min(ink_top, y)
+                        ink_right = max(ink_right, x + 1)
+                        ink_bottom = max(ink_bottom, y + 1)
+                        colour_counts[(pixel[0] // 16 * 16, pixel[1] // 16 * 16, pixel[2] // 16 * 16)] += 1
+            if ink_right >= ink_left and ink_bottom >= ink_top:
+                left, top, right, bottom = ink_left, ink_top, ink_right, ink_bottom
+            content_height = max(bottom - top, 1)
+
+            initial_source = label or source.stem
+            initial_match = re.search(r"[A-Za-z0-9]", initial_source)
+            if initial_match and colour_counts:
+                initial = initial_match.group(0).upper()
+                colour = colour_counts.most_common(1)[0][0]
+                canvas = Image.new("RGBA", (canvas_size, canvas_size), (255, 255, 255, 0))
+                draw = ImageDraw.Draw(canvas)
+                font_paths = [
+                    Path("C:/Windows/Fonts/arialbd.ttf"),
+                    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+                    Path("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
+                ]
+                font = None
+                for font_path in font_paths:
+                    if font_path.exists():
+                        font = ImageFont.truetype(str(font_path), int(canvas_size * 0.72))
+                        break
+                if font is None:
+                    try:
+                        font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(canvas_size * 0.72))
+                    except Exception:
+                        font = ImageFont.load_default()
+                text_box = draw.textbbox((0, 0), initial, font=font)
+                text_width = text_box[2] - text_box[0]
+                text_height = text_box[3] - text_box[1]
+                x = (canvas_size - text_width) // 2 - text_box[0]
+                y = (canvas_size - text_height) // 2 - text_box[1]
+                draw.text((x, y), initial, font=font, fill=(colour[0], colour[1], colour[2], 255))
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                canvas.save(destination)
+                if square_quality_ok(destination) and visible_logo_occupancy_ok(destination, minimum_span=0.42):
+                    return True
+
+            # Detect the first letter from the upper body of the mark. This avoids
+            # long underlines or baselines making a whole word look like one object.
+            scan_top = top
+            scan_bottom = min(bottom, top + max(1, int(content_height * 0.78)))
+            min_pixels = max(1, int((scan_bottom - scan_top) * 0.025))
+            column_has_content: list[bool] = []
+            for x in range(left, right):
+                count = 0
+                for y in range(scan_top, scan_bottom):
+                    pixel = image.getpixel((x, y))
+                    alpha_delta = abs(pixel[3] - background[3])
+                    colour_delta = max(abs(pixel[i] - background[i]) for i in range(3))
+                    if is_logo_ink(pixel) and (alpha_delta > 18 or colour_delta > 18):
+                        count += 1
+                column_has_content.append(count >= min_pixels)
+
+            runs: list[tuple[int, int]] = []
+            run_start: int | None = None
+            gap = 0
+            max_gap = max(2, int((right - left) * 0.015))
+            for index, has_content in enumerate(column_has_content):
+                if has_content:
+                    if run_start is None:
+                        run_start = index
+                    gap = 0
+                elif run_start is not None:
+                    gap += 1
+                    if gap > max_gap:
+                        runs.append((run_start, index - gap + 1))
+                        run_start = None
+                        gap = 0
+            if run_start is not None:
+                runs.append((run_start, len(column_has_content)))
+
+            runs = [(left + start, left + end) for start, end in runs if end - start >= 3]
+            if runs:
+                crop_left, crop_right = runs[0]
+            else:
+                target_width = min(right - left, max(content_height, int((right - left) * 0.18)))
+                crop_left, crop_right = left, left + target_width
+            if crop_right - crop_left > content_height * 1.35:
+                crop_right = min(right, crop_left + max(8, int((right - left) * 0.12)))
+
+            pad_x = max(4, int((crop_right - crop_left) * 0.18))
+            pad_y = max(4, int(content_height * 0.12))
+            crop_box = (
+                max(0, crop_left - pad_x),
+                max(0, top - pad_y),
+                min(width, crop_right + pad_x),
+                min(height, bottom + pad_y),
+            )
+            cropped = image.crop(crop_box)
+            if not cropped.width or not cropped.height:
+                return False
+
+            max_content = int(canvas_size * 0.82)
+            scale = min(max_content / cropped.width, max_content / cropped.height)
+            resized = cropped.resize((max(1, int(cropped.width * scale)), max(1, int(cropped.height * scale))), Image.LANCZOS)
+            canvas = Image.new("RGBA", (canvas_size, canvas_size), (255, 255, 255, 0))
+            x = (canvas_size - resized.width) // 2
+            y = (canvas_size - resized.height) // 2
+            canvas.alpha_composite(resized, (x, y))
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            canvas.save(destination)
+            return square_quality_ok(destination) and visible_logo_occupancy_ok(destination, minimum_span=0.42)
+    except Exception:
+        return False
+
+
 def create_tight_logo_asset(source: Path, destination: Path, padding: int = 8) -> bool:
     if not source.exists() or not quality_ok(source):
         return False
@@ -1122,7 +1301,7 @@ def create_tight_logo_asset(source: Path, destination: Path, padding: int = 8) -
 def preferred_logo_asset(asset_dir: Path, stem: str, prefer_square: bool = False) -> Path | None:
     if prefer_square:
         base = re.sub(r"-(logo|mark|favicon)$", "", stem)
-        for candidate_stem in (f"{base}-mark", f"{base}-favicon", base, stem):
+        for candidate_stem in (f"{base}-mark", f"{base}-favicon", f"{base}-initial-mark", base, stem):
             for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
                 candidate = asset_dir / f"{candidate_stem}{suffix}"
                 if candidate.exists() and square_quality_ok(candidate) and visible_logo_occupancy_ok(candidate):
@@ -1178,15 +1357,16 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
                     content_height = bbox[3] - bbox[1]
                     content_aspect = content_width / max(content_height, 1)
                     content_height_share = content_height / max(int(quality["height"]), 1)
-                    if content_aspect >= 1.6 or content_height_share < 0.45:
-                        table_asset = asset_dir / f"{slug}-table-logo.png"
-                        if create_tight_logo_asset(logo_asset, table_asset):
-                            logo_asset = table_asset
-                            source = f"{source}; tight-table-logo"
+                    if not has_distinct_square_background(logo_asset) and (content_aspect >= 1.6 or content_height_share < 0.45):
+                        initial_asset = asset_dir / f"{slug}-initial-mark.png"
+                        if create_initial_mark_from_logo(logo_asset, initial_asset, label=name):
+                            logo_asset = initial_asset
+                            source = f"{source}; initial-letter-mark-from-wordmark"
             asset = relative_to_brand(logo_asset, brand_folder) if logo_asset else ""
             row["logo_url"] = asset
             row["competitor_logo_url"] = asset
             row["badge_url"] = asset
+            row["logo_resolution_source"] = source
         else:
             manifest["ok"] = False
             manifest["errors"].append(f"{name} competitor logo failed: {source}")
@@ -1351,7 +1531,7 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
         selected = row.get("logo_url") or row.get("competitor_logo_url") or row.get("badge_url") or row.get("mark_url")
         if selected:
             selected_path = data_path.parent / str(selected)
-            if selected_path.exists() and not (square_quality_ok(selected_path) or re.search(r"-table-logo\.(?:png|jpe?g|webp)$", str(selected_path), flags=re.I)):
+            if selected_path.exists() and not square_quality_ok(selected_path):
                 quality = asset_quality(selected_path)
                 non_square_competitor_logos.append(
                     f"{name}: {selected} ({quality.get('width')}x{quality.get('height')})"

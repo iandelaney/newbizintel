@@ -78,7 +78,7 @@ The visible workflow task list, `run-state.json.task_list`, `workflow-task-list.
    - Trust test: `report-data.json` passes schema validation and freshness is updated.
 6. Brand, competitor, and source logos
    - Primary gate: `gate_6_logos_and_assets`
-   - Trust test: Brand, competitor, and news/source logos resolve without generic fallbacks. Competitor logos must prefer real square marks, favicons, or app icons over wide wordmarks; if no real square mark exists, create a square badge by trimming and centring the real acquired wordmark rather than using a generic text card. A square asset is not enough on its own: the visible logo content must occupy enough of the badge to be legible in the competitor table. Wide wordmarks should use tight-cropped table logo assets rather than square-padded images.
+   - Trust test: Brand, competitor, and news/source logos resolve without generic fallbacks. Competitor logos must prefer real square marks, favicons, or app icons over wide wordmarks; if no real square mark exists, create a square badge by trimming and centring the real acquired wordmark rather than using a generic text card. A square asset is not enough on its own: the visible logo content must occupy enough of the badge to be legible in the competitor table. Wide wordmarks must be converted into square initial-letter marks, not rectangular table logo assets or tiny square-padded wordmarks.
 7. Creative campaign ideas and artwork
    - Primary gate: `gate_7_campaign_ideas_and_art`
    - Trust test: Campaign ideas pass editorial checks and artwork is final raster, not scaffold.
