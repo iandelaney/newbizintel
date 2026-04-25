@@ -1012,11 +1012,14 @@ def build_exec_claims_slide(prs, data, asset_dir):
 def build_storybrand_slide(prs, data, asset_dir):
     storybrand = data["storybrand"]
     slide = base_slide(prs, data["brand"]["name"], data["brand"].get("slug"), asset_dir, "Messaging", f"Messaging score: {storybrand['score']}", accent="teal", icon_key="messaging", brand=data["brand"])
+    existing = storybrand.get("existing_messaging_assessment") or {}
     bullets = [
+        ("Published messaging", compact(existing.get("summary"), 185)),
+        ("Reputation read-across", compact(existing.get("reputation_read_across"), 185)),
         ("Messaging score", compact(storybrand["score_summary"], 185)),
         ("One-liner", compact(storybrand["one_liner"], 190)),
     ]
-    for fix in storybrand["messaging_fixes"][:3]:
+    for fix in storybrand["messaging_fixes"][:2]:
         bullets.append(("Priority fix", compact(fix, 175)))
     add_bullet_rows(slide, bullets, accent="teal")
 

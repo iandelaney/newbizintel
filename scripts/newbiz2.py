@@ -336,12 +336,14 @@ def sync_task_status_from_gates(state: dict[str, Any]) -> None:
 def save_state(brand_folder: Path, state: dict[str, Any]) -> None:
     ensure_task_list(state)
     sync_task_status_from_gates(state)
+    state["updated_at"] = utc_now()
     write_json(brand_folder / "run-state.json", state)
     tasks = sorted(state["task_list"], key=lambda item: item["id"])
     payload = {
         "ok": True,
         "total": len(tasks),
         "passed": sum(1 for task in tasks if task["status"] == "passed"),
+        "updated_at": state["updated_at"],
         "gates": state.get("gates", {}),
         "tasks": tasks,
     }
@@ -350,6 +352,7 @@ def save_state(brand_folder: Path, state: dict[str, Any]) -> None:
         "# NewBiz2 Workflow Task List",
         "",
         f"Passed: {payload['passed']}/{payload['total']}",
+        f"Updated: {payload['updated_at']}",
         "",
         "| # | Step | Status | Primary gate | Trust test |",
         "|---:|---|---|---|---|",
@@ -620,6 +623,12 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
         "agency_opportunity.summary",
         "agency_opportunity.lead_offering.name",
         "agency_opportunity.lead_offering.lead_department",
+        "storybrand.existing_messaging_assessment.summary",
+        "storybrand.existing_messaging_assessment.published_statements",
+        "storybrand.existing_messaging_assessment.reputation_read_across",
+        "storybrand.existing_messaging_assessment.implication",
+        "storybrand.messaging_fixes",
+        "storybrand.content_implications",
         "usp_ksp_review.score",
         "seo_audit.cards",
         "seo_audit.semrush_evidence",
@@ -642,6 +651,28 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     for index, item in enumerate(data.get("agency_opportunity", {}).get("department_opportunity_map", [])):
         if not has_value(item.get("opportunity_signal")):
             errors.append(f"agency_opportunity.department_opportunity_map[{index}].opportunity_signal is required.")
+    storybrand = data.get("storybrand", {})
+    messaging_assessment = storybrand.get("existing_messaging_assessment", {})
+    published_statements = messaging_assessment.get("published_statements", [])
+    if len(published_statements) < 2:
+        errors.append("storybrand.existing_messaging_assessment.published_statements must include at least 2 mission, purpose, promise, or proposition statements.")
+    for index, item in enumerate(published_statements):
+        if not has_value(item.get("label")):
+            errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].label is required.")
+        if not has_value(item.get("statement")):
+            errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].statement is required.")
+        if not has_value(item.get("source")):
+            errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].source is required.")
+    for field in ("messaging_fixes", "content_implications"):
+        items = storybrand.get(field, [])
+        if len(items) < 2:
+            errors.append(f"storybrand.{field} must include at least 2 rationale-led recommendations.")
+        for index, item in enumerate(items):
+            text = str(item or "")
+            if "why:" not in text.lower() and "because" not in text.lower():
+                errors.append(f"storybrand.{field}[{index}] must explain the WHY behind the recommendation.")
+            if not any(token in text.lower() for token in ("reputation", "trust", "review", "service", "growth", "proof", "technology", "customer")):
+                errors.append(f"storybrand.{field}[{index}] must show read-across from reputation findings or customer evidence.")
     if errors:
         return {"ok": False, "data": str(data_path), "errors": errors, "warnings": warnings}
     return {"ok": True, "data": str(data_path), "warnings": warnings}
@@ -1726,6 +1757,7 @@ def task_list_html(brand_folder: Path) -> str:
         "<section id=\"newbiz2-workflow-task-list\" class=\"newbiz2-task-list\">"
         "<h2>Workflow Task List</h2>"
         f"<p class=\"score\">Passed: {html.escape(str(payload.get('passed', 0)))}/{html.escape(str(payload.get('total', 10)))}</p>"
+        f"<p class=\"note\">Updated: {html.escape(str(payload.get('updated_at', 'not recorded')))}</p>"
         "<table><thead><tr><th>#</th><th>Step</th><th>Status</th><th>Primary gate</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
         "</section>"
@@ -1742,8 +1774,12 @@ def inject_task_list_into_html(html_path: Path, brand_folder: Path) -> None:
     pattern = re.compile(r"<section id=\"newbiz2-workflow-task-list\".*?</section>", re.S)
     if pattern.search(text):
         text = pattern.sub(section, text)
-    else:
+    elif "</main>" in text:
         text = text.replace("</main>", section + "</main>")
+    elif "</body>" in text:
+        text = text.replace("</body>", section + "</body>")
+    else:
+        text = text + section
     html_path.write_text(text, encoding="utf-8")
 
 
@@ -2081,7 +2117,13 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
     set_gate(state, "gate_6a_editorial_quality", "passed")
     save_state(brand_folder, state)
     checks["task_list"] = audit_task_list(data_path)
-    inject_task_list_into_html(brand_folder / "newbizintel-report.html", brand_folder)
+    html_path = brand_folder / "newbizintel-report.html"
+    index_path = brand_folder / "index.html"
+    inject_task_list_into_html(html_path, brand_folder)
+    if html_path.exists():
+        shutil.copy2(html_path, index_path)
+    elif index_path.exists():
+        inject_task_list_into_html(index_path, brand_folder)
     write_json(brand_folder / "qa-results.json", checks)
     return {"module": "qa", "data": str(data_path), "brand_folder": str(brand_folder), "checks": checks}
 

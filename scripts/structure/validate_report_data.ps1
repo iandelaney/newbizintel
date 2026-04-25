@@ -385,6 +385,46 @@ if (Test-HasValue $data.usp_ksp_review) {
     }
 }
 
+if (-not (Test-HasValue $data.storybrand)) {
+    Add-MissingError 'storybrand'
+}
+else {
+    if (-not (Test-HasValue $data.storybrand.existing_messaging_assessment.summary)) { Add-MissingError 'storybrand.existing_messaging_assessment.summary' }
+    if (-not (Test-HasValue $data.storybrand.existing_messaging_assessment.published_statements)) { Add-MissingError 'storybrand.existing_messaging_assessment.published_statements' }
+    if (-not (Test-HasValue $data.storybrand.existing_messaging_assessment.reputation_read_across)) { Add-MissingError 'storybrand.existing_messaging_assessment.reputation_read_across' }
+    if (-not (Test-HasValue $data.storybrand.existing_messaging_assessment.implication)) { Add-MissingError 'storybrand.existing_messaging_assessment.implication' }
+    if (-not (Test-HasValue $data.storybrand.messaging_fixes)) { Add-MissingError 'storybrand.messaging_fixes' }
+    if (-not (Test-HasValue $data.storybrand.content_implications)) { Add-MissingError 'storybrand.content_implications' }
+
+    $publishedStatements = @($data.storybrand.existing_messaging_assessment.published_statements)
+    if ($publishedStatements.Count -lt 2) {
+        $errors.Add("storybrand.existing_messaging_assessment.published_statements must include at least 2 mission, purpose, promise, or proposition statements.")
+    }
+    for ($i = 0; $i -lt $publishedStatements.Count; $i++) {
+        $item = $publishedStatements[$i]
+        $pathPrefix = "storybrand.existing_messaging_assessment.published_statements[$i]"
+        if (-not (Test-HasValue $item.label)) { Add-MissingError "$pathPrefix.label" }
+        if (-not (Test-HasValue $item.statement)) { Add-MissingError "$pathPrefix.statement" }
+        if (-not (Test-HasValue $item.source)) { Add-MissingError "$pathPrefix.source" }
+    }
+
+    foreach ($fieldName in @('messaging_fixes', 'content_implications')) {
+        $items = @($data.storybrand.$fieldName)
+        if ($items.Count -lt 2) {
+            $errors.Add("storybrand.$fieldName must include at least 2 rationale-led recommendations.")
+        }
+        for ($i = 0; $i -lt $items.Count; $i++) {
+            $text = [string]$items[$i]
+            if ($text -notmatch '(?i)\bwhy:|\bbecause\b') {
+                $errors.Add("storybrand.$fieldName[$i] must explain the WHY behind the recommendation.")
+            }
+            if ($text -notmatch '(?i)reputation|trust|review|service|growth|proof|technology|customer') {
+                $errors.Add("storybrand.$fieldName[$i] must show read-across from reputation findings or customer evidence.")
+            }
+        }
+    }
+}
+
 if (-not (Test-HasValue $data.seo_audit)) {
     Add-MissingError 'seo_audit'
 }

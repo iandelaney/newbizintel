@@ -390,6 +390,78 @@ function ConvertTo-ListHtml {
     return "<ul>`n{0}`n</ul>" -f ($listItems -join "`n")
 }
 
+function ConvertTo-PublishedMessagingAssessmentHtml {
+    param([object]$Assessment)
+
+    if (-not $Assessment) {
+        return ''
+    }
+
+    $statementRows = @($Assessment.published_statements)
+    $statementHtml = ''
+    if ($statementRows.Count -gt 0) {
+        $statementHtml = ConvertTo-TableHtml -Rows $statementRows -Columns @(
+            @{ header = 'Published statement'; key = 'label' },
+            @{ header = 'What it says'; key = 'statement' },
+            @{ header = 'Source'; key = 'source' }
+        )
+    }
+
+    return @"
+    <div class="score published-messaging-assessment">
+      <span class="eyebrow">Published Messaging Assessment</span>
+      $(ConvertTo-RichText ([string]$Assessment.summary))
+      $statementHtml
+      <p><span class="eyebrow">Reputation read-across</span> $(ConvertTo-HtmlEncoded ([string]$Assessment.reputation_read_across))</p>
+      <p><span class="eyebrow">Messaging implication</span> $(ConvertTo-HtmlEncoded ([string]$Assessment.implication))</p>
+    </div>
+"@
+}
+
+function ConvertTo-RecommendationCardsHtml {
+    param(
+        [object[]]$Items,
+        [string]$Tone = 'blue'
+    )
+
+    if (-not $Items -or $Items.Count -eq 0) {
+        return ''
+    }
+
+    $index = 0
+    $cardHtml = foreach ($item in $Items) {
+        $index += 1
+        $text = [string]$item
+        $action = $text
+        $why = ''
+        $match = [regex]::Match($text, '(?is)^(?<action>.*?)(?:\s+Why:\s+)(?<why>.+)$')
+        if ($match.Success) {
+            $action = $match.Groups['action'].Value.Trim()
+            $why = $match.Groups['why'].Value.Trim()
+        }
+        $whyHtml = ''
+        if (-not [string]::IsNullOrWhiteSpace($why)) {
+            $whyHtml = '<div class="recommendation-card__why"><span>Why this matters</span>{0}</div>' -f (ConvertTo-RichText $why)
+        }
+
+        @"
+      <article class="recommendation-card recommendation-card--$Tone">
+        <div class="recommendation-card__number">$(ConvertTo-HtmlEncoded ([string]$index))</div>
+        <div class="recommendation-card__body">
+          <div class="recommendation-card__action">$(ConvertTo-RichText $action)</div>
+          $whyHtml
+        </div>
+      </article>
+"@
+    }
+
+    return @"
+    <div class="recommendation-grid recommendation-grid--$Tone">
+$($cardHtml -join "`n")
+    </div>
+"@
+}
+
 function ConvertTo-SourceListHtml {
     param([object[]]$Items)
 
@@ -1591,6 +1663,7 @@ $(ConvertTo-ListHtml @($data.agency_opportunity.archetype_advantages))
 $(ConvertTo-BackToContentsHtml)
 
     $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Messaging Assessment' -IconKey 'messaging' -Id 'storybrand-messaging')
+$(ConvertTo-PublishedMessagingAssessmentHtml $data.storybrand.existing_messaging_assessment)
     <div class="score">
       <span class="eyebrow">Messaging Score</span>
       <strong>$(ConvertTo-HtmlEncoded ([string]$data.storybrand.score))</strong>
@@ -1600,9 +1673,9 @@ $(ConvertTo-CardGridHtml @($data.storybrand.cards))
     $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Recommended One-Liner' -IconKey 'one-liner' -Class 'category-heading')
     <p><strong>$(ConvertTo-HtmlEncoded ([string]$data.storybrand.one_liner))</strong></p>
     $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Biggest Messaging Fixes' -IconKey 'fixes' -Class 'category-heading')
-$(ConvertTo-ListHtml @($data.storybrand.messaging_fixes))
+$(ConvertTo-RecommendationCardsHtml -Items @($data.storybrand.messaging_fixes) -Tone 'teal')
     $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Content Implications of the Messaging Findings' -IconKey 'content' -Class 'category-heading')
-$(ConvertTo-ListHtml @($data.storybrand.content_implications))
+$(ConvertTo-RecommendationCardsHtml -Items @($data.storybrand.content_implications) -Tone 'gold')
 $(ConvertTo-BackToContentsHtml)
 
     $(ConvertTo-HeadingHtml -Level 'h2' -Text 'USP and KSP Review' -IconKey 'competitive' -Id 'usp-ksp-review')

@@ -240,6 +240,23 @@
   "storybrand": {
     "score": "0.0 / 10",
     "score_summary": "Replace with a short explanation of the messaging score.",
+    "existing_messaging_assessment": {
+      "summary": "Assess the target's existing messaging from published mission, purpose, promise, proposition, or brand-platform statements before starting the StoryBrand analysis.",
+      "published_statements": [
+        {
+          "label": "Mission / purpose",
+          "statement": "Replace with the published mission or purpose statement.",
+          "source": "Replace with the source name or URL."
+        },
+        {
+          "label": "Promise / proposition",
+          "statement": "Replace with the published brand promise, customer promise, or proposition statement.",
+          "source": "Replace with the source name or URL."
+        }
+      ],
+      "reputation_read_across": "Explain how reputation research changes the interpretation of the published messaging.",
+      "implication": "Explain what the published messaging and reputation findings mean for the messaging recommendations."
+    },
     "cards": [
       {
         "title": "Hero",
@@ -276,12 +293,12 @@
     ],
     "one_liner": "Replace with a one-line message that makes the offer and outcome clear.",
     "messaging_fixes": [
-      "Replace with the first messaging fix.",
-      "Replace with the second messaging fix."
+      "Replace with the first messaging fix. Why: Explain the reputation, trust, customer, proof, growth, service, or technology evidence behind it.",
+      "Replace with the second messaging fix. Why: Explain the reputation, trust, customer, proof, growth, service, or technology evidence behind it."
     ],
     "content_implications": [
-      "Replace with the first content implication.",
-      "Replace with the second content implication."
+      "Replace with the first content implication. Why: Explain the reputation, trust, customer, proof, growth, service, or technology evidence behind it.",
+      "Replace with the second content implication. Why: Explain the reputation, trust, customer, proof, growth, service, or technology evidence behind it."
     ]
   },
   "competitive_landscape": {
