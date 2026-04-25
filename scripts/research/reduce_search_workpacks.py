@@ -59,6 +59,51 @@ def parse_date(value: str) -> str:
     return value
 
 
+def extract_exact_date(result: dict) -> str:
+    published = parse_date(str(result.get("published_date") or ""))
+    if re.match(r"^\d{1,2}\s+[A-Z][a-z]+\s+\d{4}$", published):
+        return published
+
+    text = result_text(result)
+    month_names = (
+        "January|February|March|April|May|June|July|August|September|October|November|December|"
+        "Jan\\.?|Feb\\.?|Mar\\.?|Apr\\.?|Jun\\.?|Jul\\.?|Aug\\.?|Sep\\.?|Sept\\.?|Oct\\.?|Nov\\.?|Dec\\.?"
+    )
+    patterns = [
+        rf"\b(\d{{1,2}})\s+({month_names})\s+(20\d{{2}})\b",
+        rf"\b({month_names})\s+(\d{{1,2}}),?\s+(20\d{{2}})\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.I)
+        if not match:
+            continue
+        groups = match.groups()
+        if groups[0].isdigit():
+            day, month, year = groups[0], groups[1], groups[2]
+        else:
+            month, day, year = groups[0], groups[1], groups[2]
+        month_key = month.lower().rstrip(".")
+        month_map = {
+            "jan": "January",
+            "feb": "February",
+            "mar": "March",
+            "apr": "April",
+            "jun": "June",
+            "jul": "July",
+            "aug": "August",
+            "sep": "September",
+            "sept": "September",
+            "oct": "October",
+            "nov": "November",
+            "dec": "December",
+        }
+        full_month = month_map.get(month_key[:4].rstrip("."), month_map.get(month_key[:3], month.title().rstrip(".")))
+        if full_month == "Sept":
+            full_month = "September"
+        return f"{int(day)} {full_month} {year}"
+    return ""
+
+
 def parsed_year(value: str) -> int:
     if not value:
         return 0
@@ -172,9 +217,10 @@ def reputation_subscores(result: dict, index: int, brand_name: str) -> dict[str,
     source_type = infer_source_type(result)
     risk_terms = ("concern", "complaint", "cuts", "loss", "fall", "warning", "refund", "recall", "probe", "lawsuit", "strike", "delay")
     opportunity_terms = ("growth", "launch", "partnership", "profit", "rise", "record", "expansion", "wins", "new", "investment")
-    evidence_bonus = 8 if result.get("published_date") else 0
+    exact_date = extract_exact_date(result)
+    evidence_bonus = 8 if exact_date else 0
     content_bonus = 6 if len(str(result.get("content") or "")) > 120 else 0
-    year = parsed_year(str(result.get("published_date") or ""))
+    year = parsed_year(exact_date or str(result.get("published_date") or ""))
     recency = 88 if year >= 2026 else 78 if year == 2025 else 62 if year else 50
     novelty_hits = sum(1 for term in (*risk_terms, *opportunity_terms) if term in title)
     impact_hits = sum(1 for term in (*risk_terms, *opportunity_terms) if term in text)
@@ -219,7 +265,7 @@ def build_influential_news(results: list[dict], brand_name: str, workpack_summar
 
     scored = []
     for index, result in enumerate(candidates):
-        if not result.get("url") or not result.get("title") or not result.get("published_date"):
+        if not result.get("url") or not result.get("title") or not extract_exact_date(result):
             continue
         subscores = reputation_subscores(result, index, brand_name)
         scored.append((influence_score(subscores), subscores, result))
@@ -235,7 +281,7 @@ def build_influential_news(results: list[dict], brand_name: str, workpack_summar
             return False
         final.append(
             {
-                "date": parse_date(str(result.get("published_date") or "")),
+                "date": extract_exact_date(result),
                 "headline": str(result.get("title") or "").strip(),
                 "source": source,
                 "source_type": infer_source_type(result),
@@ -269,6 +315,7 @@ def build_influential_news(results: list[dict], brand_name: str, workpack_summar
         if any(item["url"] == str(result.get("url") or "").strip() for item in final):
             continue
         add_final(score, subscores, result)
+    final.sort(key=lambda item: int(item.get("influence_score") or 0), reverse=True)
 
     broad_queries = [
         str(item.get("query") or "").strip()
@@ -301,7 +348,7 @@ def build_influential_news(results: list[dict], brand_name: str, workpack_summar
         "confidence_score": 70 if len(final) >= 5 and len(candidates) >= 12 else 50,
         "confidence_rationale": "Confidence is based on broad cheap-search coverage, explicit candidate scoring, source diversity checks, and dated source URLs.",
         "limitations": [
-            "Cheap Tavily Search may miss paywalled, syndicated, or social-only coverage; escalate to paid deep research only if this candidate pool is thin."
+            "Cheap Tavily Search may miss paywalled, syndicated, or social-only coverage; live NewBiz2 runs should use Tavily Research as the final reputation quality layer."
         ],
     }
     return final, ranking
@@ -514,7 +561,7 @@ def main():
             "tool": "tavily",
             "source_count": len(source_map),
             "used_in_sections": ["appendix"],
-            "why_passed": "Cheap Tavily Search workpacks produced a source map without Tavily Research escalation.",
+            "why_passed": "Cheap Tavily Search workpacks produced the initial source map; Tavily Research may add final reputation citations downstream.",
         },
     }
 
@@ -557,8 +604,8 @@ def main():
         },
         "workpacks": workpack_summaries,
         "notes": [
-            "Summary reduced from cheap Tavily Search workpacks, not Tavily Research.",
-            "Codex owns source judgement and research synthesis by default; Tavily Research is an explicit escalation when cheap coverage is insufficient.",
+            "Summary reduced from broad Tavily Search workpacks before the Tavily Research reputation quality layer.",
+            "Codex owns initial source judgement and synthesis; Tavily Research is the default final quality layer for Brand Reputation in live-summary runs.",
         ],
     }
 

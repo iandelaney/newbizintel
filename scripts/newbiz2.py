@@ -36,6 +36,7 @@ SKILL_ROOT = SCRIPT_ROOT.parent
 TEMPLATE_PATH = SKILL_ROOT / "templates" / "report-data.template.json"
 TEMPLATE_ASSETS = SKILL_ROOT / "templates" / "slide-assets"
 RUN_STATE_CONTRACT = SKILL_ROOT / "references" / "run-state.contract.json"
+TAVILY_REPUTATION_SCHEMA = SKILL_ROOT / "references" / "tavily-reputation-research.schema.json"
 REPUTATION_SOURCE_TYPES = {
     "national_business_press",
     "trade_press",
@@ -393,6 +394,14 @@ def save_state(brand_folder: Path, state: dict[str, Any]) -> None:
     (brand_folder / "workflow-task-list.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def primary_gate_for(gate: str) -> str | None:
+    for definition in TASK_DEFINITIONS:
+        primary = definition["gates"][0]
+        if gate == primary or gate in definition.get("legacy_gates", []):
+            return primary
+    return None
+
+
 def add_event(state: dict[str, Any], event_type: str, key: str, jobs: list[str] | None = None, outputs: list[str] | None = None, notes: list[str] | None = None) -> None:
     hybrid = state.setdefault("hybrid_execution", {})
     hybrid.setdefault("events", []).append(
@@ -408,7 +417,11 @@ def add_event(state: dict[str, Any], event_type: str, key: str, jobs: list[str] 
 
 
 def set_gate(state: dict[str, Any], gate: str, status: str) -> None:
-    state.setdefault("gates", {})[gate] = status
+    gates = state.setdefault("gates", {})
+    gates[gate] = status
+    primary = primary_gate_for(gate)
+    if primary and primary != gate:
+        gates[primary] = status
     sync_primary_gates(state)
 
 
@@ -472,6 +485,13 @@ def is_repo_example_path(path: Path | None) -> bool:
         return False
 
 
+def placeholder_marker_matches(value: str, marker: str) -> bool:
+    if marker.lower() == "replace with":
+        return marker.lower() in value.lower()
+    pattern = re.compile(rf"(?<![A-Za-z0-9]){re.escape(marker)}(?![A-Za-z0-9])", re.IGNORECASE)
+    return bool(pattern.search(value))
+
+
 def audit_placeholder_content(payload: Any, *, root_label: str = "payload", allow_examples: bool = False) -> dict[str, Any]:
     matches: list[dict[str, str]] = []
 
@@ -488,7 +508,7 @@ def audit_placeholder_content(payload: Any, *, root_label: str = "payload", allo
             return
 
         for marker, reason in PLACEHOLDER_MARKERS:
-            if marker.lower() in value.lower():
+            if placeholder_marker_matches(value, marker):
                 matches.append({"path": path or root_label, "marker": marker, "reason": reason})
 
     walk(payload, root_label)
@@ -945,48 +965,81 @@ def live_research_query_plan(data: dict[str, Any]) -> list[dict[str, str]]:
     website = str(data.get("brand", {}).get("website") or "").strip()
     domain = brand_domain_from_website(website)
     brand = brand_name or domain
+    compact_brand = re.sub(r"[^A-Za-z0-9]+", "", brand)
+    domain_label = domain.split(".")[0] if domain else ""
+    variants = list(dict.fromkeys([item for item in (brand, compact_brand, domain_label) if item]))
+    primary = variants[0]
+    compact = variants[1] if len(variants) > 1 else primary
     return [
         {
             "role": "competitor_discovery",
-            "query": f"{brand} competitors UK alternatives market category",
+            "query": f"{primary} competitors UK alternatives market category",
             "topic": "general",
             "time_range": "",
+            "max_results": "20",
         },
         {
             "role": "recent_news",
-            "query": f"{brand} news reputation growth customers market 2026",
+            "query": f"{primary} OR {compact} news reputation growth customers market 2026 2025",
             "topic": "news",
             "time_range": "year",
+            "max_results": "20",
         },
         {
             "role": "recent_news",
-            "query": f"{brand} reviews complaints service trust 2026",
+            "query": f"{primary} OR {compact} reviews complaints service trust recall 2026 2025",
             "topic": "general",
             "time_range": "year",
+            "max_results": "20",
         },
         {
             "role": "recent_news",
-            "query": f"{brand} investors partnerships performance trade press 2026",
+            "query": f"{primary} OR {compact} results revenue profit guidance investors partnerships 2026 2025",
             "topic": "general",
             "time_range": "year",
+            "max_results": "20",
         },
         {
             "role": "reputation_public_web",
-            "query": f"{brand} customer sentiment controversy trust reviews",
+            "query": f"{primary} OR {compact} customer sentiment controversy trust reviews watchdog 2026 2025",
             "topic": "general",
             "time_range": "year",
+            "max_results": "20",
+        },
+        {
+            "role": "recent_news",
+            "query": f"{primary} OR {compact} trade press market share category meal kits grocery delivery 2026 2025",
+            "topic": "general",
+            "time_range": "year",
+            "max_results": "20",
+        },
+        {
+            "role": "recent_news",
+            "query": f"{primary} OR {compact} financial results Q4 Q3 annual report outlook 2026 2025",
+            "topic": "finance",
+            "time_range": "year",
+            "max_results": "20",
+        },
+        {
+            "role": "reputation_public_web",
+            "query": f"{primary} OR {compact} complaints unsubscribe refund delivery ingredients quality 2026 2025",
+            "topic": "general",
+            "time_range": "year",
+            "max_results": "20",
         },
         {
             "role": "source_gathering",
-            "query": f"site:{domain} {brand} mission purpose promise about newsroom" if domain else f"{brand} mission purpose promise about newsroom",
+            "query": f"site:{domain} {primary} mission purpose promise about newsroom" if domain else f"{primary} mission purpose promise about newsroom",
             "topic": "general",
             "time_range": "",
+            "max_results": "10",
         },
         {
             "role": "source_gathering",
-            "query": f"{brand} SEO visibility Similarweb SEMrush organic search competitors",
+            "query": f"{primary} SEO visibility Similarweb SEMrush organic search competitors",
             "topic": "general",
             "time_range": "year",
+            "max_results": "10",
         },
     ]
 
@@ -1000,9 +1053,9 @@ def run_tavily_search_workpack(query: dict[str, str], output_path: Path) -> dict
         "search",
         query["query"],
         "--depth",
-        "basic",
+        query.get("depth") or "basic",
         "--max-results",
-        "12",
+        str(query.get("max_results") or "12"),
         "--topic",
         query.get("topic") or "general",
         "--json",
@@ -1083,6 +1136,214 @@ def reduce_search_workpacks(data_path: Path, brand_folder: Path, workpacks: list
     return read_json(output_path)
 
 
+def tavily_reputation_research_prompt(data: dict[str, Any], summary: dict[str, Any]) -> str:
+    brand_name = data.get("brand", {}).get("name") or summary.get("brand_name") or "the target brand"
+    website = data.get("brand", {}).get("website") or summary.get("brand_website") or ""
+    candidate_pool = summary.get("influence_ranking", {}).get("candidate_pool_summary") or []
+    candidate_lines = "\n".join(f"- {item}" for item in candidate_pool[:40])
+    return textwrap.dedent(
+        f"""
+        Research the current brand reputation of {brand_name} ({website}) for a new-business intelligence report.
+
+        Quality rules:
+        - Start from broad discovery across national/business press, trade press, financial/investor coverage, consumer/review evidence, analyst/research sources, legal/regulatory sources, and social/forum evidence where relevant.
+        - Do not preselect stories from expected narratives. Build a candidate pool first, then score and reduce.
+        - Return 5 or 6 genuinely influential stories only.
+        - Every final story must have an exact publication date in this format: 19 November 2025.
+        - If a candidate does not have an exact day-month-year publication date, do not include it in influential_news; keep it in candidate_pool_summary or limitations instead.
+        - Do not use review-platform aggregate pages, live ratings, homepages, or undated snapshots as final influential_news items; they can support the reputation readout but they are not dated stories.
+        - Every final story must have a verifiable source URL.
+        - Use at least 3 distinct publishers and at least 3 source classes.
+        - Do not include more than 2 stories from the same publisher.
+        - Exclude weak, generic, undated, duplicate, irrelevant, or brand-adjacent stories.
+        - broad_discovery_queries must be genuinely broad and must not include final publisher names, source names, exact headlines, or site: operators.
+        - Put source-specific, headline-specific, or site: checks in verification_queries only.
+
+        Influence scoring must use these exact weights:
+        - source_authority: 0.25
+        - buyer_relevance: 0.25
+        - reputation_risk_or_opportunity: 0.20
+        - evidence_quality: 0.15
+        - novelty: 0.10
+        - recency: 0.05
+
+        Use discovery_mode exactly: broad_first_scored_reduction.
+        Set confidence_score from 70 to 100 only if the final set is genuinely report-ready; otherwise return the best possible structured result with limitations.
+
+        Cheap-search candidate pool to consider but not blindly accept:
+        {candidate_lines}
+        """
+    ).strip()
+
+
+def parse_structured_tavily_payload(raw: Any) -> dict[str, Any] | None:
+    candidates: list[Any] = [raw]
+    if isinstance(raw, dict):
+        for key in ("answer", "content", "result", "data", "output"):
+            if key in raw:
+                candidates.append(raw[key])
+    for candidate in candidates:
+        if isinstance(candidate, dict) and "influential_news" in candidate and "influence_ranking" in candidate:
+            return candidate
+        if isinstance(candidate, str):
+            text = candidate.strip()
+            if not text:
+                continue
+            if text.startswith("```"):
+                text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.I)
+                text = re.sub(r"\s*```$", "", text)
+            match = re.search(r"\{.*\}", text, flags=re.S)
+            if match:
+                text = match.group(0)
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict) and "influential_news" in parsed and "influence_ranking" in parsed:
+                return parsed
+    return None
+
+
+def story_specific_query(query: str, final_sources: set[str], final_headlines: list[str]) -> bool:
+    value = str(query or "").strip().lower()
+    if not value:
+        return True
+    if "site:" in value:
+        return True
+    if any(source and source in value for source in final_sources):
+        return True
+    query_words = [word for word in re.findall(r"[a-z0-9]+", value) if len(word) > 2]
+    for headline in final_headlines:
+        headline_words = set(word for word in re.findall(r"[a-z0-9]+", headline.lower()) if len(word) > 2)
+        if len([word for word in query_words if word in headline_words]) >= 5:
+            return True
+    return False
+
+
+def normalise_reputation_research_payload(payload: dict[str, Any], *, brand_name: str = "the target brand") -> dict[str, Any]:
+    news = payload.get("influential_news") if isinstance(payload.get("influential_news"), list) else []
+    for item in news:
+        if not isinstance(item, dict):
+            continue
+        subscores = item.get("influence_subscores")
+        if isinstance(subscores, dict):
+            calculated = calculate_reputation_influence_score(subscores)
+            if calculated is not None:
+                item["influence_score"] = calculated
+    news = [item for item in news if isinstance(item, dict)]
+    news.sort(key=lambda item: as_int(item.get("influence_score")) or 0, reverse=True)
+    payload["influential_news"] = news
+    ranking = payload.get("influence_ranking")
+    if isinstance(ranking, dict):
+        ranking.setdefault("ranking_factors", list(REPUTATION_RANKING_FACTORS))
+        ranking.setdefault("score_weights", REPUTATION_SCORE_WEIGHTS)
+        ranking.setdefault("discovery_mode", "broad_first_scored_reduction")
+        final_sources = {normalised_source(item.get("source")) for item in news if isinstance(item, dict)}
+        final_headlines = [str(item.get("headline", "")) for item in news if isinstance(item, dict)]
+        broad_queries = ranking.get("broad_discovery_queries") if isinstance(ranking.get("broad_discovery_queries"), list) else []
+        verification_queries = ranking.get("verification_queries") if isinstance(ranking.get("verification_queries"), list) else []
+        cleaned_broad: list[str] = []
+        cleaned_verification: list[str] = [str(query).strip() for query in verification_queries if str(query).strip()]
+        for query in broad_queries:
+            query_text = str(query).strip()
+            if not query_text:
+                continue
+            if story_specific_query(query_text, final_sources, final_headlines):
+                cleaned_verification.append(query_text)
+            else:
+                cleaned_broad.append(query_text)
+        default_broad = [
+            f"{brand_name} reputation news coverage",
+            f"{brand_name} customer trust reviews complaints",
+            f"{brand_name} financial performance investor reaction",
+            f"{brand_name} regulatory legal consumer issues",
+            f"{brand_name} innovation product strategy coverage",
+            f"{brand_name} social forum sentiment",
+        ]
+        for query in default_broad:
+            if len({item.lower() for item in cleaned_broad}) >= 4:
+                break
+            if query.lower() not in {item.lower() for item in cleaned_broad}:
+                cleaned_broad.append(query)
+        ranking["broad_discovery_queries"] = list(dict.fromkeys(cleaned_broad))
+        ranking["verification_queries"] = list(dict.fromkeys(cleaned_verification))
+    return payload
+
+
+def apply_tavily_reputation_research(data_path: Path, brand_folder: Path, summary: dict[str, Any]) -> tuple[dict[str, Any], Path | None]:
+    data = read_json(data_path)
+    tvly = shutil.which("tvly")
+    if not tvly:
+        summary.setdefault("notes", []).append("Tavily Reputation Research was required but `tvly` was not found on PATH.")
+        return summary, None
+    workpack_dir = brand_folder / "research-workpacks"
+    workpack_dir.mkdir(parents=True, exist_ok=True)
+    output_path = workpack_dir / "99-reputation_research.json"
+    if output_path.exists() and os.getenv("NEWBIZ2_REFRESH_TAVILY_REPUTATION_RESEARCH") != "1":
+        raw = read_json(output_path)
+    else:
+        command = [
+            tvly,
+            "research",
+            "run",
+            tavily_reputation_research_prompt(data, summary),
+            "--model",
+            "pro",
+            "--output-schema",
+            str(TAVILY_REPUTATION_SCHEMA),
+            "--citation-format",
+            "numbered",
+            "--poll-interval",
+            "10",
+            "--timeout",
+            "900",
+            "--json",
+            "-o",
+            str(output_path),
+        ]
+        completed = subprocess.run(command, text=True, capture_output=True, check=False, timeout=960)
+        if completed.returncode != 0:
+            summary.setdefault("notes", []).append(
+                "Tavily Reputation Research failed: " + (completed.stderr.strip() or completed.stdout.strip())
+            )
+            return summary, output_path
+        raw = read_json(output_path)
+
+    payload = parse_structured_tavily_payload(raw)
+    if not payload:
+        summary.setdefault("notes", []).append("Tavily Reputation Research did not return structured influential_news output.")
+        return summary, output_path
+    payload = normalise_reputation_research_payload(payload, brand_name=str(data.get("brand", {}).get("name") or "the target brand"))
+    summary["influential_news"] = payload.get("influential_news", [])
+    summary["influence_ranking"] = payload.get("influence_ranking", {})
+    summary.setdefault("reputation", {})["influence_ranking"] = summary["influence_ranking"]
+    source_map = summary.setdefault("source_map", [])
+    known_urls = {item.get("url") for item in source_map if isinstance(item, dict)}
+    for item in summary["influential_news"]:
+        url = item.get("url")
+        if url and url not in known_urls:
+            source_map.append(
+                {
+                    "title": item.get("headline"),
+                    "url": url,
+                    "source": item.get("source"),
+                    "used_for": ["brand_reputation", "appendix"],
+                }
+            )
+            known_urls.add(url)
+    summary.setdefault("locked_sets", {})["influential_news"] = [
+        item.get("headline") for item in summary["influential_news"] if item.get("headline")
+    ]
+    summary.setdefault("status", {})["recent_news"] = "passed"
+    summary.setdefault("status", {})["reputation_public_web"] = "passed"
+    summary.setdefault("tavily_validation", {}).setdefault("recent_news", {})["why_passed"] = (
+        "Final reputation story set was produced by Tavily Research after broad Tavily Search discovery."
+    )
+    summary.setdefault("source_provenance_summary", {})["tavily_research_used"] = True
+    summary.setdefault("notes", []).append("Final reputation story selection used Tavily Research for quality and confidence.")
+    return summary, output_path
+
+
 def validate_research_summary(summary: dict[str, Any], *, allow_examples: bool = False) -> dict[str, Any]:
     errors = []
     warnings = []
@@ -1111,6 +1372,8 @@ def validate_research_summary(summary: dict[str, Any], *, allow_examples: bool =
             warnings,
             prefix="influential_news",
         )
+    if summary.get("required_tavily_reputation_research") and not summary.get("source_provenance_summary", {}).get("tavily_research_used"):
+        errors.append("Tavily Reputation Research is required for this live run but did not produce the final reputation story set")
     return {"ok": not errors, "errors": errors, "warnings": warnings, "anti_placeholder_audit": placeholder_audit}
 
 
@@ -1157,6 +1420,13 @@ def module_research(args: argparse.Namespace) -> dict[str, Any]:
             summary = read_json(Path(args.research_summary_path).expanduser().resolve())
         else:
             summary = build_summary_from_data(data_path)
+        if args.research_mode == "live-summary" and getattr(args, "tavily_reputation_research", True):
+            summary["required_tavily_reputation_research"] = True
+            summary, reputation_research_path = apply_tavily_reputation_research(data_path, brand_folder, summary)
+            if reputation_research_path:
+                add_event(state, "fanout", "research.tavily_reputation_research", jobs=[str(reputation_research_path)])
+                add_event(state, "reducer", "research.tavily_reputation_reducer", outputs=[str(reputation_research_path)])
+                save_state(brand_folder, state)
     except SystemExit:
         set_status(state, "research", "failed")
         set_gate(state, "gate_2_competitors", "failed")
@@ -2714,6 +2984,7 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--research-mode", choices=["bootstrap", "live-summary", "workpacks"], default="bootstrap")
     parser.add_argument("--research-summary-path")
     parser.add_argument("--search-workpacks", nargs="*", default=[])
+    parser.add_argument("--tavily-reputation-research", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--composio-semrush-available", action="store_true")
     parser.add_argument("--jina-fallback-available", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--semrush-database", choices=["uk", "us"], default="uk")

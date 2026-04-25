@@ -1,0 +1,231 @@
+{
+  "required": [
+    "influential_news",
+    "influence_ranking"
+  ],
+  "properties": {
+    "influential_news": {
+      "type": "array",
+      "description": "Five or six influential current reputation/news stories about the target brand, selected after broad discovery and scored reduction.",
+      "items": {
+        "type": "object",
+        "description": "One influential reputation or news story.",
+        "required": [
+          "date",
+          "headline",
+          "source",
+          "source_type",
+          "sentiment",
+          "influence_score",
+          "influence_subscores",
+          "rank_reason",
+          "url",
+          "why_it_matters"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Exact publication date, for example '19 November 2025'."
+          },
+          "headline": {
+            "type": "string",
+            "description": "Published story headline."
+          },
+          "source": {
+            "type": "string",
+            "description": "Publisher or source name."
+          },
+          "source_type": {
+            "type": "string",
+            "description": "One of national_business_press, trade_press, financial_investor_press, consumer_press, review_platform, regulatory_or_legal, analyst_or_research, industry_body, owned_newsroom, social_or_forum."
+          },
+          "sentiment": {
+            "type": "string",
+            "description": "One of positive, neutral, negative, or mixed."
+          },
+          "influence_score": {
+            "type": "integer",
+            "description": "Overall weighted influence score from 1 to 100."
+          },
+          "influence_subscores": {
+            "type": "object",
+            "description": "Component scores used to calculate influence_score.",
+            "required": [
+              "source_authority",
+              "buyer_relevance",
+              "reputation_risk_or_opportunity",
+              "evidence_quality",
+              "novelty",
+              "recency"
+            ],
+            "properties": {
+              "source_authority": {
+                "type": "integer",
+                "description": "Source authority score from 1 to 100."
+              },
+              "buyer_relevance": {
+                "type": "integer",
+                "description": "Buyer relevance score from 1 to 100."
+              },
+              "reputation_risk_or_opportunity": {
+                "type": "integer",
+                "description": "Reputation risk or opportunity score from 1 to 100."
+              },
+              "evidence_quality": {
+                "type": "integer",
+                "description": "Evidence quality score from 1 to 100."
+              },
+              "novelty": {
+                "type": "integer",
+                "description": "Novelty score from 1 to 100."
+              },
+              "recency": {
+                "type": "integer",
+                "description": "Recency score from 1 to 100."
+              }
+            }
+          },
+          "rank_reason": {
+            "type": "string",
+            "description": "Short explanation of why this story ranks where it does."
+          },
+          "url": {
+            "type": "string",
+            "description": "Verifiable URL for the story or source page."
+          },
+          "why_it_matters": {
+            "type": "string",
+            "description": "Why this story matters for reputation, buyer perception, marketing, or sales."
+          }
+        }
+      }
+    },
+    "influence_ranking": {
+      "type": "object",
+      "description": "Documentation of the broad-first scored reduction method used to select the final influential stories.",
+      "required": [
+        "discovery_mode",
+        "candidate_story_count",
+        "candidate_pool_summary",
+        "broad_discovery_queries",
+        "verification_queries",
+        "discovery_sequence",
+        "ranking_method",
+        "search_queries",
+        "ranking_factors",
+        "score_weights",
+        "confidence_score",
+        "confidence_rationale",
+        "limitations"
+      ],
+      "properties": {
+        "discovery_mode": {
+          "type": "string",
+          "description": "Must be broad_first_scored_reduction."
+        },
+        "candidate_story_count": {
+          "type": "integer",
+          "description": "Number of candidate stories considered before final reduction; must be at least 12."
+        },
+        "candidate_pool_summary": {
+          "type": "array",
+          "description": "At least 12 concise candidate story summaries considered before final selection.",
+          "items": {
+            "type": "string",
+            "description": "Candidate story summary."
+          }
+        },
+        "broad_discovery_queries": {
+          "type": "array",
+          "description": "Broad discovery queries used before choosing final stories.",
+          "items": {
+            "type": "string",
+            "description": "Broad discovery query."
+          }
+        },
+        "verification_queries": {
+          "type": "array",
+          "description": "Targeted verification queries used after candidate scoring.",
+          "items": {
+            "type": "string",
+            "description": "Targeted verification query."
+          }
+        },
+        "discovery_sequence": {
+          "type": "array",
+          "description": "Ordered summary of discovery, scoring, verification, and final reduction steps.",
+          "items": {
+            "type": "string",
+            "description": "Discovery step."
+          }
+        },
+        "ranking_method": {
+          "type": "string",
+          "description": "Explanation of the ranking method and how scores were calculated."
+        },
+        "search_queries": {
+          "type": "array",
+          "description": "All important search queries used in discovery and verification.",
+          "items": {
+            "type": "string",
+            "description": "Search query."
+          }
+        },
+        "ranking_factors": {
+          "type": "array",
+          "description": "The six ranking factors: source_authority, buyer_relevance, reputation_risk_or_opportunity, evidence_quality, novelty, recency.",
+          "items": {
+            "type": "string",
+            "description": "Ranking factor name."
+          }
+        },
+        "score_weights": {
+          "type": "object",
+          "description": "Weights used to calculate influence_score: 0.25, 0.25, 0.20, 0.15, 0.10, 0.05 for the six ranking factors.",
+          "properties": {
+            "source_authority": {
+              "type": "number",
+              "description": "Weight for source authority."
+            },
+            "buyer_relevance": {
+              "type": "number",
+              "description": "Weight for buyer relevance."
+            },
+            "reputation_risk_or_opportunity": {
+              "type": "number",
+              "description": "Weight for reputation risk or opportunity."
+            },
+            "evidence_quality": {
+              "type": "number",
+              "description": "Weight for evidence quality."
+            },
+            "novelty": {
+              "type": "number",
+              "description": "Weight for novelty."
+            },
+            "recency": {
+              "type": "number",
+              "description": "Weight for recency."
+            }
+          }
+        },
+        "confidence_score": {
+          "type": "integer",
+          "description": "Confidence score from 70 to 100 for the final reputation set."
+        },
+        "confidence_rationale": {
+          "type": "string",
+          "description": "Why this selection is sufficiently rigorous and trustworthy."
+        },
+        "limitations": {
+          "type": "array",
+          "description": "Known evidence limitations or caveats.",
+          "items": {
+            "type": "string",
+            "description": "Limitation."
+          }
+        }
+      }
+    }
+  }
+}
