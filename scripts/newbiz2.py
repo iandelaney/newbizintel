@@ -663,6 +663,8 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
             errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].statement is required.")
         if not has_value(item.get("source")):
             errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].source is required.")
+        if not has_value(item.get("source_url")):
+            errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].source_url is required so readers can verify the published messaging.")
     for field in ("messaging_fixes", "content_implications"):
         items = storybrand.get(field, [])
         if len(items) < 2:

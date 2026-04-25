@@ -400,10 +400,25 @@ function ConvertTo-PublishedMessagingAssessmentHtml {
     $statementRows = @($Assessment.published_statements)
     $statementHtml = ''
     if ($statementRows.Count -gt 0) {
-        $statementHtml = ConvertTo-TableHtml -Rows $statementRows -Columns @(
+        $decoratedRows = foreach ($row in $statementRows) {
+            $sourceLabel = ConvertTo-HtmlEncoded ([string]$row.source)
+            $sourceUrl = Get-SafeHref ([string]$row.source_url)
+            $sourceHtml = $sourceLabel
+            if (-not [string]::IsNullOrWhiteSpace($sourceUrl)) {
+                $sourceHtml = '<a href="{0}" target="_blank" rel="noopener noreferrer">{1}</a>' -f (ConvertTo-HtmlEncoded $sourceUrl), $sourceLabel
+            }
+
+            [pscustomobject]@{
+                label = $row.label
+                statement = $row.statement
+                source_html = $sourceHtml
+            }
+        }
+
+        $statementHtml = ConvertTo-TableHtml -Rows $decoratedRows -Columns @(
             @{ header = 'Published statement'; key = 'label' },
             @{ header = 'What it says'; key = 'statement' },
-            @{ header = 'Source'; key = 'source' }
+            @{ header = 'Source'; key = 'source_html'; raw_html = $true }
         )
     }
 

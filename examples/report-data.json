@@ -247,12 +247,14 @@
         {
           "label": "Mission / purpose",
           "statement": "Replace with the published mission or purpose statement.",
-          "source": "Replace with the source name or URL."
+          "source": "Replace with the source name.",
+          "source_url": "https://www.example.com/source-page"
         },
         {
           "label": "Promise / proposition",
           "statement": "Replace with the published brand promise, customer promise, or proposition statement.",
-          "source": "Replace with the source name or URL."
+          "source": "Replace with the source name.",
+          "source_url": "https://www.example.com/source-page"
         }
       ],
       "reputation_read_across": "Explain how reputation research changes the interpretation of the published messaging.",

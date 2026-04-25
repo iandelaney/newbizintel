@@ -406,6 +406,7 @@ else {
         if (-not (Test-HasValue $item.label)) { Add-MissingError "$pathPrefix.label" }
         if (-not (Test-HasValue $item.statement)) { Add-MissingError "$pathPrefix.statement" }
         if (-not (Test-HasValue $item.source)) { Add-MissingError "$pathPrefix.source" }
+        if (-not (Test-HasValue $item.source_url)) { Add-MissingError "$pathPrefix.source_url" }
     }
 
     foreach ($fieldName in @('messaging_fixes', 'content_implications')) {
