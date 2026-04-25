@@ -297,14 +297,24 @@ def gate_status_from_aliases(state: dict[str, Any], names: list[str]) -> str:
 
 def sync_primary_gates(state: dict[str, Any]) -> None:
     gates = state.setdefault("gates", {})
+    precedence = {
+        "failed": 6,
+        "blocked": 5,
+        "in_progress": 4,
+        "partial": 3,
+        "quota-limited": 3,
+        "passed": 2,
+        "pending": 1,
+    }
     for definition in TASK_DEFINITIONS:
         primary = definition["gates"][0]
         aliases = definition.get("legacy_gates") or []
-        if gates.get(primary) and gates.get(primary) not in {"pending", "in_progress"}:
-            names = [primary]
-        else:
-            names = aliases or [primary]
-        gates[primary] = gate_status_from_aliases(state, names)
+        names = [primary, *aliases]
+        statuses = [str(gates.get(name) or "pending") for name in names if name in gates]
+        if not statuses:
+            gates[primary] = "pending"
+            continue
+        gates[primary] = max(statuses, key=lambda status: precedence.get(status, 0))
 
 
 def ensure_task_list(state: dict[str, Any]) -> None:
@@ -404,6 +414,16 @@ def set_gate(state: dict[str, Any], gate: str, status: str) -> None:
 
 def set_status(state: dict[str, Any], module: str, status: str) -> None:
     state.setdefault("status", {})[module] = status
+
+
+def reset_tasks_from(state: dict[str, Any], start_id: int) -> None:
+    gates = state.setdefault("gates", {})
+    for definition in TASK_DEFINITIONS:
+        if int(definition["id"]) < start_id:
+            continue
+        for gate in [*definition.get("gates", []), *definition.get("legacy_gates", [])]:
+            gates[gate] = "pending"
+    sync_primary_gates(state)
 
 
 def has_value(value: Any) -> bool:
@@ -912,6 +932,157 @@ def build_summary_from_data(data_path: Path, mode: str = "bootstrap-from-report-
     }
 
 
+def brand_domain_from_website(website: str) -> str:
+    try:
+        host = urllib.parse.urlparse(website).netloc.lower()
+    except Exception:
+        return ""
+    return host[4:] if host.startswith("www.") else host
+
+
+def live_research_query_plan(data: dict[str, Any]) -> list[dict[str, str]]:
+    brand_name = str(data.get("brand", {}).get("name") or "").strip()
+    website = str(data.get("brand", {}).get("website") or "").strip()
+    domain = brand_domain_from_website(website)
+    brand = brand_name or domain
+    return [
+        {
+            "role": "competitor_discovery",
+            "query": f"{brand} competitors UK alternatives market category",
+            "topic": "general",
+            "time_range": "",
+        },
+        {
+            "role": "recent_news",
+            "query": f"{brand} news reputation growth customers market 2026",
+            "topic": "news",
+            "time_range": "year",
+        },
+        {
+            "role": "recent_news",
+            "query": f"{brand} reviews complaints service trust 2026",
+            "topic": "general",
+            "time_range": "year",
+        },
+        {
+            "role": "recent_news",
+            "query": f"{brand} investors partnerships performance trade press 2026",
+            "topic": "general",
+            "time_range": "year",
+        },
+        {
+            "role": "reputation_public_web",
+            "query": f"{brand} customer sentiment controversy trust reviews",
+            "topic": "general",
+            "time_range": "year",
+        },
+        {
+            "role": "source_gathering",
+            "query": f"site:{domain} {brand} mission purpose promise about newsroom" if domain else f"{brand} mission purpose promise about newsroom",
+            "topic": "general",
+            "time_range": "",
+        },
+        {
+            "role": "source_gathering",
+            "query": f"{brand} SEO visibility Similarweb SEMrush organic search competitors",
+            "topic": "general",
+            "time_range": "year",
+        },
+    ]
+
+
+def run_tavily_search_workpack(query: dict[str, str], output_path: Path) -> dict[str, Any]:
+    tvly = shutil.which("tvly")
+    if not tvly:
+        raise RuntimeError("Tavily CLI `tvly` was not found on PATH.")
+    command = [
+        tvly,
+        "search",
+        query["query"],
+        "--depth",
+        "basic",
+        "--max-results",
+        "12",
+        "--topic",
+        query.get("topic") or "general",
+        "--json",
+        "-o",
+        str(output_path),
+    ]
+    if query.get("time_range"):
+        command.extend(["--time-range", query["time_range"]])
+    completed = subprocess.run(command, text=True, capture_output=True, check=False, timeout=120)
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or "Tavily search failed.")
+    return read_json(output_path)
+
+
+def collect_live_search_workpacks(data_path: Path, brand_folder: Path) -> list[Path]:
+    data = read_json(data_path)
+    workpack_dir = brand_folder / "research-workpacks"
+    workpack_dir.mkdir(parents=True, exist_ok=True)
+    plan = live_research_query_plan(data)
+    results: list[dict[str, Any]] = []
+    workpacks: list[Path] = []
+    errors: list[dict[str, str]] = []
+    for index, query in enumerate(plan, start=1):
+        output_path = workpack_dir / f"{index:02d}-{query['role']}.json"
+        try:
+            pack = run_tavily_search_workpack(query, output_path)
+            results.append(
+                {
+                    "role": query["role"],
+                    "query": query["query"],
+                    "output": str(output_path),
+                    "result_count": len(pack.get("results") or []),
+                }
+            )
+            workpacks.append(output_path)
+        except Exception as exc:
+            errors.append({"role": query["role"], "query": query["query"], "error": str(exc)})
+
+    acquisition = {
+        "mode": "cheap-live-search-workpacks",
+        "data_path": str(data_path),
+        "workpacks": results,
+        "errors": errors,
+        "tavily_research_used": False,
+        "notes": [
+            "Tavily Search was used for deterministic low-cost acquisition.",
+            "Tavily Research was not used; escalation must be explicit.",
+        ],
+    }
+    write_json(workpack_dir / "research-acquisition.json", acquisition)
+    if not workpacks:
+        error_text = "; ".join(item["error"] for item in errors) or "no workpacks were created"
+        raise SystemExit(f"Live research acquisition failed before synthesis: {error_text}")
+    return workpacks
+
+
+def reduce_search_workpacks(data_path: Path, brand_folder: Path, workpacks: list[Path]) -> dict[str, Any]:
+    if not workpacks:
+        raise SystemExit("Research workpack mode requires at least one Tavily Search workpack.")
+    output_path = brand_folder / "research-summary.draft.json"
+    script = SCRIPT_ROOT / "research" / "reduce_search_workpacks.py"
+    command = [
+        sys.executable,
+        str(script),
+        "--data",
+        str(data_path),
+        "--output",
+        str(output_path),
+    ]
+    for workpack in workpacks:
+        command.extend(["--workpack", str(workpack)])
+    completed = subprocess.run(command, text=True, capture_output=True, check=False)
+    if completed.returncode != 0:
+        raise SystemExit(
+            f"Search workpack reducer failed with exit code {completed.returncode}: "
+            f"{completed.stderr.strip() or completed.stdout.strip()}"
+        )
+    return read_json(output_path)
+
+
 def validate_research_summary(summary: dict[str, Any], *, allow_examples: bool = False) -> dict[str, Any]:
     errors = []
     warnings = []
@@ -951,6 +1122,9 @@ def module_research(args: argparse.Namespace) -> dict[str, Any]:
     set_gate(state, "gate_2_competitors", "in_progress")
     set_gate(state, "gate_3_research", "in_progress")
     set_gate(state, "gate_3a_semrush", "in_progress")
+    reset_tasks_from(state, 5)
+    for module in ("structure", "assets", "campaign_art", "render", "qa", "deploy"):
+        set_status(state, module, "pending")
     add_event(
         state,
         "fanout",
@@ -966,12 +1140,37 @@ def module_research(args: argparse.Namespace) -> dict[str, Any]:
     )
     save_state(brand_folder, state)
 
-    if args.research_mode == "live-summary":
-        if not args.research_summary_path:
-            raise SystemExit("--research-mode live-summary requires --research-summary-path.")
-        summary = read_json(Path(args.research_summary_path).expanduser().resolve())
-    else:
-        summary = build_summary_from_data(data_path)
+    try:
+        if args.research_mode == "live-summary":
+            if args.research_summary_path:
+                summary = read_json(Path(args.research_summary_path).expanduser().resolve())
+            else:
+                workpacks = collect_live_search_workpacks(data_path, brand_folder)
+                add_event(state, "fanout", "research.live_search_workpacks", jobs=[str(path) for path in workpacks])
+                summary = reduce_search_workpacks(data_path, brand_folder, workpacks)
+                add_event(state, "reducer", "research.live_search_summary_draft", outputs=[str(brand_folder / "research-summary.draft.json")])
+                save_state(brand_folder, state)
+        elif args.research_mode == "workpacks":
+            workpacks = [Path(path).expanduser().resolve() for path in (args.search_workpacks or [])]
+            summary = reduce_search_workpacks(data_path, brand_folder, workpacks)
+        elif args.research_summary_path:
+            summary = read_json(Path(args.research_summary_path).expanduser().resolve())
+        else:
+            summary = build_summary_from_data(data_path)
+    except SystemExit:
+        set_status(state, "research", "failed")
+        set_gate(state, "gate_2_competitors", "failed")
+        set_gate(state, "gate_3_research", "failed")
+        set_gate(state, "gate_3a_semrush", "failed")
+        save_state(brand_folder, state)
+        raise
+    except Exception as exc:
+        set_status(state, "research", "failed")
+        set_gate(state, "gate_2_competitors", "failed")
+        set_gate(state, "gate_3_research", "failed")
+        set_gate(state, "gate_3a_semrush", "failed")
+        save_state(brand_folder, state)
+        raise SystemExit(f"Research acquisition/reduction failed: {exc}") from exc
     validation = validate_research_summary(summary, allow_examples=is_repo_example_path(data_path))
     if not validation["ok"]:
         set_status(state, "research", "failed")
