@@ -498,6 +498,28 @@ else {
     }
 }
 
+if (-not (Test-HasValue $data.opportunities.marketing_strategy.strategy)) { Add-MissingError 'opportunities.marketing_strategy.strategy' }
+if (-not (Test-HasValue $data.opportunities.marketing_strategy.why_it_matters)) { Add-MissingError 'opportunities.marketing_strategy.why_it_matters' }
+if (-not (Test-HasValue $data.opportunities.marketing_strategy.evidence_threads)) { Add-MissingError 'opportunities.marketing_strategy.evidence_threads' }
+$strategyThreads = @($data.opportunities.marketing_strategy.evidence_threads)
+if ($strategyThreads.Count -lt 4) {
+    $errors.Add("opportunities.marketing_strategy.evidence_threads must include at least 4 cross-report finding threads.")
+}
+$strategyText = [string]::Join(' ', @(
+    [string]$data.opportunities.marketing_strategy.headline,
+    [string]$data.opportunities.marketing_strategy.strategy,
+    [string]$data.opportunities.marketing_strategy.why_it_matters
+) + $strategyThreads)
+$missingStrategyDimensions = New-Object System.Collections.Generic.List[string]
+if ($strategyText -notmatch '(?i)reputation|trust|review|news') { $missingStrategyDimensions.Add('reputation') }
+if ($strategyText -notmatch '(?i)messaging|proof|promise|storybrand') { $missingStrategyDimensions.Add('messaging/proof') }
+if ($strategyText -notmatch '(?i)search|seo|organic|direct demand|keyword') { $missingStrategyDimensions.Add('search/SEO') }
+if ($strategyText -notmatch '(?i)competitor|tesco|sainsbury|asda|waitrose|market') { $missingStrategyDimensions.Add('competitor') }
+if ($strategyText -notmatch '(?i)campaign|content|creative|hub|crm') { $missingStrategyDimensions.Add('campaign/content') }
+if ($missingStrategyDimensions.Count -gt 0) {
+    $errors.Add("opportunities.marketing_strategy must synthesise findings from reputation, messaging/proof, search/SEO, competitor, and campaign/content sections; missing: $([string]::Join(', ', $missingStrategyDimensions))")
+}
+
 if (Test-HasValue $data.company_snapshot.items) {
     foreach ($item in @($data.company_snapshot.items)) {
         $label = [string]$item.label

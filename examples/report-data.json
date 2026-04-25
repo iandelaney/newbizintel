@@ -796,6 +796,18 @@
     "illustration_prompt_brief": "slide-assets/example-brand-campaign-art-brief.md"
   },
   "opportunities": {
+    "marketing_strategy": {
+      "headline": "Replace with the marketing strategy thesis.",
+      "strategy": "Replace with the recommended target-brand marketing strategy, grounded in report findings.",
+      "why_it_matters": "Explain why this strategy follows from the evidence before the 30/60/90 plan.",
+      "evidence_threads": [
+        "Reputation and trust finding that shapes the strategy.",
+        "Messaging and proof finding that shapes the strategy.",
+        "Search and SEO finding that shapes the strategy.",
+        "Competitor and market finding that shapes the strategy.",
+        "Campaign and content finding that shapes the strategy."
+      ]
+    },
     "timelines": [
       {
         "title": "Next 30 days",

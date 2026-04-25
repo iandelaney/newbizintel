@@ -678,6 +678,9 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
         "seo_audit.semrush_evidence",
         "seo_audit.priority_issues",
         "brand_reputation.influential_news",
+        "opportunities.marketing_strategy.strategy",
+        "opportunities.marketing_strategy.why_it_matters",
+        "opportunities.marketing_strategy.evidence_threads",
     ]
     for path in required:
         ensure_path(data, path, errors)
@@ -685,6 +688,32 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     if len(semrush) < 2:
         errors.append(f"seo_audit.semrush_evidence must include at least 2 SEO evidence points. Current count: {len(semrush)}")
     validate_seo_charts(data.get("seo_audit", {}).get("charts", []), errors)
+    strategy = data.get("opportunities", {}).get("marketing_strategy", {})
+    if isinstance(strategy, dict):
+        threads = strategy.get("evidence_threads", [])
+        if not isinstance(threads, list):
+            threads = []
+        if len(threads) < 4:
+            errors.append("opportunities.marketing_strategy.evidence_threads must include at least 4 cross-report finding threads.")
+        strategy_text = " ".join(
+            [str(strategy.get("headline") or ""), str(strategy.get("strategy") or ""), str(strategy.get("why_it_matters") or "")]
+            + [str(item) for item in threads]
+        ).lower()
+        dimensions = {
+            "reputation": ("reputation", "trust", "review", "news"),
+            "messaging/proof": ("messaging", "proof", "promise", "storybrand"),
+            "search/SEO": ("search", "seo", "organic", "direct demand", "keyword"),
+            "competitor": ("competitor", "tesco", "sainsbury", "asda", "waitrose", "market"),
+            "campaign/content": ("campaign", "content", "creative", "hub", "crm"),
+        }
+        missing_dimensions = [
+            name for name, tokens in dimensions.items() if not any(token in strategy_text for token in tokens)
+        ]
+        if missing_dimensions:
+            errors.append(
+                "opportunities.marketing_strategy must synthesise findings from reputation, messaging/proof, search/SEO, competitor, and campaign/content sections; missing: "
+                + ", ".join(missing_dimensions)
+            )
     news = data.get("brand_reputation", {}).get("influential_news", [])
     validate_reputation_ranking_contract(
         news,
@@ -1767,8 +1796,17 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
         sections.append("<section><h2>Creative Campaign Ideas</h2>" + "".join(blocks) + "</section>")
     opportunities = data.get("opportunities", {})
     timelines = opportunities.get("timelines", []) if isinstance(opportunities, dict) else []
+    marketing_strategy = opportunities.get("marketing_strategy", {}) if isinstance(opportunities, dict) else {}
     if timelines:
-        sections.append("<section><h2>30 / 60 / 90 Day Plan</h2><div class='grid'>" + "".join(card_html(item.get("title"), " ".join(item.get("items", []))) for item in timelines) + "</div></section>")
+        strategy_intro = ""
+        if isinstance(marketing_strategy, dict) and marketing_strategy.get("strategy"):
+            strategy_intro = (
+                f"<div class='card'><p class='eyebrow'>Recommended marketing strategy</p>"
+                f"<h3>{html.escape(str(marketing_strategy.get('headline') or 'Marketing strategy'))}</h3>"
+                f"<p>{html.escape(str(marketing_strategy.get('strategy')))}</p>"
+                f"<p><strong>Why:</strong> {html.escape(str(marketing_strategy.get('why_it_matters', '')))}</p></div>"
+            )
+        sections.append("<section><h2>30 / 60 / 90 Day Plan</h2>" + strategy_intro + "<div class='grid'>" + "".join(card_html(item.get("title"), " ".join(item.get("items", []))) for item in timelines) + "</div></section>")
     css = """
     :root{--ink:#09213b;--muted:#5d6b7a;--line:#d8e2ec;--panel:#f7fafc;--accent:#153a5b}
     *{box-sizing:border-box} body{margin:0;font-family:Aptos,Segoe UI,Arial,sans-serif;color:var(--ink);background:#f4f7fa;line-height:1.55}
@@ -1998,7 +2036,11 @@ def build_minimal_pptx(data_path: Path, output_path: Path) -> None:
     slides.append(("Creative Campaign Ideas", [f"{idea.get('title', '')}: {idea.get('concept', '')}" for idea in campaigns[:6]]))
     opportunities = data.get("opportunities", {})
     if isinstance(opportunities, dict):
-        roadmap = [f"{block.get('title', '')}: {'; '.join(block.get('items', []))}" for block in opportunities.get("timelines", [])[:3]]
+        roadmap = []
+        strategy = opportunities.get("marketing_strategy", {})
+        if isinstance(strategy, dict) and strategy.get("strategy"):
+            roadmap.append(f"Strategy: {strategy.get('strategy')}")
+        roadmap.extend(f"{block.get('title', '')}: {'; '.join(block.get('items', []))}" for block in opportunities.get("timelines", [])[:3])
     elif isinstance(opportunities, list):
         roadmap = [f"{item.get('title', '')}: {item.get('body', '')}" for item in opportunities[:4]]
     else:

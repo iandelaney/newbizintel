@@ -810,6 +810,77 @@ $(ConvertTo-ListHtml $expectedOutcomes)
 "@
 }
 
+function ConvertTo-OpportunityMarketingStrategyHtml {
+    param([object]$Strategy)
+
+    if ($null -eq $Strategy) {
+        return ''
+    }
+
+    $headline = 'Marketing strategy'
+    $strategyText = ''
+    $whyText = ''
+    $threads = @()
+    if ($Strategy -is [string]) {
+        $strategyText = [string]$Strategy
+    }
+    else {
+        if (-not [string]::IsNullOrWhiteSpace([string]$Strategy.headline)) {
+            $headline = [string]$Strategy.headline
+        }
+        $strategyText = [string]$Strategy.strategy
+        $whyText = [string]$Strategy.why_it_matters
+        $threads = @($Strategy.evidence_threads | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    }
+
+    if ([string]::IsNullOrWhiteSpace($headline) -and [string]::IsNullOrWhiteSpace($strategyText) -and [string]::IsNullOrWhiteSpace($whyText) -and $threads.Count -eq 0) {
+        return ''
+    }
+
+    $whyPanel = ''
+    if (-not [string]::IsNullOrWhiteSpace($whyText)) {
+        $whyPanel = @"
+        <div class="opportunity-lead__panel">
+          <span class="eyebrow">Why this strategy</span>
+$(ConvertTo-RichText $whyText)
+        </div>
+"@
+    }
+
+    $threadsPanel = ''
+    if ($threads.Count -gt 0) {
+        $threadsPanel = @"
+        <div class="opportunity-lead__panel">
+          <span class="eyebrow">Built from report findings</span>
+$(ConvertTo-ListHtml $threads)
+        </div>
+"@
+    }
+
+    $gridHtml = ''
+    if (-not [string]::IsNullOrWhiteSpace($whyPanel) -or -not [string]::IsNullOrWhiteSpace($threadsPanel)) {
+        $gridHtml = @"
+      <div class="opportunity-lead__grid">
+$whyPanel
+$threadsPanel
+      </div>
+"@
+    }
+
+    return @"
+    <div class="opportunity-lead opportunity-lead--strategy">
+      <div class="opportunity-lead__hero">
+        <div class="opportunity-lead__head">
+          <span class="eyebrow">Recommended marketing strategy</span>
+          <h3>$(ConvertTo-HtmlEncoded $headline)</h3>
+        </div>
+      </div>
+      <p class="opportunity-lead__verdict">$(ConvertTo-HtmlEncoded $strategyText)</p>
+$gridHtml
+    </div>
+"@
+}
+
 function ConvertTo-ClaimedPositioningTableHtml {
     param([object]$ClaimedPositioning)
 
@@ -1766,6 +1837,7 @@ $(ConvertTo-CreativeCampaignIdeasHtml @($data.creative_campaign_ideas.ideas))
 $(ConvertTo-BackToContentsHtml)
 
     $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Opportunities' -IconKey 'opportunities' -Id 'opportunities')
+$(ConvertTo-OpportunityMarketingStrategyHtml $data.opportunities.marketing_strategy)
 $(ConvertTo-TimelineHtml @($data.opportunities.timelines))
 $(ConvertTo-BackToContentsHtml)
 
