@@ -422,6 +422,101 @@ def build_competitors_from_workpacks(results: list[dict], data: dict) -> list[di
     return competitors
 
 
+def build_public_search_evidence(results: list[dict], brand_name: str, domain: str) -> list[dict]:
+    seo_terms = (
+        "seo",
+        "organic",
+        "search",
+        "keyword",
+        "traffic",
+        "visibility",
+        "ranking",
+        "similarweb",
+        "semrush",
+        "competitor",
+    )
+    evidence_sources = []
+    seen = set()
+    for result in results:
+        if result.get("_workpack_role") != "source_gathering":
+            continue
+        url = str(result.get("url") or "").strip()
+        title = str(result.get("title") or "").strip()
+        content = str(result.get("content") or "").strip()
+        text = f"{title} {content} {url}".lower()
+        if not url or url in seen:
+            continue
+        if not any(term in text for term in seo_terms):
+            continue
+        seen.add(url)
+        evidence_sources.append(
+            {
+                "title": title or url,
+                "url": url,
+                "source": infer_source_name(result),
+                "content": content,
+            }
+        )
+        if len(evidence_sources) >= 5:
+            break
+
+    evidence = []
+    if evidence_sources:
+        examples = []
+        for source in evidence_sources[:3]:
+            label = source["source"] or source["title"]
+            examples.append(f"{label}: {source['title']}")
+        evidence.append(
+            {
+                "title": "Public search visibility evidence was gathered",
+                "body": (
+                    f"Tavily public-web source gathering for {brand_name or domain} found search/visibility sources including "
+                    f"{'; '.join(examples)}. Treat this as public-web SEO context, not data from SEMrush."
+                ),
+                "provider": "similarweb-public-web" if "similarweb" in get_domain(evidence_sources[0]["url"]) else "tavily-public-web",
+                "source_url": evidence_sources[0]["url"],
+                "source_label": evidence_sources[0]["source"] or evidence_sources[0]["title"],
+            }
+        )
+
+    competitor_sources = [
+        source for source in evidence_sources
+        if "competitor" in f"{source['title']} {source['content']}".lower()
+        or "similarweb" in get_domain(source["url"])
+    ]
+    if competitor_sources:
+        source = competitor_sources[0]
+        evidence.append(
+            {
+                "title": "Competitor visibility context is available from public sources",
+                "body": (
+                    f"Public search evidence includes competitor or market-visibility context from {source['source'] or source['title']}. "
+                    "Use this to support positioning and search-opportunity hypotheses while SEMrush direct data is unavailable."
+                ),
+                "provider": "similarweb-public-web" if "similarweb" in get_domain(source["url"]) else "tavily-public-web",
+                "source_url": source["url"],
+                "source_label": source["source"] or source["title"],
+            }
+        )
+
+    if len(evidence) < 2 and evidence_sources:
+        source = evidence_sources[min(1, len(evidence_sources) - 1)]
+        evidence.append(
+            {
+                "title": "SEO recommendations should be caveated until direct metrics are available",
+                "body": (
+                    f"Because direct SEMrush data is unavailable, the current SEO evidence relies on named public-web sources such as "
+                    f"{source['source'] or source['title']}. Recommendations should distinguish public evidence from measured SEMrush metrics."
+                ),
+                "provider": "similarweb-public-web" if "similarweb" in get_domain(source["url"]) else "tavily-public-web",
+                "source_url": source["url"],
+                "source_label": source["source"] or source["title"],
+            }
+        )
+
+    return evidence[:3]
+
+
 def unique_by_url(items):
     seen = set()
     output = []
@@ -523,13 +618,18 @@ def main():
     competitors = build_competitors_from_workpacks(all_results, data)
 
     brand_name = data.get("brand", {}).get("name") or ""
+    target_domain = get_domain(str(data.get("brand", {}).get("website") or ""))
     influential_news, influence_ranking = build_influential_news(all_results, brand_name, workpack_summaries)
 
     semrush_evidence = data.get("seo_audit", {}).get("semrush_evidence", []) or []
+    search_evidence = data.get("seo_audit", {}).get("search_evidence", []) or []
     priority_issues = data.get("seo_audit", {}).get("priority_issues", []) or []
     platform_readout = data.get("brand_reputation", {}).get("platform_readout", []) or []
     recommended_actions = data.get("brand_reputation", {}).get("recommended_actions", []) or []
     semrush_evidence = [] if contains_placeholder(semrush_evidence) else semrush_evidence
+    search_evidence = [] if contains_placeholder(search_evidence) else search_evidence
+    if not search_evidence:
+        search_evidence = build_public_search_evidence(all_results, brand_name, target_domain)
     priority_issues = [] if contains_placeholder(priority_issues) else priority_issues
     platform_readout = [] if contains_placeholder(platform_readout) else platform_readout
     recommended_actions = [] if contains_placeholder(recommended_actions) else recommended_actions
@@ -580,6 +680,7 @@ def main():
         },
         "seo": {
             "semrush_evidence": semrush_evidence,
+            "search_evidence": search_evidence,
             "priority_issues": priority_issues,
         },
         "tavily_validation": tavily_validation,
@@ -601,6 +702,7 @@ def main():
             "reputation_public_web": "passed" if platform_readout else "partial",
             "source_gathering": "passed" if len(source_map) >= 8 else "partial",
             "semrush": "passed" if semrush_evidence else "pending",
+            "search_seo": "passed" if len(semrush_evidence) >= 2 or len(search_evidence) >= 2 else "pending",
         },
         "workpacks": workpack_summaries,
         "notes": [

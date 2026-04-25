@@ -215,6 +215,10 @@ def main() -> int:
             "seo": {"semrush_evidence": [], "priority_issues": []},
             "datasets": {},
         }
+        if args.output:
+            output_path = Path(args.output).resolve()
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(json.dumps(payload, separators=(",", ":")))
         return 2
 
@@ -240,7 +244,8 @@ def main() -> int:
 
     evidence = evidence_from_datasets(domain, datasets)
     available_dataset_count = sum(1 for result in datasets.values() if result.get("ok") and result.get("rows"))
-    status = "passed" if len(evidence) >= 2 else ("partial" if available_dataset_count > 0 else "blocked")
+    quota_limited = any("API UNITS BALANCE IS ZERO" in error.upper() or "ERROR 132" in error.upper() for error in errors)
+    status = "passed" if len(evidence) >= 2 else ("partial" if available_dataset_count > 0 else ("quota-limited" if quota_limited else "blocked"))
     ok = status in {"passed", "partial"}
 
     payload = {

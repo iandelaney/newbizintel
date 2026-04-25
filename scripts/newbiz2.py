@@ -37,6 +37,7 @@ TEMPLATE_PATH = SKILL_ROOT / "templates" / "report-data.template.json"
 TEMPLATE_ASSETS = SKILL_ROOT / "templates" / "slide-assets"
 RUN_STATE_CONTRACT = SKILL_ROOT / "references" / "run-state.contract.json"
 TAVILY_REPUTATION_SCHEMA = SKILL_ROOT / "references" / "tavily-reputation-research.schema.json"
+SEMRUSH_COLLECTOR = SCRIPT_ROOT / "research" / "collect_semrush_api.py"
 REPUTATION_SOURCE_TYPES = {
     "national_business_press",
     "trade_press",
@@ -115,7 +116,7 @@ TASK_DEFINITIONS = [
         "key": "search_seo_evidence",
         "title": "Search and SEO evidence",
         "gates": ["gate_4_search_seo_evidence"],
-        "legacy_gates": ["gate_3a_semrush", "gate_4_semrush_seo_evidence"],
+        "legacy_gates": ["gate_4_semrush_seo_evidence"],
         "trust_test": "At least two SEO evidence points are available, with SEMrush status explicitly recorded as passed, partial, quota-limited, or blocked.",
     },
     {
@@ -785,7 +786,6 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
         "storybrand.content_implications",
         "usp_ksp_review.score",
         "seo_audit.cards",
-        "seo_audit.semrush_evidence",
         "seo_audit.priority_issues",
         "brand_reputation.influential_news",
         "opportunities.marketing_strategy.strategy",
@@ -794,9 +794,22 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     ]
     for path in required:
         ensure_path(data, path, errors)
-    semrush = data.get("seo_audit", {}).get("semrush_evidence", [])
-    if len(semrush) < 2:
-        errors.append(f"seo_audit.semrush_evidence must include at least 2 SEO evidence points. Current count: {len(semrush)}")
+    seo = data.get("seo_audit", {})
+    semrush = seo.get("semrush_evidence", []) if isinstance(seo, dict) else []
+    similarweb = seo.get("similarweb_evidence", []) if isinstance(seo, dict) else []
+    search_evidence = seo.get("search_evidence", []) if isinstance(seo, dict) else []
+    if not isinstance(semrush, list):
+        semrush = []
+    if not isinstance(similarweb, list):
+        similarweb = []
+    if not isinstance(search_evidence, list):
+        search_evidence = []
+    total_seo_evidence = len(semrush) + len(similarweb) + len(search_evidence)
+    if total_seo_evidence < 2:
+        errors.append(
+            "seo_audit must include at least 2 search/SEO evidence points across "
+            f"semrush_evidence, similarweb_evidence, and search_evidence. Current count: {total_seo_evidence}"
+        )
     validate_seo_charts(data.get("seo_audit", {}).get("charts", []), errors)
     strategy = data.get("opportunities", {}).get("marketing_strategy", {})
     if isinstance(strategy, dict):
@@ -923,7 +936,16 @@ def build_summary_from_data(data_path: Path, mode: str = "bootstrap-from-report-
     ]
     competitors = [item for item in competitors if item]
     news = data.get("brand_reputation", {}).get("influential_news", [])
-    semrush = data.get("seo_audit", {}).get("semrush_evidence", [])
+    seo = data.get("seo_audit", {})
+    semrush = seo.get("semrush_evidence", []) if isinstance(seo, dict) else []
+    similarweb = seo.get("similarweb_evidence", []) if isinstance(seo, dict) else []
+    search_evidence = seo.get("search_evidence", []) if isinstance(seo, dict) else []
+    if not isinstance(semrush, list):
+        semrush = []
+    if not isinstance(similarweb, list):
+        similarweb = []
+    if not isinstance(search_evidence, list):
+        search_evidence = []
     source_map = data.get("appendix", {}).get("source_map") or data.get("appendix", {}).get("sources_reviewed") or []
     status = {
         "competitor_discovery": "passed" if competitors else "pending",
@@ -931,6 +953,7 @@ def build_summary_from_data(data_path: Path, mode: str = "bootstrap-from-report-
         "reputation_public_web": "passed" if data.get("brand_reputation") else "pending",
         "source_gathering": "passed" if source_map or news else "pending",
         "semrush": "passed" if len(semrush) >= 2 else "quota-limited",
+        "search_seo": "passed" if len(semrush) >= 2 or len(similarweb) >= 2 or len(search_evidence) >= 2 else "pending",
     }
     return {
         "mode": mode,
@@ -1134,6 +1157,84 @@ def reduce_search_workpacks(data_path: Path, brand_folder: Path, workpacks: list
             f"{completed.stderr.strip() or completed.stdout.strip()}"
         )
     return read_json(output_path)
+
+
+def apply_semrush_direct_api(
+    data_path: Path,
+    brand_folder: Path,
+    summary: dict[str, Any],
+    *,
+    database: str,
+    composio_backup_available: bool = False,
+) -> tuple[dict[str, Any], Path | None]:
+    output_path = brand_folder / "research-workpacks" / "98-semrush-direct-api.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        sys.executable,
+        str(SEMRUSH_COLLECTOR),
+        "--data",
+        str(data_path),
+        "--database",
+        database,
+        "--output",
+        str(output_path),
+    ]
+    completed = subprocess.run(command, text=True, capture_output=True, check=False, timeout=180)
+    payload: dict[str, Any] | None = None
+    if output_path.exists():
+        try:
+            payload = read_json(output_path)
+        except Exception:
+            payload = None
+    if payload is None and completed.stdout.strip():
+        try:
+            payload = json.loads(completed.stdout.strip())
+        except json.JSONDecodeError:
+            payload = None
+    if payload is None:
+        payload = {
+            "ok": False,
+            "status": "blocked",
+            "provider": "semrush-direct-api",
+            "errors": [completed.stderr.strip() or completed.stdout.strip() or "SEMrush collector produced no parseable output."],
+            "seo": {"semrush_evidence": [], "priority_issues": []},
+        }
+        write_json(output_path, payload)
+
+    status = str(payload.get("status") or "blocked")
+    if status not in {"passed", "partial", "quota-limited", "blocked"}:
+        status = "blocked"
+
+    seo = summary.setdefault("seo", {})
+    semrush_evidence = payload.get("seo", {}).get("semrush_evidence") if isinstance(payload.get("seo"), dict) else []
+    if isinstance(semrush_evidence, list) and semrush_evidence:
+        seo["semrush_evidence"] = semrush_evidence
+    seo.setdefault("semrush_evidence", [])
+    seo.setdefault("similarweb_evidence", [])
+    seo.setdefault("search_evidence", [])
+    priority_issues = payload.get("seo", {}).get("priority_issues") if isinstance(payload.get("seo"), dict) else []
+    if isinstance(priority_issues, list) and priority_issues:
+        seo["priority_issues"] = priority_issues
+    seo.setdefault("priority_issues", [])
+
+    summary.setdefault("status", {})["semrush"] = status
+    enough_direct = len(seo.get("semrush_evidence") or []) >= 2
+    enough_similarweb = len(seo.get("similarweb_evidence") or []) >= 2
+    enough_public = len(seo.get("search_evidence") or []) >= 2
+    summary.setdefault("status", {})["search_seo"] = "passed" if enough_direct or enough_similarweb or enough_public else status
+    summary["semrush_direct_api"] = payload
+    summary.setdefault("source_provenance_summary", {})["semrush_direct_api_status"] = status
+    summary.setdefault("notes", []).append(f"SEMrush direct API status: {status}.")
+    if status != "passed" and composio_backup_available:
+        summary["semrush_backup"] = {
+            "provider": "composio-semrush",
+            "status": "available_not_executed_by_python_runner",
+            "reason": "Direct SEMrush API did not pass; Composio SEMrush is the documented backup but is executed outside this local Python runner.",
+        }
+        summary.setdefault("notes", []).append(
+            "Composio SEMrush backup is marked available, but the Python runner did not execute MCP tools directly."
+        )
+    return summary, output_path
 
 
 def tavily_reputation_research_prompt(data: dict[str, Any], summary: dict[str, Any]) -> str:
@@ -1357,9 +1458,50 @@ def validate_research_summary(summary: dict[str, Any], *, allow_examples: bool =
     else:
         warnings.extend(placeholder_audit.get("warnings", []))
     status = summary.get("status", {})
-    for key in ("competitor_discovery", "recent_news", "reputation_public_web", "source_gathering", "semrush"):
+    for key in ("competitor_discovery", "recent_news", "reputation_public_web", "source_gathering", "semrush", "search_seo"):
         if key not in status:
             errors.append(f"Missing status.{key}")
+    if status.get("semrush") not in {"passed", "partial", "quota-limited", "blocked"}:
+        errors.append("status.semrush must be one of passed, partial, quota-limited, or blocked.")
+    seo = summary.get("seo", {})
+    if not isinstance(seo, dict):
+        seo = {}
+    semrush_evidence = seo.get("semrush_evidence", [])
+    similarweb_evidence = seo.get("similarweb_evidence", [])
+    search_evidence = seo.get("search_evidence", [])
+    if not isinstance(semrush_evidence, list):
+        semrush_evidence = []
+    if not isinstance(similarweb_evidence, list):
+        similarweb_evidence = []
+    if not isinstance(search_evidence, list):
+        search_evidence = []
+    total_search_evidence = len(semrush_evidence) + len(similarweb_evidence) + len(search_evidence)
+    if status.get("search_seo") == "passed" and total_search_evidence < 2:
+        errors.append(
+            "status.search_seo is passed but fewer than 2 search/SEO evidence points are present."
+        )
+    if status.get("search_seo") != "passed" and total_search_evidence >= 2:
+        errors.append(
+            "search/SEO evidence is present but status.search_seo was not marked passed."
+        )
+    for evidence_name, evidence_items in (
+        ("similarweb_evidence", similarweb_evidence),
+        ("search_evidence", search_evidence),
+    ):
+        for index, item in enumerate(evidence_items):
+            if not isinstance(item, dict):
+                errors.append(f"seo.{evidence_name}[{index}] must be an object.")
+                continue
+            provider = str(item.get("provider") or ("similarweb" if evidence_name == "similarweb_evidence" else "")).strip().lower()
+            body = f"{item.get('title', '')} {item.get('body', '')}".lower()
+            if not provider:
+                errors.append(f"seo.{evidence_name}[{index}].provider is required.")
+            if provider != "semrush-direct-api" and "semrush-backed" in body:
+                errors.append(f"seo.{evidence_name}[{index}] must not describe non-SEMrush evidence as SEMrush-backed.")
+    for index, item in enumerate(semrush_evidence):
+        if not isinstance(item, dict):
+            errors.append(f"seo.semrush_evidence[{index}] must be an object.")
+            continue
     if not summary.get("locked_sets", {}).get("competitors"):
         errors.append("Missing locked_sets.competitors")
     if not summary.get("influential_news"):
@@ -1385,6 +1527,7 @@ def module_research(args: argparse.Namespace) -> dict[str, Any]:
     set_gate(state, "gate_2_competitors", "in_progress")
     set_gate(state, "gate_3_research", "in_progress")
     set_gate(state, "gate_3a_semrush", "in_progress")
+    set_gate(state, "gate_4_search_seo_evidence", "in_progress")
     reset_tasks_from(state, 5)
     for module in ("structure", "assets", "campaign_art", "render", "qa", "deploy"):
         set_status(state, module, "pending")
@@ -1427,11 +1570,24 @@ def module_research(args: argparse.Namespace) -> dict[str, Any]:
                 add_event(state, "fanout", "research.tavily_reputation_research", jobs=[str(reputation_research_path)])
                 add_event(state, "reducer", "research.tavily_reputation_reducer", outputs=[str(reputation_research_path)])
                 save_state(brand_folder, state)
+        if args.research_mode == "live-summary":
+            summary, semrush_path = apply_semrush_direct_api(
+                data_path,
+                brand_folder,
+                summary,
+                database=args.semrush_database,
+                composio_backup_available=bool(args.composio_semrush_available),
+            )
+            if semrush_path:
+                add_event(state, "fanout", "research.semrush_direct_api", jobs=[str(semrush_path)])
+                add_event(state, "reducer", "research.search_seo_evidence_reducer", outputs=[str(semrush_path)])
+                save_state(brand_folder, state)
     except SystemExit:
         set_status(state, "research", "failed")
         set_gate(state, "gate_2_competitors", "failed")
         set_gate(state, "gate_3_research", "failed")
         set_gate(state, "gate_3a_semrush", "failed")
+        set_gate(state, "gate_4_search_seo_evidence", "failed")
         save_state(brand_folder, state)
         raise
     except Exception as exc:
@@ -1439,6 +1595,7 @@ def module_research(args: argparse.Namespace) -> dict[str, Any]:
         set_gate(state, "gate_2_competitors", "failed")
         set_gate(state, "gate_3_research", "failed")
         set_gate(state, "gate_3a_semrush", "failed")
+        set_gate(state, "gate_4_search_seo_evidence", "failed")
         save_state(brand_folder, state)
         raise SystemExit(f"Research acquisition/reduction failed: {exc}") from exc
     validation = validate_research_summary(summary, allow_examples=is_repo_example_path(data_path))
@@ -1447,6 +1604,7 @@ def module_research(args: argparse.Namespace) -> dict[str, Any]:
         set_gate(state, "gate_2_competitors", "failed")
         set_gate(state, "gate_3_research", "failed")
         set_gate(state, "gate_3a_semrush", "failed")
+        set_gate(state, "gate_4_search_seo_evidence", "failed")
         save_state(brand_folder, state)
         raise SystemExit("Research summary validation failed: " + "; ".join(validation["errors"]))
 
@@ -1463,6 +1621,7 @@ def module_research(args: argparse.Namespace) -> dict[str, Any]:
     set_gate(state, "gate_2_competitors", status.get("competitor_discovery", "pending"))
     set_gate(state, "gate_3_research", research_status)
     set_gate(state, "gate_3a_semrush", status.get("semrush", "quota-limited"))
+    set_gate(state, "gate_4_search_seo_evidence", status.get("search_seo", "pending"))
     save_state(brand_folder, state)
     return {"module": "research", "data": str(data_path), "brand_folder": str(brand_folder), "research_summary": str(summary_path), "validation": validation}
 
@@ -2357,7 +2516,16 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
         sections.append("<section><h2>Competitive Landscape</h2><div class='grid'>" + "".join(cards) + "</div></section>")
     seo = data.get("seo_audit", {})
     if seo:
-        sections.append("<section><h2>SEO And Search Evidence</h2><div class='grid'>" + "".join(card_html(item.get("title"), item.get("body")) for item in seo.get("semrush_evidence", [])) + "</div></section>")
+        seo_evidence = []
+        for key in ("semrush_evidence", "similarweb_evidence", "search_evidence"):
+            values = seo.get(key, [])
+            if isinstance(values, list):
+                seo_evidence.extend(values)
+        sections.append(
+            "<section><h2>SEO And Search Evidence</h2><div class='grid'>"
+            + "".join(card_html(item.get("title"), item.get("body")) for item in seo_evidence)
+            + "</div></section>"
+        )
     news = data.get("brand_reputation", {}).get("influential_news", [])
     if news:
         items = []
@@ -2656,7 +2824,14 @@ def build_minimal_pptx(data_path: Path, output_path: Path) -> None:
     agency = data.get("agency_opportunity", {})
     slides.append(("Agency Opportunity", [agency.get("summary", ""), agency.get("score_summary", ""), agency.get("lead_offering", {}).get("verdict", "")]))
     slides.append(("Competitive Landscape", [f"{row.get('competitor') or row.get('name')}: {row.get('implication') or row.get('why_it_matters') or ''}" for row in data.get("competitive_landscape", {}).get("table", [])[:6]]))
-    slides.append(("Search And SEO Evidence", [item.get("body", "") for item in data.get("seo_audit", {}).get("semrush_evidence", [])[:6]]))
+    seo = data.get("seo_audit", {})
+    seo_evidence = []
+    if isinstance(seo, dict):
+        for key in ("semrush_evidence", "similarweb_evidence", "search_evidence"):
+            values = seo.get(key, [])
+            if isinstance(values, list):
+                seo_evidence.extend(values)
+    slides.append(("Search And SEO Evidence", [item.get("body", "") for item in seo_evidence[:6]]))
     slides.append(("Influential News", [f"{item.get('headline', '')} ({item.get('influence_score', '')}): {item.get('rank_reason') or item.get('why_it_matters', '')}" for item in data.get("brand_reputation", {}).get("influential_news", [])[:6]]))
     opportunities = data.get("opportunities", {})
     if isinstance(opportunities, dict):
