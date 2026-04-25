@@ -16,6 +16,7 @@ import json
 import mimetypes
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -144,7 +145,7 @@ TASK_DEFINITIONS = [
         "title": "Delivery handoff",
         "gates": ["gate_10_delivery_handoff"],
         "legacy_gates": ["gate_7_delivery"],
-        "trust_test": "Deploy handoff folder is refreshed from the latest report outputs.",
+        "trust_test": "Deploy handoff folder is refreshed from the latest report outputs and the user is asked whether they want a random-url Vercel deployment.",
     },
 ]
 
@@ -2217,6 +2218,58 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
     return {"module": "qa", "data": str(data_path), "brand_folder": str(brand_folder), "checks": checks}
 
 
+def vercel_deploy_prompt(data_path: Path, brand_folder: Path) -> dict[str, Any]:
+    return {
+        "ask_user": "Would you like me to deploy this report to Vercel as a randomly named preview URL?",
+        "deploy_only_if_user_confirms": True,
+        "random_url_required": True,
+        "policy": "Use the vercel-deploy skill only after confirmation. Run the vercel-stage command first and deploy the returned deploy_path, never the brand output folder.",
+        "stage_command": f"python \"{SCRIPT_ROOT / 'newbiz2.py'}\" vercel-stage --data-path \"{data_path}\"",
+        "brand_folder": str(brand_folder),
+    }
+
+
+def prepare_random_vercel_stage(data_path: Path) -> dict[str, Any]:
+    data = read_json(data_path)
+    brand = data.get("brand", {})
+    brand_name = str(brand.get("name", "") or "")
+    website = str(brand.get("website", "") or "")
+    brand_folder = brand_folder_from_data(data_path)
+    html_path = brand_folder / "newbizintel-report.html"
+    index_path = brand_folder / "index.html"
+    if html_path.exists():
+        inject_task_list_into_html(html_path, brand_folder)
+        shutil.copy2(html_path, index_path)
+    elif not index_path.exists():
+        raise SystemExit("Cannot prepare Vercel stage because neither newbizintel-report.html nor index.html exists.")
+
+    token = secrets.token_hex(6)
+    stage_root = brand_folder / "vercel-random-stages" / f"site-{token}"
+    stage_root.mkdir(parents=True, exist_ok=False)
+    shutil.copy2(index_path, stage_root / "index.html")
+
+    for directory_name in ("slide-assets", "assets"):
+        source = brand_folder / directory_name
+        if source.exists() and source.is_dir():
+            shutil.copytree(source, stage_root / directory_name)
+
+    handoff = {
+        "deploy_path": str(stage_root),
+        "random_site_slug": stage_root.name,
+        "random_url_required": True,
+        "must_not_contain": [
+            slugify(brand_name) if brand_name else "",
+            urllib.parse.urlparse(normalize_url(website)).netloc.replace("www.", "").split(".")[0] if website else "",
+        ],
+        "vercel_skill": "vercel-deploy",
+        "instructions": "Use the vercel-deploy skill to deploy this deploy_path. Do not deploy the brand output folder directly.",
+    }
+    handoff["must_not_contain"] = list(dict.fromkeys(item for item in handoff["must_not_contain"] if item))
+    write_json(stage_root / "newbiz2-vercel-handoff.json", handoff)
+    write_json(brand_folder / "vercel-random-handoff-latest.json", handoff)
+    return handoff
+
+
 def module_deploy(args: argparse.Namespace) -> dict[str, Any]:
     data_path = data_path_from_args(args)
     brand_folder = brand_folder_from_data(data_path)
@@ -2236,7 +2289,23 @@ def module_deploy(args: argparse.Namespace) -> dict[str, Any]:
     save_state(brand_folder, state)
     inject_task_list_into_html(html_path, brand_folder)
     shutil.copy2(html_path, brand_folder / "index.html")
-    return {"module": "deploy", "data": str(data_path), "brand_folder": str(brand_folder), "index": str(brand_folder / "index.html"), "task_list": str(brand_folder / "workflow-task-list.md")}
+    return {
+        "module": "deploy",
+        "data": str(data_path),
+        "brand_folder": str(brand_folder),
+        "index": str(brand_folder / "index.html"),
+        "task_list": str(brand_folder / "workflow-task-list.md"),
+        "vercel_deploy_prompt": vercel_deploy_prompt(data_path, brand_folder),
+    }
+
+
+def module_vercel_stage(args: argparse.Namespace) -> dict[str, Any]:
+    data_path = data_path_from_args(args)
+    return {
+        "module": "vercel-stage",
+        "data": str(data_path),
+        "vercel_handoff": prepare_random_vercel_stage(data_path),
+    }
 
 
 def run_mode(args: argparse.Namespace) -> dict[str, Any]:
@@ -2292,7 +2361,7 @@ def main() -> None:
     run_parser = subparsers.add_parser("run")
     add_common_args(run_parser)
     run_parser.add_argument("--mode", choices=["full", "research-only", "render-stack", "qa-only", "deploy-handoff", "art-refresh", "assets-refresh"], default="full")
-    for name in ["intake", "research", "structure", "assets", "campaign-art", "render", "qa", "deploy"]:
+    for name in ["intake", "research", "structure", "assets", "campaign-art", "render", "qa", "deploy", "vercel-stage"]:
         sub = subparsers.add_parser(name)
         add_common_args(sub)
     args = parser.parse_args()
@@ -2309,6 +2378,7 @@ def main() -> None:
         "render": module_render,
         "qa": module_qa,
         "deploy": module_deploy,
+        "vercel-stage": module_vercel_stage,
     }
     result = dispatch[args.command](args)
     print(json.dumps(result, indent=2, ensure_ascii=False))

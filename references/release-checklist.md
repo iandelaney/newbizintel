@@ -19,6 +19,7 @@ Use this checklist before sharing `newbiz2` with colleagues or publishing it to 
   - `examples\newbizintel-report.html`
   - `examples\archive\newbizintel-report-portable.html`
   - `examples\run-state.json`
+- Confirm full-run delivery output includes the Vercel deployment prompt and that any Vercel upload path is prepared with `vercel-stage`, using a random staging folder rather than the brand output folder.
 - Confirm production Creative Campaign artwork is final bundled raster art, not local scaffold or placeholder output. The campaign-art QA gate must fail any delivered report with `scaffold-allowed`, `local-scaffold`, `placeholder-scaffold`, `unverified-existing-artwork`, missing files, external image URLs, unsupported formats, or undersized/non-portrait images.
 - Confirm the README install path still matches the actual scripts:
   - Windows Python-first plus optional PowerShell compatibility
