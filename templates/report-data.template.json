@@ -375,15 +375,15 @@
     ],
     "charts": [
       {
-        "title": "Example SEO chart",
-        "subtitle": "Replace only when a chart materially sharpens the diagnosis.",
+        "title": "Example SEO opportunity signals",
+        "subtitle": "Indexed interpretation from SEMrush, Similarweb, GSC, or another named search evidence source.",
         "value_suffix": "",
         "series": [
           {
             "label": "Example Brand",
             "value": 0,
             "display_value": "0",
-            "note": "Replace with a short chart note.",
+            "note": "Replace with the underlying search, keyword, rank, organic, paid search, direct traffic, or indexed evidence signal.",
             "tone": "teal"
           }
         ]

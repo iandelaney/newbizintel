@@ -609,6 +609,50 @@ def validate_reputation_ranking_contract(
         errors.append(f"{prefix} must be ordered by influence_score descending.")
 
 
+def validate_seo_charts(charts: Any, errors: list[str]) -> None:
+    if not isinstance(charts, list):
+        return
+
+    evidence_terms = (
+        "semrush",
+        "similarweb",
+        "gsc",
+        "search console",
+        "traffic",
+        "keyword",
+        "rank",
+        "organic",
+        "paid search",
+        "direct",
+        "indexed",
+        "search",
+    )
+    for chart_index, chart in enumerate(charts):
+        if not isinstance(chart, dict):
+            continue
+        title = str(chart.get("title") or "")
+        subtitle = str(chart.get("subtitle") or "")
+        title_and_subtitle = f"{title} {subtitle}".lower()
+        if "strategic read from public evidence" in title_and_subtitle:
+            errors.append(
+                f"seo_audit.charts[{chart_index}] uses a vague strategic-read label; SEO charts must name the metric basis or say they are indexed interpretation."
+            )
+        if not subtitle.strip():
+            errors.append(f"seo_audit.charts[{chart_index}].subtitle is required to explain the chart basis.")
+        elif not any(term in title_and_subtitle for term in evidence_terms):
+            errors.append(
+                f"seo_audit.charts[{chart_index}].subtitle must name the SEO/search evidence basis, such as SEMrush, Similarweb, traffic, keyword, rank, or indexed interpretation."
+            )
+        for row_index, row in enumerate(chart.get("series") or []):
+            if not isinstance(row, dict):
+                continue
+            note = str(row.get("note") or "").lower()
+            if not any(term in note for term in evidence_terms):
+                errors.append(
+                    f"seo_audit.charts[{chart_index}].series[{row_index}].note must cite the underlying search or traffic signal."
+                )
+
+
 def validate_report_data(data_path: Path) -> dict[str, Any]:
     data = read_json(data_path)
     errors: list[str] = []
@@ -640,6 +684,7 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     semrush = data.get("seo_audit", {}).get("semrush_evidence", [])
     if len(semrush) < 2:
         errors.append(f"seo_audit.semrush_evidence must include at least 2 SEO evidence points. Current count: {len(semrush)}")
+    validate_seo_charts(data.get("seo_audit", {}).get("charts", []), errors)
     news = data.get("brand_reputation", {}).get("influential_news", [])
     validate_reputation_ranking_contract(
         news,

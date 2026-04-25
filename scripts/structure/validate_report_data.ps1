@@ -475,6 +475,27 @@ else {
     if ($seoCombinedText -match '(?i)semrush was unavailable|without semrush|no semrush|semrush unavailable') {
         $errors.Add('seo_audit cannot claim SEMrush was unavailable if Gate 3A has passed.')
     }
+
+    $seoCharts = @($data.seo_audit.charts)
+    for ($i = 0; $i -lt $seoCharts.Count; $i++) {
+        $chart = $seoCharts[$i]
+        $titleAndSubtitle = "$($chart.title) $($chart.subtitle)"
+        if ($titleAndSubtitle -match '(?i)strategic read from public evidence') {
+            $errors.Add("seo_audit.charts[$i] uses a vague strategic-read label; SEO charts must name the metric basis or say they are indexed interpretation.")
+        }
+        if (-not (Test-HasValue $chart.subtitle)) {
+            Add-MissingError "seo_audit.charts[$i].subtitle"
+        }
+        elseif ($titleAndSubtitle -notmatch '(?i)semrush|similarweb|gsc|search console|traffic|keyword|rank|organic|paid search|direct|indexed|search') {
+            $errors.Add("seo_audit.charts[$i].subtitle must name the SEO/search evidence basis, such as SEMrush, Similarweb, traffic, keyword, rank, or indexed interpretation.")
+        }
+        $series = @($chart.series)
+        for ($j = 0; $j -lt $series.Count; $j++) {
+            if ([string]$series[$j].note -notmatch '(?i)semrush|similarweb|gsc|search console|traffic|keyword|rank|organic|paid search|direct|indexed|search') {
+                $errors.Add("seo_audit.charts[$i].series[$j].note must cite the underlying search or traffic signal.")
+            }
+        }
+    }
 }
 
 if (Test-HasValue $data.company_snapshot.items) {
