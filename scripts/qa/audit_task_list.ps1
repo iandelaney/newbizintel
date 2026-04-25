@@ -165,9 +165,9 @@ foreach ($task in $tasks) {
             }
         }
         'delivery_handoff' {
-            $handoffFolder = Join-Path (Split-Path -Parent $brandFolder) 'vercel'
-            if (-not (Test-Path -LiteralPath (Join-Path $handoffFolder 'index.html'))) {
-                Add-Error 'Delivery task passed but default Vercel handoff index.html is missing.'
+            $handoffIndex = Join-Path $brandFolder 'index.html'
+            if (-not (Test-Path -LiteralPath $handoffIndex)) {
+                Add-Error 'Delivery task passed but brand-folder handoff index.html is missing.'
             }
         }
     }

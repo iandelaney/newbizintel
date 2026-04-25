@@ -10,6 +10,7 @@ $ErrorActionPreference = 'Stop'
 
 $context = & (Join-Path $PSScriptRoot '..\common\get_run_context.ps1') -DataPath $DataPath -BrandName $BrandName -BrandFolder $BrandFolder
 $state = $context.state
+. (Join-Path $PSScriptRoot '..\common\assertions.ps1')
 
 $state.status.render = 'in_progress'
 $state.gates.gate_6_render_outputs = 'in_progress'
@@ -24,6 +25,12 @@ if ($TemplatePath) {
 }
 
 $bundle = & (Join-Path $PSScriptRoot 'build_report_bundle.ps1') @params | ConvertFrom-Json
+Assert-NewBizOkResult -Name 'Render schema validation' -Result $bundle.schema_validation
+Assert-NewBizOkResult -Name 'Render brand asset validation' -Result $bundle.asset_validation
+Assert-NewBizOkResult -Name 'Render delivery asset validation' -Result $bundle.delivery_asset_validation
+Assert-NewBizPath -Name 'Rendered HTML' -Path $bundle.html
+Assert-NewBizPath -Name 'Rendered PPTX' -Path $bundle.pptx
+Assert-NewBizPath -Name 'Portable archive HTML' -Path $bundle.archive.html
 
 $state.status.render = 'passed'
 $state.gates.gate_6_render_outputs = 'passed'

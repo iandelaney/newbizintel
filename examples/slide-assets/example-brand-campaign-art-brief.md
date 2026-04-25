@@ -7,6 +7,8 @@
 - Expected output: one portrait raster image per campaign idea
 - Recommended aspect: 9:16 portrait
 - Recommended minimum size: 900x1600
+- Hard rule: images must contain no words, letters, numbers, captions, labels, UI copy, signage, logos, wordmarks, product marks, app screens, packaging, or target-brand assets.
+- Style rule: each campaign idea must use a visibly different media family; avoid repeating collage/poster/vector-like treatments across a set.
 - Import rule: keep prompt order aligned with image order when importing a generated batch
 
 ## Workflow
@@ -17,38 +19,42 @@
 
 ## Prompts
 
-### 1. Proof-led platform story
+### 1. The Proof Foundry
 
 - Kind: `proof`
-- Style: `tabloid-front-page`
-- Medium: `tabloid front-page print layout`
+- Style: `risograph-manifesto`
+- Media family: `graphic-print-collage`
+- Medium: `risograph editorial broadside`
 - Expected asset path: `slide-assets/example-brand-campaign-proof-led-platform-story.png`
 
-Create a tall portrait campaign illustration for 'Proof-led platform story'. Use a tabloid front-page print layout treatment. The core idea is: Replace with the core concept in plain English.. Art direction: loud front-page urgency, cropped snippets, heavy blocks, and sensational proof framing with editorial aggression. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.
+Create a tall portrait campaign illustration for 'The Proof Foundry'. Use a risograph editorial broadside treatment. The core idea is: A proof-building campaign that turns the core commercial claim into a visible, repeatable evidence system.. Art direction: misregistered ink, radical print-shop texture, and manifesto-like proof stacking with visible production grit. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references.
 
-### 2. Buyer-education campaign
+### 2. The Buyer Maze
 
-- Kind: `control`
-- Style: `satellite-control-atlas`
-- Medium: `orbital control atlas interface`
+- Kind: `drift`
+- Style: `cosmic-observatory-photo`
+- Media family: `photography`
+- Medium: `cosmic long-exposure photography`
 - Expected asset path: `slide-assets/example-brand-campaign-buyer-education-campaign.png`
 
-Create a tall portrait campaign illustration for 'Buyer-education campaign'. Use a orbital control atlas interface treatment. The core idea is: Replace with the core concept in plain English.. Art direction: cartographic control surfaces, geospatial overlays, and mission-control precision rather than ordinary blueprints. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.
+Create a tall portrait campaign illustration for 'The Buyer Maze'. Use a cosmic long-exposure photography treatment. The core idea is: A buyer-education campaign that helps prospects navigate the decision path without forcing the title to explain the mechanics.. Art direction: night-sky energy photography with observatory drama, luminous trails, and cinematic scientific atmosphere. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references.
 
-### 3. Trust and credibility series
+### 3. No Leap of Faith
 
-- Kind: `proof`
-- Style: `pop-silkscreen`
-- Medium: `pop-art silkscreen print`
+- Kind: `drift`
+- Style: `brushstroke-heatwave`
+- Media family: `painting`
+- Medium: `gestural brushstroke painting`
 - Expected asset path: `slide-assets/example-brand-campaign-trust-and-credibility-series.png`
 
-Create a tall portrait campaign illustration for 'Trust and credibility series'. Use a pop-art silkscreen print treatment. The core idea is: Replace with the core concept in plain English.. Art direction: graphic silkscreen blocks, comic-book punch, halftone rhythm, and poster-bold framing. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.
+Create a tall portrait campaign illustration for 'No Leap of Faith'. Use a gestural brushstroke painting treatment. The core idea is: A trust-building campaign series that turns substantiation into a distinctive content platform.. Art direction: expressive painterly strokes, hot and cool energy swells, and visible texture from top to bottom. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references.
 
-### 4. Differentiation launch moment
+### 4. The Category Thunderclap
 
 - Kind: `generic`
-- Style: `cosmic-observatory-photo`
-- Medium: `cosmic long-exposure photography`
+- Style: `noir-comic-storm-front`
+- Media family: `comic-art`
+- Medium: `graphic novel storm-front illustration`
 - Expected asset path: `slide-assets/example-brand-campaign-differentiation-launch-moment.png`
 
-Create a tall portrait campaign illustration for 'Differentiation launch moment'. Use a cosmic long-exposure photography treatment. The core idea is: Replace with the core concept in plain English.. Art direction: night-sky energy photography with observatory drama, luminous trails, and cinematic scientific atmosphere. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.
+Create a tall portrait campaign illustration for 'The Category Thunderclap'. Use a graphic novel storm-front illustration treatment. The core idea is: A high-impact campaign moment that makes the brand's sharpest difference feel vivid, timely, and commercially urgent.. Art direction: high-contrast comic noir with weather-map energy, heavy shadow, and dramatic motion across the full column. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references.

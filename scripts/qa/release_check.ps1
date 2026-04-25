@@ -34,11 +34,7 @@ function Assert-True {
 
 $portabilityScript = Join-Path $RepoRoot 'scripts\qa\audit_portability.ps1'
 $installSmokeScript = Join-Path $RepoRoot 'scripts\qa\smoke_test_install.ps1'
-$runnerScript = Join-Path $RepoRoot 'scripts\run_newbiz2.ps1'
-$sampleDataPath = Join-Path $RepoRoot 'examples\report-data.json'
-$sampleHtmlPath = Join-Path $RepoRoot 'examples\newbizintel-report.html'
-$samplePortablePath = Join-Path $RepoRoot 'examples\archive\newbizintel-report-portable.html'
-$sampleRunStatePath = Join-Path $RepoRoot 'examples\run-state.json'
+$regressionFixtureScript = Join-Path $RepoRoot 'scripts\qa\run_regression_fixtures.ps1'
 
 $portability = Invoke-JsonScript -Path $portabilityScript
 Assert-True ($portability.ok -eq $true) 'Portability audit failed.'
@@ -46,11 +42,8 @@ Assert-True ($portability.ok -eq $true) 'Portability audit failed.'
 $installSmoke = Invoke-JsonScript -Path $installSmokeScript
 Assert-True ($installSmoke.ok -eq $true) 'Install smoke test failed.'
 
-$null = & $runnerScript -DataPath $sampleDataPath -Mode 'full'
-
-Assert-True (Test-Path -LiteralPath $sampleHtmlPath) "Expected sample HTML output at $sampleHtmlPath."
-Assert-True (Test-Path -LiteralPath $samplePortablePath) "Expected portable HTML output at $samplePortablePath."
-Assert-True (Test-Path -LiteralPath $sampleRunStatePath) "Expected run-state output at $sampleRunStatePath."
+$regressionFixtures = Invoke-JsonScript -Path $regressionFixtureScript
+Assert-True ($regressionFixtures.ok -eq $true) 'Regression fixture audit failed.'
 
 [pscustomobject]@{
     ok = $true
@@ -67,15 +60,16 @@ Assert-True (Test-Path -LiteralPath $sampleRunStatePath) "Expected run-state out
             detail = 'Repo-local install smoke test passed.'
         },
         [pscustomobject]@{
-            key = 'sample-full-gated-run'
+            key = 'regression-fixtures'
             ok = $true
-            detail = 'Sample full gated run produced HTML, portable HTML, and run-state outputs.'
+            detail = 'Regression fixtures passed for installable examples.'
+        },
+        [pscustomobject]@{
+            key = 'delivery-gate-note'
+            ok = $true
+            detail = 'Full delivery gates are validated against canonical output folders, not repo examples.'
         }
     )
-    outputs = [pscustomobject]@{
-        sample_html = $sampleHtmlPath
-        sample_portable_html = $samplePortablePath
-        sample_run_state = $sampleRunStatePath
-    }
+    regression_fixtures = $regressionFixtures
     release_checklist = Join-Path $RepoRoot 'references\release-checklist.md'
-} | ConvertTo-Json -Depth 6
+} | ConvertTo-Json -Depth 10

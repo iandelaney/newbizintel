@@ -14,6 +14,7 @@ import json
 import os
 import urllib.parse
 import urllib.request
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -40,8 +41,15 @@ def root_domain(value: str) -> str:
 def semrush_get(params: dict[str, str], timeout: int = 45) -> dict[str, Any]:
     url = f"{API_URL}?{urllib.parse.urlencode(params)}"
     request = urllib.request.Request(url, headers={"User-Agent": "newbiz2-semrush-collector/1.0"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        body = response.read().decode("utf-8-sig", errors="replace")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            body = response.read().decode("utf-8-sig", errors="replace")
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8-sig", errors="replace").strip()
+        detail = f"HTTP Error {exc.code}: {exc.reason}"
+        if body:
+            detail = f"{detail}; {body[:300]}"
+        return {"ok": False, "error": detail, "rows": [], "columns": []}
 
     if body.lstrip().upper().startswith("ERROR"):
         return {"ok": False, "error": body.strip(), "rows": [], "columns": []}

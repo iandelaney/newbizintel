@@ -1,0 +1,87 @@
+{
+  "ok": true,
+  "status": "fallback",
+  "selected_provider": "jina-public-web",
+  "provider_order": [
+    "direct-api",
+    "composio-mcp",
+    "jina-public-web"
+  ],
+  "next_backup_provider": null,
+  "domain": "acme.com",
+  "database": "uk",
+  "direct_api": {
+    "available": false,
+    "credential_env": "SEMRUSH_API_KEY",
+    "credential_value": "missing"
+  },
+  "composio_mcp": {
+    "available": false,
+    "required_tool_slugs": [
+      "SEMRUSH_DOMAIN_ORGANIC_SEARCH_KEYWORDS",
+      "SEMRUSH_COMPETITORS_IN_ORGANIC_SEARCH",
+      "SEMRUSH_INDEXED_PAGES",
+      "SEMRUSH_BACKLINKS_OVERVIEW"
+    ],
+    "role": "Backup provider after direct SEMrush API is unavailable, quota-limited, or blocked.",
+    "note": "Use direct Composio MCP tools only. Do not route SEMrush work through Rube when the user has requested Composio, not Rube."
+  },
+  "fallback": {
+    "jina_public_web_available": true,
+    "role": "Use only to support SEO/source context when SEMrush direct API and Composio MCP are unavailable or quota-limited."
+  },
+  "query_plan": {
+    "ok": true,
+    "data": "examples/report-data.json",
+    "domain": "acme.com",
+    "provider": "Composio MCP",
+    "backup_provider": "Jina AI",
+    "database": "uk",
+    "requests": [
+      {
+        "priority": 1,
+        "tool": "SEMRUSH_DOMAIN_ORGANIC_SEARCH_KEYWORDS",
+        "parameters": {
+          "domain": "acme.com",
+          "database": "uk"
+        },
+        "why": "Primary evidence for keyword demand, ranking gaps, and SEO opportunity sizing."
+      },
+      {
+        "priority": 2,
+        "tool": "SEMRUSH_COMPETITORS_IN_ORGANIC_SEARCH",
+        "parameters": {
+          "domain": "acme.com",
+          "database": "uk"
+        },
+        "why": "Validates the competitor set before structure and recommendations are locked."
+      },
+      {
+        "priority": 3,
+        "tool": "SEMRUSH_INDEXED_PAGES",
+        "parameters": {
+          "target": "acme.com",
+          "target_type": "root_domain"
+        },
+        "why": "Checks index footprint and helps catch missing or underperforming site sections."
+      },
+      {
+        "priority": 4,
+        "tool": "SEMRUSH_BACKLINKS_OVERVIEW",
+        "parameters": {
+          "target": "acme.com",
+          "target_type": "root_domain"
+        },
+        "why": "Adds authority context if keyword or competitor evidence is thin."
+      }
+    ],
+    "status_guidance": {
+      "passed": "Use when at least two compact SEMrush-backed proof points can be included.",
+      "partial": "Use when one SEMrush dataset exists but needs public-web supplementation.",
+      "quota_limited": "Use when Composio SEMrush quota or entitlement blocks full retrieval.",
+      "blocked": "Use when SEMrush cannot be authenticated or reached."
+    }
+  },
+  "evidence_status": "pending",
+  "fail_condition": "A report must not claim SEMrush-backed evidence unless direct-api or composio-mcp returns at least two verified SEMrush evidence points. Jina/public web is fallback context, not SEMrush-backed evidence."
+}

@@ -15,6 +15,12 @@ if (Test-Path -LiteralPath $taskListScript) {
     Sync-NewBizTaskStatusFromGates -State $State
 }
 
+$hybridScript = Join-Path $PSScriptRoot 'hybrid_execution.ps1'
+if (Test-Path -LiteralPath $hybridScript) {
+    . $hybridScript
+    Ensure-NewBizHybridExecution -State $State
+}
+
 $directory = Split-Path -Parent $Path
 if ($directory) {
     New-Item -ItemType Directory -Force -Path $directory | Out-Null

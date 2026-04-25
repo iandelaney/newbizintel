@@ -2,9 +2,15 @@ param(
     [string]$DataPath,
     [string]$BrandName,
     [string]$BrandFolder,
-    [ValidateSet('bootstrap', 'live-summary')]
+    [string]$Website,
+    [ValidateSet('bootstrap', 'live-summary', 'workpacks')]
     [string]$ResearchMode = 'bootstrap',
     [string]$ResearchSummaryPath,
+    [string[]]$SearchWorkpacks = @(),
+    [switch]$AllowResearchEscalation,
+    [bool]$ComposioSemrushAvailable = $false,
+    [bool]$JinaFallbackAvailable = $true,
+    [string]$SemrushApiKey,
     [switch]$UseSemrushApi,
     [ValidateSet('uk', 'us')]
     [string]$SemrushDatabase = 'uk',
@@ -48,8 +54,14 @@ $baseParams = @{}
 if ($DataPath) { $baseParams.DataPath = $DataPath }
 if ($BrandName) { $baseParams.BrandName = $BrandName }
 if ($BrandFolder) { $baseParams.BrandFolder = $BrandFolder }
+if ($Website) { $baseParams.Website = $Website }
 $baseParams.ResearchMode = $ResearchMode
 if ($ResearchSummaryPath) { $baseParams.ResearchSummaryPath = $ResearchSummaryPath }
+if (@($SearchWorkpacks).Count -gt 0) { $baseParams.SearchWorkpacks = $SearchWorkpacks }
+if ($AllowResearchEscalation) { $baseParams.AllowResearchEscalation = $true }
+$baseParams.ComposioSemrushAvailable = $ComposioSemrushAvailable
+$baseParams.JinaFallbackAvailable = $JinaFallbackAvailable
+if ($SemrushApiKey) { $baseParams.SemrushApiKey = $SemrushApiKey }
 if ($UseSemrushApi) { $baseParams.UseSemrushApi = $true }
 if ($SemrushDatabase) { $baseParams.SemrushDatabase = $SemrushDatabase }
 

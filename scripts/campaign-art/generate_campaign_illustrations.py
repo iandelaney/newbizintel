@@ -19,6 +19,7 @@ import json
 import math
 import random
 import re
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
@@ -1042,8 +1043,9 @@ def output_path_for_idea(asset_dir: Path, brand_slug: str, title: str, raw_value
 
 
 def generate(
-    data_path: Path, overwrite: bool
-) -> tuple[int, list[Path], int, Path, Path]:
+    data_path: Path, overwrite: bool, manifest_only: bool
+) -> tuple[int, list[Path], int, Path, Path, Path]:
+    base_sha256 = hashlib.sha256(data_path.read_bytes()).hexdigest().upper()
     data = json.loads(data_path.read_text(encoding="utf-8"))
     brand = data.get("brand", {})
     brand_name = brand.get("name") or data_path.parent.name
@@ -1186,8 +1188,57 @@ def generate(
     )
     section["illustration_prompt_manifest"] = relative_asset_path(asset_dir, manifest_path)
     section["illustration_prompt_brief"] = relative_asset_path(asset_dir, brief_path)
-    data_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return len(written), written, pending, manifest_path, brief_path
+    section_key = "creative_campaign_ideas" if data.get("creative_campaign_ideas") is section else "creative_campaigns"
+    patches: list[dict[str, object]] = [
+        {
+            "path": f"{section_key}.illustration_prompt_manifest",
+            "value": relative_asset_path(asset_dir, manifest_path),
+        },
+        {
+            "path": f"{section_key}.illustration_prompt_brief",
+            "value": relative_asset_path(asset_dir, brief_path),
+        },
+    ]
+    for index, idea in enumerate(ideas):
+        for field in (
+            "illustration_url",
+            "illustration_medium",
+            "illustration_prompt",
+            "illustration_style_name",
+            "illustration_style_family",
+            "illustration_delivery_target",
+            "illustration_generation_backend",
+            "illustration_asset_role",
+        ):
+            if field in idea:
+                patches.append(
+                    {
+                        "path": f"{section_key}.ideas[{index}].{field}",
+                        "value": idea.get(field),
+                    }
+                )
+
+    patch_manifest_path = asset_dir / f"{brand_slug}-campaign-report-data-patch.json"
+    patch_manifest_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "domain": "campaign-art",
+                "data": data_path.name,
+                "base_sha256": base_sha256,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "patches": patches,
+                "source_manifest": relative_asset_path(asset_dir, manifest_path),
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    if not manifest_only:
+        data_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return len(written), written, pending, manifest_path, brief_path, patch_manifest_path
 
 
 def main() -> int:
@@ -1198,10 +1249,15 @@ def main() -> int:
     parser.add_argument(
         "--overwrite", action="store_true", help="Overwrite existing illustration files"
     )
+    parser.add_argument(
+        "--manifest-only",
+        action="store_true",
+        help="Write prompt and report-data patch manifests without mutating report-data.json",
+    )
     args = parser.parse_args()
 
-    count, written, pending, manifest_path, brief_path = generate(
-        Path(args.data).resolve(), overwrite=args.overwrite
+    count, written, pending, manifest_path, brief_path, patch_manifest_path = generate(
+        Path(args.data).resolve(), overwrite=args.overwrite, manifest_only=args.manifest_only
     )
     payload = {
         "data": str(Path(args.data).resolve()),
@@ -1210,7 +1266,9 @@ def main() -> int:
         "files": [str(path) for path in written],
         "prompt_manifest": str(manifest_path),
         "prompt_brief": str(brief_path),
+        "report_data_patch_manifest": str(patch_manifest_path),
         "overwrite": bool(args.overwrite),
+        "manifest_only": bool(args.manifest_only),
     }
     print(json.dumps(payload, separators=(",", ":")))
     return 0

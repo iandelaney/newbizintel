@@ -58,9 +58,10 @@ What works today:
 - module runners exist for intake, research, structure, assets, campaign art, render, QA, and deploy handoff
 - the orchestrator can run `full`, `research-only`, `render-stack`, `qa-only`, `deploy-handoff`, `art-refresh`, and `assets-refresh`
 - `research-summary.json` is produced in bootstrap mode from an existing `report-data.json`
-- `research-summary.json` can also be imported in `live-summary` mode after Codex gathers current-web evidence with Tavily, falls back to Jina when needed, and attaches SEMrush evidence through the installed Composio MCP server
+- `research-summary.json` can also be imported in `live-summary` mode after Codex gathers current-web evidence with Tavily or direct web methods, uses direct SEMrush API evidence first, falls back to Composio-backed SEMrush when needed, uses Jina as a current-web backup, and may use clearly labelled Similarweb evidence when SEMrush routes are blocked or quota-limited
 - `newbiz2-structure` now consumes `research-summary.json` when present and writes the live research layer back into `report-data.json` before validation
 - `run-state.json` is updated as modules complete
+- `scripts/newbiz2.py` is the default cross-platform runner for colleagues; the PowerShell runner remains available for Windows compatibility and legacy module wrappers
 - HTML, portable HTML, native PPTX, and deploy handoff outputs are produced from the copied stable `newbizintel` machinery plus a PptxGenJS deck path aligned to the `slides` skill
 - the full modular chain is proven on the real Univers brand folder through `research -> structure -> assets -> campaign-art -> render -> qa -> deploy-handoff`
 - premium Creative Campaign art now defaults to prompt-driven image-generated raster artwork, with local scaffold placeholders allowed only when a report explicitly opts into scaffold mode
@@ -100,8 +101,8 @@ The import step normalizes the images into the expected portrait PNG outputs, ma
 
 Prerequisites:
 
-- Windows: PowerShell, Python, Node.js, and npm available
-- macOS: `pwsh`, `python3`, `node`, and `npm` available on `PATH`
+- Windows: Python, Node.js, and npm available; PowerShell is only required for legacy `.ps1` compatibility checks
+- macOS: `python3`, `node`, and `npm` available on `PATH`; `pwsh` is not required for the default runner
 
 Windows PowerShell:
 
@@ -143,8 +144,8 @@ For a colleague on macOS, this is the shortest copy-and-run sequence:
 ./scripts/qa/check_prereqs.sh
 ./install-local.sh
 # add YOUR_TAVILY_API_KEY to the written Codex config or snippet
-pwsh ./scripts/run_newbiz2.ps1 -DataPath ./examples/report-data.sample.json -Mode render-stack
-pwsh ./scripts/qa/audit_portability.ps1
+python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.sample.json
 ```
 
 ### 1. Clone the repo
@@ -167,8 +168,8 @@ macOS or other Unix-like shells:
 
 This should report:
 
-- a usable PowerShell runtime
 - a usable Python runtime
+- a usable Node/npm runtime
 - a writable Codex root
 - the expected companion skill and config files
 
@@ -211,7 +212,7 @@ Windows PowerShell:
 macOS or other Unix-like shells:
 
 ```bash
-pwsh ./scripts/run_newbiz2.ps1 -DataPath ./examples/report-data.sample.json -Mode render-stack
+python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.sample.json
 ```
 
 Then check portability before sharing onward:
@@ -225,7 +226,7 @@ Windows PowerShell:
 macOS or other Unix-like shells:
 
 ```bash
-pwsh ./scripts/qa/audit_portability.ps1
+python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.sample.json
 ```
 
 Then run the repo-local install smoke test to prove the colleague install path still works:
@@ -239,7 +240,7 @@ Windows PowerShell:
 macOS or other Unix-like shells:
 
 ```bash
-pwsh ./scripts/qa/smoke_test_install.ps1
+./scripts/qa/check_prereqs.sh
 ```
 
 ### 7. Prove the real gold path when available
@@ -255,7 +256,7 @@ Windows PowerShell:
 macOS or other Unix-like shells:
 
 ```bash
-pwsh ./scripts/fixtures/run_univers_live_summary_proof.ps1
+python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.sample.json
 ```
 
 Expected result:
@@ -290,7 +291,7 @@ Expected outcome:
 
 What is still intentionally incomplete:
 
-- the local PowerShell runner does not call MCP tools directly; live research is gathered in Codex through Tavily, Jina as backup, and the installed Composio MCP server, then imported through `live-summary` mode
+- the local runners do not call MCP tools directly; live research is gathered in Codex through direct APIs, Tavily or direct web methods, Jina as backup, direct SEMrush API first, Composio-backed SEMrush as backup, and labelled Similarweb evidence where useful, then imported through `live-summary` mode
 
 ## Shareability guardrails
 
@@ -314,7 +315,8 @@ Windows PowerShell:
 macOS or other Unix-like shells:
 
 ```bash
-pwsh ./scripts/qa/release_check.ps1
+python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.sample.json
 ```
 
 This rolls up the current required checks:
@@ -342,21 +344,43 @@ The next refactor should reduce duplication only in a way that preserves repo po
 
 ## Portability check
 
-Use this repo-local audit to catch hidden machine-specific path dependencies before sharing the repo:
+Use the Python QA path as the cross-platform portability smoke test before sharing the repo:
+
+```bash
+python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.sample.json
+```
+
+On Windows, the legacy PowerShell audit can also catch machine-specific path dependencies:
 
 ```powershell
 .\scripts\qa\audit_portability.ps1
 ```
 
+## Useful commands
+
+From the repo root, use the Python runner by default.
+
+Windows:
+
+```powershell
+py .\scripts\newbiz2.py run --mode full --data-path .\examples\report-data.sample.json
+py .\scripts\newbiz2.py run --mode research-only --data-path .\examples\report-data.sample.json
+py .\scripts\newbiz2.py run --mode render-stack --data-path .\examples\report-data.sample.json
+py .\scripts\newbiz2.py run --mode research-only --data-path .\examples\report-data.sample.json --research-mode live-summary --research-summary-path .\examples\research-summary.json
+py .\scripts\newbiz2.py qa --data-path .\examples\report-data.sample.json
+```
+
 macOS or other Unix-like shells:
 
 ```bash
-pwsh ./scripts/qa/audit_portability.ps1
+python3 ./scripts/newbiz2.py run --mode full --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py run --mode research-only --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py run --mode research-only --data-path ./examples/report-data.sample.json --research-mode live-summary --research-summary-path ./examples/research-summary.json
+python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.sample.json
 ```
 
-## Useful commands
-
-From the repo root:
+The PowerShell runner remains available for Windows compatibility:
 
 ```powershell
 .\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.sample.json -Mode full
@@ -364,14 +388,4 @@ From the repo root:
 .\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.sample.json -Mode render-stack
 .\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.sample.json -Mode research-only -ResearchMode live-summary -ResearchSummaryPath .\examples\research-summary.json
 .\scripts\fixtures\run_univers_live_summary_proof.ps1
-```
-
-macOS or other Unix-like shells:
-
-```bash
-pwsh ./scripts/run_newbiz2.ps1 -DataPath ./examples/report-data.sample.json -Mode full
-pwsh ./scripts/run_newbiz2.ps1 -DataPath ./examples/report-data.sample.json -Mode research-only
-pwsh ./scripts/run_newbiz2.ps1 -DataPath ./examples/report-data.sample.json -Mode render-stack
-pwsh ./scripts/run_newbiz2.ps1 -DataPath ./examples/report-data.sample.json -Mode research-only -ResearchMode live-summary -ResearchSummaryPath ./examples/research-summary.json
-pwsh ./scripts/fixtures/run_univers_live_summary_proof.ps1
 ```

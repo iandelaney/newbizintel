@@ -10,9 +10,6 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $schemaValidation = & (Join-Path $PSScriptRoot '..\structure\validate_report_data.ps1') -DataPath $DataPath | ConvertFrom-Json
-$pythonPath = & (Join-Path $PSScriptRoot '..\common\resolve_python.ps1')
-
-& $pythonPath (Join-Path $PSScriptRoot '..\campaign-art\generate_campaign_illustrations.py') --data $DataPath --overwrite | Out-Null
 
 $renderParams = @{
     DataPath = $DataPath
@@ -23,6 +20,7 @@ if ($TemplatePath) {
 }
 
 $assetValidation = & (Join-Path $PSScriptRoot '..\assets\validate_brand_assets.ps1') -DataPath $DataPath | ConvertFrom-Json
+$deliveryAssetValidation = & (Join-Path $PSScriptRoot '..\assets\validate_delivery_assets.ps1') -DataPath $DataPath | ConvertFrom-Json
 $renderParams.SkipValidation = $true
 $renderResult = & (Join-Path $PSScriptRoot 'render_report.ps1') @renderParams | ConvertFrom-Json
 $exportResult = & (Join-Path $PSScriptRoot 'export_report_bundle.ps1') -HtmlPath $renderResult.html -DataPath $DataPath -BaseName $BaseName -SkipAssetValidation | ConvertFrom-Json
@@ -34,5 +32,6 @@ $exportResult = & (Join-Path $PSScriptRoot 'export_report_bundle.ps1') -HtmlPath
     pptx = $exportResult.pptx
     schema_validation = $schemaValidation
     asset_validation = $assetValidation
+    delivery_asset_validation = $deliveryAssetValidation
     archive = $exportResult.archive
 } | ConvertTo-Json -Depth 6 -Compress

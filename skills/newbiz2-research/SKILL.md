@@ -1,18 +1,20 @@
 ---
 name: newbiz2-research
-description: Gather Tavily-backed current-web evidence and Composio-backed SEMrush evidence for the modular newbiz2 workflow. Use for competitor discovery, news, reputation, source gathering, and SEO evidence.
+description: Gather current-web, competitor, news, reputation, source, and SEO evidence for the modular newbiz2 workflow, using direct APIs where available. Use direct SEMrush API first, Composio-backed SEMrush as backup, Jina/direct web as current-web fallback, and clearly labelled Similarweb evidence when SEMrush is blocked or quota-limited.
 ---
 
 # NewBiz2 Research
 
 Own:
 
-- Tavily-backed discovery
+- current-web discovery through Tavily, direct web methods, or Jina fallback
 - competitor set evidence
 - recent news
 - reputation and public-web evidence
 - source gathering
-- Composio-backed SEMrush evidence
+- direct SEMrush API evidence first
+- Composio-backed SEMrush evidence as backup
+- clearly labelled Similarweb evidence when SEMrush routes are blocked, quota-limited, or unavailable
 
 Outputs should be structured enough for `newbiz2-structure` to map into `report-data.json` cleanly.
 
@@ -32,13 +34,15 @@ It can also run in `live-summary` mode.
 
 In that mode:
 
-- Codex gathers current-web evidence with Tavily
+- Codex gathers current-web evidence with Tavily or direct web methods
 - Codex uses Jina as the fallback current-web layer when Tavily is blocked, quota-limited, or too thin for the pass
-- Codex attaches SEMrush evidence through the installed Composio MCP server when that connector is available in the session
+- Codex uses the direct SEMrush API first when a key is available
+- Codex uses the installed Composio MCP server as the SEMrush backup route when direct API access fails or is unavailable
+- Codex may attach clearly labelled Similarweb public or authenticated evidence when SEMrush routes are blocked, quota-limited, or too thin
 - Codex writes a structured `research-summary.json`
 - the module imports that summary into the brand folder, validates it, and updates `run-state.json`
 
-The local PowerShell runner does not call MCP tools directly. Live collection happens in Codex through Tavily, Jina, and Composio, then the summary is imported through the module contract.
+The local runners do not call MCP tools directly. Live collection happens in Codex through direct APIs, Tavily or direct web methods, Jina fallback, direct SEMrush API, Composio-backed SEMrush backup, and labelled Similarweb evidence where useful, then the summary is imported through the module contract.
 
 The main current output is:
 

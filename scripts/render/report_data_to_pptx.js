@@ -101,13 +101,38 @@ function resolveAsset(dataDir, value) {
   return ensureFile(candidate);
 }
 
+const PPTX_SAFE_EXTS = new Set([".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".wmf"]);
+
+function pptxSafeAsset(dataDir, value) {
+  const candidate = resolveAsset(dataDir, value);
+  if (!candidate) return null;
+  const ext = path.extname(candidate).toLowerCase();
+  if (PPTX_SAFE_EXTS.has(ext)) return candidate;
+  if (ext === ".svg") {
+    for (const suffix of [".png", ".jpg", ".jpeg", ".webp"]) {
+      const companion = candidate.replace(/\.svg$/i, suffix);
+      if (fs.existsSync(companion)) return companion;
+    }
+  }
+  return null;
+}
+
 function brandAsset(dataDir, brand) {
   return (
-    resolveAsset(dataDir, brand?.mark_url) ||
-    resolveAsset(dataDir, brand?.logo_url) ||
+    pptxSafeAsset(dataDir, brand?.mark_url) ||
+    pptxSafeAsset(dataDir, brand?.logo_url) ||
     ensureFile(path.join(dataDir, "slide-assets", `${plain(brand?.slug)}-mark.png`)) ||
     ensureFile(path.join(dataDir, "slide-assets", `${plain(brand?.slug)}-logo.png`)) ||
     ensureFile(path.join(dataDir, "slide-assets", `${plain(brand?.slug)}-favicon.png`))
+  );
+}
+
+function competitorAsset(dataDir, entry) {
+  return (
+    pptxSafeAsset(dataDir, entry?.logo_url) ||
+    pptxSafeAsset(dataDir, entry?.competitor_logo_url) ||
+    pptxSafeAsset(dataDir, entry?.badge_url) ||
+    pptxSafeAsset(dataDir, entry?.mark_url)
   );
 }
 
@@ -338,7 +363,11 @@ function createDeck(data, dataPath, outPath) {
   let compTop = 1.60;
   (data.competitive_landscape?.table || []).slice(0, 5).forEach((entry, idx) => {
     addRoundBox(comp, 0.90, compTop, 11.45, 1.02, { fill: idx % 2 ? C.panel2 : C.panel });
-    addText(comp, plain(entry.display_name || entry.competitor), 1.08, compTop + 0.12, 1.18, 0.22, {
+    const competitorLogo = competitorAsset(dataDir, entry);
+    if (competitorLogo) {
+      comp.addImage({ path: competitorLogo, x: 1.08, y: compTop + 0.16, w: 0.42, h: 0.28 });
+    }
+    addText(comp, plain(entry.display_name || entry.competitor), 1.58, compTop + 0.12, 0.88, 0.22, {
       fontFace: "Aptos Display",
       fontSize: 12.8,
       bold: true,

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
@@ -87,6 +88,13 @@ def normalize_import_task(source: Path, destination: Path) -> dict[str, object]:
     }
 
 
+def portable_path(path: Path, base: Path) -> str:
+    try:
+        return str(path.relative_to(base))
+    except ValueError:
+        return str(path)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Import final raster campaign artwork into newbiz2 report data."
@@ -109,22 +117,29 @@ def main() -> int:
         default=0,
         help="Number of parallel image-normalisation workers. Defaults to a safe small pool.",
     )
+    parser.add_argument(
+        "--manifest-only",
+        action="store_true",
+        help="Write imported image files and a report-data patch manifest without mutating report-data.json.",
+    )
     args = parser.parse_args()
 
     data_path = Path(args.data).resolve()
+    base_sha256 = hashlib.sha256(data_path.read_bytes()).hexdigest().upper()
     data = load_json(data_path)
     brand = data.get("brand", {})
     brand_slug = slugify(brand.get("slug") or brand.get("name") or data_path.parent.name)
     asset_dir = data_path.parent / "slide-assets"
     section = get_section(data)
+    section_key = "creative_campaign_ideas" if data.get("creative_campaign_ideas") is section else "creative_campaigns"
     ideas = list(section.get("ideas") or [])
 
     target_ideas = []
-    for idea in ideas:
+    for index, idea in enumerate(ideas):
         role = str(idea.get("illustration_asset_role") or "").strip().lower()
         if role == "final-raster-artwork" and not args.overwrite_final:
             continue
-        target_ideas.append(idea)
+        target_ideas.append((index, idea))
 
     if not target_ideas:
         payload = {
@@ -149,12 +164,13 @@ def main() -> int:
     source_files = select_source_images(source_root, len(target_ideas))
     prepared_imports: list[dict[str, object]] = []
 
-    for idea, source_path in zip(target_ideas, source_files):
+    for (index, idea), source_path in zip(target_ideas, source_files):
         title = (idea.get("title") or "").strip()
         existing_url = idea.get("illustration_url") or ""
         destination = output_path_for_idea(asset_dir, brand_slug, title, existing_url)
         prepared_imports.append(
             {
+                "index": index,
                 "idea": idea,
                 "title": title,
                 "source": source_path,
@@ -182,8 +198,10 @@ def main() -> int:
 
     imported_files: list[str] = []
     imported_titles: list[str] = []
+    patches: list[dict[str, object]] = []
 
     for item in prepared_imports:
+        index = int(item["index"])
         idea = item["idea"]
         title = str(item["title"])
         source_path = item["source"]
@@ -197,17 +215,53 @@ def main() -> int:
         idea["illustration_import_source"] = str(source_path)
         idea["illustration_imported_at"] = datetime.now(timezone.utc).isoformat()
         idea["illustration_dimensions"] = dimensions
+        for field in (
+            "illustration_url",
+            "illustration_asset_role",
+            "illustration_generation_backend",
+            "illustration_delivery_target",
+            "illustration_import_source",
+            "illustration_imported_at",
+            "illustration_dimensions",
+        ):
+            patches.append(
+                {
+                    "path": f"{section_key}.ideas[{index}].{field}",
+                    "value": idea.get(field),
+                }
+            )
         imported_files.append(str(destination))
         imported_titles.append(title)
 
-    data_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    patch_manifest_path = asset_dir / f"{brand_slug}-campaign-import-report-data-patch.json"
+    patch_manifest_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "domain": "campaign-art",
+                "data": data_path.name,
+                "base_sha256": base_sha256,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "patches": patches,
+                "source_dir": portable_path(source_root, data_path.parent),
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    if not args.manifest_only:
+        data_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     payload = {
         "data": str(data_path),
         "source_dir": str(source_root),
         "imported": len(imported_files),
         "titles": imported_titles,
         "files": imported_files,
+        "report_data_patch_manifest": str(patch_manifest_path),
         "overwrite_final": bool(args.overwrite_final),
+        "manifest_only": bool(args.manifest_only),
         "parallel_workers": worker_count,
     }
     print(json.dumps(payload, separators=(",", ":")))

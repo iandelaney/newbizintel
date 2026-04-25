@@ -96,12 +96,21 @@ function Resolve-AssetUrl {
     catch {
     }
 
-    if (-not [System.IO.Path]::IsPathRooted($candidate)) {
-        $candidate = Join-Path $script:DataDirectory $candidate
+    $candidatePaths = New-Object System.Collections.Generic.List[string]
+    if ([System.IO.Path]::IsPathRooted($candidate)) {
+        $candidatePaths.Add($candidate)
+    }
+    else {
+        $candidatePaths.Add((Join-Path $script:DataDirectory $candidate))
+        $normalisedCandidate = $candidate -replace '\\','/'
+        if ($normalisedCandidate -notmatch '/') {
+            $candidatePaths.Add((Join-Path (Join-Path $script:DataDirectory 'slide-assets') $candidate))
+        }
     }
 
-    try {
-        $resolved = (Resolve-Path -LiteralPath $candidate -ErrorAction Stop).Path
+    foreach ($candidatePath in $candidatePaths) {
+        try {
+            $resolved = (Resolve-Path -LiteralPath $candidatePath -ErrorAction Stop).Path
         $dataRoot = [System.IO.Path]::GetFullPath($script:DataDirectory)
         $resolvedFull = [System.IO.Path]::GetFullPath($resolved)
 
@@ -111,10 +120,12 @@ function Resolve-AssetUrl {
         }
 
         return ([System.Uri]$resolvedFull).AbsoluteUri
+        }
+        catch {
+        }
     }
-    catch {
-        return ''
-    }
+
+    return ''
 }
 
 
@@ -252,55 +263,30 @@ function Resolve-CompetitorBadgeAssetUrl {
         $hostSlug = ''
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($hostSlug)) {
-        $candidateNames += @(
-            "$hostSlug-news.png",
-            "$hostSlug-news.jpg",
-            "$hostSlug-news.jpeg",
-            "$hostSlug-news.svg",
-            "$hostSlug-favicon.png",
-            "$hostSlug-favicon.jpg",
-            "$hostSlug-favicon.jpeg",
-            "$hostSlug-favicon.svg",
-            "$hostSlug-logo.png",
-            "$hostSlug-logo.jpg",
-            "$hostSlug-logo.jpeg",
-            "$hostSlug-logo.svg",
-            "$hostSlug-mark.png",
-            "$hostSlug-mark.jpg",
-            "$hostSlug-mark.jpeg",
-            "$hostSlug-mark.svg",
-            "$hostSlug.png",
-            "$hostSlug.jpg",
-            "$hostSlug.jpeg",
-            "$hostSlug.svg"
-        )
+    $nameSlug = ConvertTo-AssetSlug $Name
+    $depossessiveNameSlug = ConvertTo-AssetSlug (([string]$Name -replace "['’]", ''))
+    $domainNameSlug = ''
+    try {
+        if (-not [string]::IsNullOrWhiteSpace($Website)) {
+            $domainNameSlug = ConvertTo-AssetSlug ((([System.Uri]$Website).Host -replace '^www\.','' -split '\.')[0])
+        }
+    }
+    catch {
+        $domainNameSlug = ''
     }
 
-    $nameSlug = ConvertTo-AssetSlug $Name
-    if (-not [string]::IsNullOrWhiteSpace($nameSlug)) {
-        $candidateNames += @(
-            "$nameSlug-news.png",
-            "$nameSlug-news.jpg",
-            "$nameSlug-news.jpeg",
-            "$nameSlug-news.svg",
-            "$nameSlug-favicon.png",
-            "$nameSlug-favicon.jpg",
-            "$nameSlug-favicon.jpeg",
-            "$nameSlug-favicon.svg",
-            "$nameSlug-logo.png",
-            "$nameSlug-logo.jpg",
-            "$nameSlug-logo.jpeg",
-            "$nameSlug-logo.svg",
-            "$nameSlug-mark.png",
-            "$nameSlug-mark.jpg",
-            "$nameSlug-mark.jpeg",
-            "$nameSlug-mark.svg",
-            "$nameSlug.png",
-            "$nameSlug.jpg",
-            "$nameSlug.jpeg",
-            "$nameSlug.svg"
-        )
+    foreach ($slug in @($hostSlug, $nameSlug, $depossessiveNameSlug, $domainNameSlug)) {
+        if ([string]::IsNullOrWhiteSpace($slug)) {
+            continue
+        }
+        foreach ($suffix in @('news', 'favicon', 'logo', 'pptx-logo', 'mark')) {
+            foreach ($extension in @('png', 'jpg', 'jpeg', 'svg', 'webp')) {
+                $candidateNames += "$slug-$suffix.$extension"
+            }
+        }
+        foreach ($extension in @('png', 'jpg', 'jpeg', 'svg', 'webp')) {
+            $candidateNames += "$slug.$extension"
+        }
     }
 
     return Resolve-LocalSlideAssetUrl $candidateNames

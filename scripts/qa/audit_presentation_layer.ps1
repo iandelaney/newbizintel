@@ -49,6 +49,23 @@ function Get-ItemCount {
     return 1
 }
 
+function Test-GeneratedLogoFallbackPath {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $false
+    }
+
+    try {
+        $leaf = Split-Path -Leaf $Value
+    }
+    catch {
+        $leaf = $Value
+    }
+
+    return ($leaf -match '(?i)-pptx-logo\.(png|jpe?g|webp|svg)$')
+}
+
 function Test-CssClassCoverage {
     param(
         [string]$ClassName,
@@ -215,6 +232,21 @@ if ($data) {
     }
     if ($expectedCompetitorCount -gt 0 -and $competitorFallbackCount -gt 0) {
         Add-Issue -Bucket 'errors' -Message ("Competitor logos fell back to initials. Fallback count: {0}." -f $competitorFallbackCount)
+    }
+    $generatedCompetitorLogoFallbacks = @()
+    foreach ($row in @($data.competitive_landscape.table)) {
+        $name = [string]$row.competitor
+        $candidateValues = @([string]$row.logo_url, [string]$row.competitor_logo_url, [string]$row.badge_url, [string]$row.mark_url)
+        foreach ($candidateValue in $candidateValues) {
+            if (Test-GeneratedLogoFallbackPath -Value $candidateValue) {
+                $generatedCompetitorLogoFallbacks += ("{0}: {1}" -f $name, $candidateValue)
+                break
+            }
+        }
+    }
+    $script:audit.checks.generated_competitor_logo_fallbacks = @($generatedCompetitorLogoFallbacks).Count
+    if ($generatedCompetitorLogoFallbacks.Count -gt 0) {
+        Add-Issue -Bucket 'errors' -Message ("Competitor logos use generated PPTX text-card fallbacks instead of acquired logo assets: {0}" -f ($generatedCompetitorLogoFallbacks -join '; '))
     }
 
     $expectedNewsCount = Get-ItemCount -Value $data.brand_reputation.influential_news

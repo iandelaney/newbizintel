@@ -1,8 +1,8 @@
 {
   "mode": "bootstrap-from-report-data",
-  "data_path": "C:\\codex projects\\newbiz2-skill-repo\\examples\\report-data.sample.json",
+  "data_path": "C:\\codex projects\\newbiz2-skill-repo\\examples\\report-data.json",
   "brand_name": "Example Brand",
-  "brand_website": "https://example.com/",
+  "brand_website": "https://www.acme.com/",
   "competitors": [
     {
       "name": "Competitor A",
@@ -86,6 +86,60 @@
       }
     ]
   },
+  "tavily_validation": {
+    "competitor_discovery": {
+      "status": "blocked",
+      "tool": "tavily",
+      "validated_on": null,
+      "query_summary": [],
+      "source_count": 0,
+      "used_in_sections": [
+        "competitive_landscape"
+      ],
+      "why_passed": "Bootstrap mode reused an existing competitor set from report-data.json and did not run Tavily in this pass."
+    },
+    "recent_news": {
+      "status": "blocked",
+      "tool": "tavily",
+      "validated_on": null,
+      "query_summary": [],
+      "source_count": 0,
+      "used_in_sections": [
+        "brand_reputation"
+      ],
+      "why_passed": "Bootstrap mode reused existing influential-news entries from report-data.json and did not run Tavily in this pass."
+    },
+    "reputation_public_web": {
+      "status": "blocked",
+      "tool": "tavily",
+      "validated_on": null,
+      "query_summary": [],
+      "source_count": 0,
+      "used_in_sections": [
+        "brand_reputation"
+      ],
+      "why_passed": "Bootstrap mode reused existing reputation notes from report-data.json and did not run Tavily in this pass."
+    },
+    "source_gathering": {
+      "status": "passed",
+      "tool": "tavily",
+      "validated_on": null,
+      "query_summary": [],
+      "source_count": 1,
+      "used_in_sections": [
+        "appendix"
+      ],
+      "why_passed": "Bootstrap mode reused source-map evidence already present in report-data.json."
+    }
+  },
+  "source_provenance_summary": {
+    "tavily_backed_sources": 0,
+    "owned_sources": 0,
+    "third_party_sources": 1
+  },
+  "source_map": [
+    null
+  ],
   "locked_sets": {
     "competitors": [
       "Competitor A",
@@ -104,9 +158,98 @@
     "competitor_discovery": "passed",
     "recent_news": "passed",
     "reputation_public_web": "passed",
-    "semrush": "passed"
+    "source_gathering": "passed",
+    "semrush": "quota-limited"
   },
   "notes": [
-    "Bootstrap summary created from report-data.json rather than live Tavily or Composio calls."
-  ]
+    "Bootstrap summary created from report-data.json rather than live Tavily or Composio calls.",
+    "Existing SEO evidence was retained, but this run did not verify SEMrush through direct API or Composio MCP; treat SEMrush as quota-limited/fallback-backed."
+  ],
+  "semrush_access": {
+    "ok": true,
+    "status": "fallback",
+    "selected_provider": "jina-public-web",
+    "provider_order": [
+      "direct-api",
+      "composio-mcp",
+      "jina-public-web"
+    ],
+    "next_backup_provider": null,
+    "domain": "acme.com",
+    "database": "uk",
+    "direct_api": {
+      "available": false,
+      "credential_env": "SEMRUSH_API_KEY",
+      "credential_value": "missing"
+    },
+    "composio_mcp": {
+      "available": false,
+      "required_tool_slugs": [
+        "SEMRUSH_DOMAIN_ORGANIC_SEARCH_KEYWORDS",
+        "SEMRUSH_COMPETITORS_IN_ORGANIC_SEARCH",
+        "SEMRUSH_INDEXED_PAGES",
+        "SEMRUSH_BACKLINKS_OVERVIEW"
+      ],
+      "role": "Backup provider after direct SEMrush API is unavailable, quota-limited, or blocked.",
+      "note": "Use direct Composio MCP tools only. Do not route SEMrush work through Rube when the user has requested Composio, not Rube."
+    },
+    "fallback": {
+      "jina_public_web_available": true,
+      "role": "Use only to support SEO/source context when SEMrush direct API and Composio MCP are unavailable or quota-limited."
+    },
+    "query_plan": {
+      "ok": true,
+      "data": "C:\\codex projects\\newbiz2-skill-repo\\examples\\report-data.json",
+      "domain": "acme.com",
+      "provider": "Composio MCP",
+      "backup_provider": "Jina AI",
+      "database": "uk",
+      "requests": [
+        {
+          "priority": 1,
+          "tool": "SEMRUSH_DOMAIN_ORGANIC_SEARCH_KEYWORDS",
+          "parameters": {
+            "domain": "acme.com",
+            "database": "uk"
+          },
+          "why": "Primary evidence for keyword demand, ranking gaps, and SEO opportunity sizing."
+        },
+        {
+          "priority": 2,
+          "tool": "SEMRUSH_COMPETITORS_IN_ORGANIC_SEARCH",
+          "parameters": {
+            "domain": "acme.com",
+            "database": "uk"
+          },
+          "why": "Validates the competitor set before structure and recommendations are locked."
+        },
+        {
+          "priority": 3,
+          "tool": "SEMRUSH_INDEXED_PAGES",
+          "parameters": {
+            "target": "acme.com",
+            "target_type": "root_domain"
+          },
+          "why": "Checks index footprint and helps catch missing or underperforming site sections."
+        },
+        {
+          "priority": 4,
+          "tool": "SEMRUSH_BACKLINKS_OVERVIEW",
+          "parameters": {
+            "target": "acme.com",
+            "target_type": "root_domain"
+          },
+          "why": "Adds authority context if keyword or competitor evidence is thin."
+        }
+      ],
+      "status_guidance": {
+        "passed": "Use when at least two compact SEMrush-backed proof points can be included.",
+        "partial": "Use when one SEMrush dataset exists but needs public-web supplementation.",
+        "quota_limited": "Use when Composio SEMrush quota or entitlement blocks full retrieval.",
+        "blocked": "Use when SEMrush cannot be authenticated or reached."
+      }
+    },
+    "evidence_status": "pending",
+    "fail_condition": "A report must not claim SEMrush-backed evidence unless direct-api or composio-mcp returns at least two verified SEMrush evidence points. Jina/public web is fallback context, not SEMrush-backed evidence."
+  }
 }

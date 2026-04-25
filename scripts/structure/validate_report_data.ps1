@@ -333,33 +333,6 @@ foreach ($hit in $escapedEntityHits) {
     $errors.Add("Report data contains an HTML entity where normal punctuation should be used: $hit")
 }
 
-$brandFolder = Split-Path -Parent $resolvedDataPath
-$assetDirectory = Join-Path $brandFolder 'slide-assets'
-$brandLogoPath = ''
-$brandMarkPath = ''
-$brandName = ''
-if (Test-HasValue $data.brand) {
-    $brandName = [string]$data.brand.name
-    if (Test-HasValue $data.brand.logo_url) {
-        $brandLogoValue = [string]$data.brand.logo_url
-        if ([System.IO.Path]::IsPathRooted($brandLogoValue)) {
-            $brandLogoPath = $brandLogoValue
-        }
-        elseif (-not [string]::IsNullOrWhiteSpace($brandLogoValue)) {
-            $brandLogoPath = Join-Path $brandFolder $brandLogoValue
-        }
-    }
-    if (Test-HasValue $data.brand.mark_url) {
-        $brandMarkValue = [string]$data.brand.mark_url
-        if ([System.IO.Path]::IsPathRooted($brandMarkValue)) {
-            $brandMarkPath = $brandMarkValue
-        }
-        elseif (-not [string]::IsNullOrWhiteSpace($brandMarkValue)) {
-            $brandMarkPath = Join-Path $brandFolder $brandMarkValue
-        }
-    }
-}
-
 $influentialNews = @($data.brand_reputation.influential_news)
 if ($influentialNews.Count -lt 5) {
     $errors.Add("brand_reputation.influential_news must include at least 5 stories unless the period is explicitly documented as unusually quiet. Current count: $($influentialNews.Count)")
@@ -376,9 +349,6 @@ for ($i = 0; $i -lt $influentialNews.Count; $i++) {
         $errors.Add("$pathPrefix.date must use an exact publication date like '19 November 2025'.")
     }
 
-    if (-not (Test-NewsLogoResolvable -Item $item -AssetDirectory $assetDirectory -BrandName $brandName -BrandLogoPath $brandLogoPath -BrandMarkPath $brandMarkPath)) {
-        $errors.Add("$pathPrefix must resolve to a real publisher badge asset for HTML and PPTX delivery.")
-    }
 }
 
 if ($errors.Count -gt 0) {

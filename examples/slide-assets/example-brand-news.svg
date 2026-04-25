@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Example Brand source logo">
+  <rect width="128" height="128" rx="24" fill="#eef4f0"/>
+  <path d="M36 34h56v60H36z" fill="#ffffff" stroke="#153a5b" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M48 50h32M48 66h32M48 82h20" stroke="#d66b33" stroke-width="8" stroke-linecap="round"/>
+</svg>

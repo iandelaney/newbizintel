@@ -1,7 +1,7 @@
 {
   "brand": {
     "name": "Example Brand",
-    "website": "https://example.com/",
+    "website": "https://www.acme.com/",
     "logo_url": "slide-assets/example-brand-logo.svg",
     "mark_url": "slide-assets/example-brand-mark.svg",
     "date": "11 March 2026",
@@ -22,7 +22,7 @@
       "Competitor C"
     ],
     "assumptions": [
-      "Primary site assumption goes here.",
+      "Confirmed primary site: https://www.acme.com/.",
       "State any competitor or market assumptions here.",
       "State whether reputation findings are based on public-web evidence here."
     ]
@@ -508,8 +508,8 @@
       {
         "title": "The Proof Foundry",
         "illustration_url": "slide-assets/example-brand-campaign-proof-led-platform-story.png",
-        "illustration_medium": "tabloid front-page print layout",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'The Proof Foundry'. Use a tabloid front-page print layout treatment. The core idea is: Replace with the core concept in plain English.. Art direction: loud front-page urgency, cropped snippets, heavy blocks, and sensational proof framing with editorial aggression. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "illustration_medium": "risograph editorial broadside",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'The Proof Foundry'. Use a risograph editorial broadside treatment. The core idea is: A proof-building campaign that turns the core commercial claim into a visible, repeatable evidence system.. Art direction: misregistered ink, radical print-shop texture, and manifesto-like proof stacking with visible production grit. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references.",
         "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
         "concept": "A proof-building campaign that turns the core commercial claim into a visible, repeatable evidence system.",
         "activation": "Replace with a one-sentence activation summary.",
@@ -557,60 +557,19 @@
         "press_angle": "Replace with the amplification angle.",
         "why_it_will_work": "Replace with the mechanism that should make the idea work.",
         "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
-        "illustration_style_name": "tabloid-front-page",
+        "illustration_style_name": "risograph-manifesto",
         "illustration_delivery_target": "true-raster-artwork",
         "illustration_asset_role": "placeholder-scaffold",
-        "illustration_generation_backend": "local-scaffold"
+        "illustration_generation_backend": "local-scaffold",
+        "illustration_style_family": "graphic-print-collage"
       },
       {
         "title": "The Buyer Maze",
         "illustration_url": "slide-assets/example-brand-campaign-buyer-education-campaign.png",
-        "illustration_medium": "orbital control atlas interface",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'The Buyer Maze'. Use a orbital control atlas interface treatment. The core idea is: Replace with the core concept in plain English.. Art direction: cartographic control surfaces, geospatial overlays, and mission-control precision rather than ordinary blueprints. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
+        "illustration_medium": "cosmic long-exposure photography",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'The Buyer Maze'. Use a cosmic long-exposure photography treatment. The core idea is: A buyer-education campaign that helps prospects navigate the decision path without forcing the title to explain the mechanics.. Art direction: night-sky energy photography with observatory drama, luminous trails, and cinematic scientific atmosphere. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references.",
         "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
         "concept": "A buyer-education campaign that helps prospects navigate the decision path without forcing the title to explain the mechanics.",
-        "activation": "Replace with a one-sentence activation summary.",
-        "why_it_fits": "Replace with why this idea fits the brand and evidence.",
-        "channels": [
-          "Owned content",
-          "PR"
-        ],
-        "press_angle": "Replace with the amplification angle.",
-        "why_it_will_work": "Replace with the mechanism that should make the idea work.",
-        "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
-        "illustration_style_name": "satellite-control-atlas",
-        "illustration_delivery_target": "true-raster-artwork",
-        "illustration_asset_role": "placeholder-scaffold",
-        "illustration_generation_backend": "local-scaffold"
-      },
-      {
-        "title": "No Leap of Faith",
-        "illustration_url": "slide-assets/example-brand-campaign-trust-and-credibility-series.png",
-        "illustration_medium": "pop-art silkscreen print",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'No Leap of Faith'. Use a pop-art silkscreen print treatment. The core idea is: Replace with the core concept in plain English.. Art direction: graphic silkscreen blocks, comic-book punch, halftone rhythm, and poster-bold framing. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
-        "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
-        "concept": "A trust-building campaign series that turns substantiation into a distinctive content platform.",
-        "activation": "Replace with a one-sentence activation summary.",
-        "why_it_fits": "Replace with why this idea fits the brand and evidence.",
-        "channels": [
-          "Owned content",
-          "PR"
-        ],
-        "press_angle": "Replace with the amplification angle.",
-        "why_it_will_work": "Replace with the mechanism that should make the idea work.",
-        "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
-        "illustration_style_name": "pop-silkscreen",
-        "illustration_delivery_target": "true-raster-artwork",
-        "illustration_asset_role": "placeholder-scaffold",
-        "illustration_generation_backend": "local-scaffold"
-      },
-      {
-        "title": "The Category Thunderclap",
-        "illustration_url": "slide-assets/example-brand-campaign-differentiation-launch-moment.png",
-        "illustration_medium": "cosmic long-exposure photography",
-        "illustration_prompt": "Create a tall portrait campaign illustration for 'The Category Thunderclap'. Use a cosmic long-exposure photography treatment. The core idea is: Replace with the core concept in plain English.. Art direction: night-sky energy photography with observatory drama, luminous trails, and cinematic scientific atmosphere. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish.",
-        "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
-        "concept": "A high-impact campaign moment that makes the brand's sharpest difference feel vivid, timely, and commercially urgent.",
         "activation": "Replace with a one-sentence activation summary.",
         "why_it_fits": "Replace with why this idea fits the brand and evidence.",
         "channels": [
@@ -623,7 +582,52 @@
         "illustration_style_name": "cosmic-observatory-photo",
         "illustration_delivery_target": "true-raster-artwork",
         "illustration_asset_role": "placeholder-scaffold",
-        "illustration_generation_backend": "local-scaffold"
+        "illustration_generation_backend": "local-scaffold",
+        "illustration_style_family": "photography"
+      },
+      {
+        "title": "No Leap of Faith",
+        "illustration_url": "slide-assets/example-brand-campaign-trust-and-credibility-series.png",
+        "illustration_medium": "gestural brushstroke painting",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'No Leap of Faith'. Use a gestural brushstroke painting treatment. The core idea is: A trust-building campaign series that turns substantiation into a distinctive content platform.. Art direction: expressive painterly strokes, hot and cool energy swells, and visible texture from top to bottom. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references.",
+        "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
+        "concept": "A trust-building campaign series that turns substantiation into a distinctive content platform.",
+        "activation": "Replace with a one-sentence activation summary.",
+        "why_it_fits": "Replace with why this idea fits the brand and evidence.",
+        "channels": [
+          "Owned content",
+          "PR"
+        ],
+        "press_angle": "Replace with the amplification angle.",
+        "why_it_will_work": "Replace with the mechanism that should make the idea work.",
+        "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
+        "illustration_style_name": "brushstroke-heatwave",
+        "illustration_delivery_target": "true-raster-artwork",
+        "illustration_asset_role": "placeholder-scaffold",
+        "illustration_generation_backend": "local-scaffold",
+        "illustration_style_family": "painting"
+      },
+      {
+        "title": "The Category Thunderclap",
+        "illustration_url": "slide-assets/example-brand-campaign-differentiation-launch-moment.png",
+        "illustration_medium": "graphic novel storm-front illustration",
+        "illustration_prompt": "Create a tall portrait campaign illustration for 'The Category Thunderclap'. Use a graphic novel storm-front illustration treatment. The core idea is: A high-impact campaign moment that makes the brand's sharpest difference feel vivid, timely, and commercially urgent.. Art direction: high-contrast comic noir with weather-map energy, heavy shadow, and dramatic motion across the full column. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references.",
+        "addresses": "Replace with the weakness, objection, or opportunity this idea addresses.",
+        "concept": "A high-impact campaign moment that makes the brand's sharpest difference feel vivid, timely, and commercially urgent.",
+        "activation": "Replace with a one-sentence activation summary.",
+        "why_it_fits": "Replace with why this idea fits the brand and evidence.",
+        "channels": [
+          "Owned content",
+          "PR"
+        ],
+        "press_angle": "Replace with the amplification angle.",
+        "why_it_will_work": "Replace with the mechanism that should make the idea work.",
+        "intended_effect": "Replace with the intended effect on visibility, trust, or conversion.",
+        "illustration_style_name": "noir-comic-storm-front",
+        "illustration_delivery_target": "true-raster-artwork",
+        "illustration_asset_role": "placeholder-scaffold",
+        "illustration_generation_backend": "local-scaffold",
+        "illustration_style_family": "comic-art"
       }
     ],
     "illustration_prompt_manifest": "slide-assets/example-brand-campaign-illustration-prompts.json",
@@ -660,8 +664,58 @@
     "missing_data": [],
     "assumptions_and_confidence_notes": [
       "Bootstrap summary created from report-data.json rather than live Tavily or Composio calls.",
+      "Existing SEO evidence was retained, but this run did not verify SEMrush through direct API or Composio MCP; treat SEMrush as quota-limited/fallback-backed.",
       "Replace with the platform readout or public-web monitoring note."
     ],
+    "source_map": [
+      null
+    ],
+    "tavily_validation": {
+      "competitor_discovery": {
+        "status": "blocked",
+        "tool": "tavily",
+        "validated_on": null,
+        "query_summary": [],
+        "source_count": 0,
+        "used_in_sections": [
+          "competitive_landscape"
+        ],
+        "why_passed": "Bootstrap mode reused an existing competitor set from report-data.json and did not run Tavily in this pass."
+      },
+      "recent_news": {
+        "status": "blocked",
+        "tool": "tavily",
+        "validated_on": null,
+        "query_summary": [],
+        "source_count": 0,
+        "used_in_sections": [
+          "brand_reputation"
+        ],
+        "why_passed": "Bootstrap mode reused existing influential-news entries from report-data.json and did not run Tavily in this pass."
+      },
+      "reputation_public_web": {
+        "status": "blocked",
+        "tool": "tavily",
+        "validated_on": null,
+        "query_summary": [],
+        "source_count": 0,
+        "used_in_sections": [
+          "brand_reputation"
+        ],
+        "why_passed": "Bootstrap mode reused existing reputation notes from report-data.json and did not run Tavily in this pass."
+      },
+      "source_gathering": {
+        "status": "passed",
+        "tool": "tavily",
+        "validated_on": null,
+        "query_summary": [],
+        "source_count": 1,
+        "used_in_sections": [
+          "appendix"
+        ],
+        "why_passed": "Bootstrap mode reused source-map evidence already present in report-data.json."
+      }
+    },
     "locked_sets": {
       "competitors": [
         "Competitor A",
@@ -675,6 +729,11 @@
         "Replace with influential story #4.",
         "Replace with influential story #5."
       ]
+    },
+    "source_provenance_summary": {
+      "tavily_backed_sources": 0,
+      "owned_sources": 0,
+      "third_party_sources": 1
     }
   },
   "footer_note": "Prepared in UK English. This report distinguishes observed facts from inference where evidence is limited and is designed to be decision-useful without requiring manual cleanup.",

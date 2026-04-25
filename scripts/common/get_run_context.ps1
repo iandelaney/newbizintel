@@ -1,7 +1,8 @@
 param(
     [string]$DataPath,
     [string]$BrandName,
-    [string]$BrandFolder
+    [string]$BrandFolder,
+    [string]$Website
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,6 +11,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $loadRunState = Join-Path $repoRoot 'scripts\common\load_run_state.ps1'
 $saveRunState = Join-Path $repoRoot 'scripts\common\save_run_state.ps1'
 $initBrandWorkspace = Join-Path $repoRoot 'scripts\intake\init_brand_workspace.ps1'
+$resolveOutputRoot = Join-Path $repoRoot 'scripts\common\resolve_output_root.ps1'
 $contractPath = Join-Path $repoRoot 'references\run-state.contract.json'
 . (Join-Path $repoRoot 'scripts\common\task_list.ps1')
 
@@ -18,15 +20,18 @@ if (-not $DataPath) {
         throw 'Provide either -DataPath or -BrandName.'
     }
 
-    if (-not $BrandFolder) {
-        $BrandFolder = Join-Path $repoRoot 'output'
-    }
+    $BrandFolder = & $resolveOutputRoot -ExplicitRoot $BrandFolder -RepoRoot $repoRoot
 
     if (-not (Test-Path -LiteralPath $BrandFolder)) {
         New-Item -ItemType Directory -Force -Path $BrandFolder | Out-Null
     }
 
-    $initResult = & $initBrandWorkspace -BrandName $BrandName -RootPath $BrandFolder | ConvertFrom-Json
+    $initParams = @{
+        BrandName = $BrandName
+        RootPath = $BrandFolder
+    }
+    if ($Website) { $initParams.Website = $Website }
+    $initResult = & $initBrandWorkspace @initParams | ConvertFrom-Json
     $resolvedDataPath = $initResult.report_data_path
     $resolvedBrandFolder = $initResult.brand_path
 }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-24T13:10:07.395096+00:00",
+  "generated_at": "2026-04-24T22:10:49.048696+00:00",
   "brand_name": "Example Brand",
   "brand_slug": "example-brand",
   "delivery_mode": "scaffold-allowed",
@@ -8,55 +8,59 @@
   "ideas": [
     {
       "sequence": 1,
-      "title": "Proof-led platform story",
+      "title": "The Proof Foundry",
       "kind": "proof",
-      "style_slug": "tabloid-front-page",
-      "medium": "tabloid front-page print layout",
+      "style_slug": "risograph-manifesto",
+      "style_family": "graphic-print-collage",
+      "medium": "risograph editorial broadside",
       "delivery_target": "true-raster-artwork",
       "generation_backend": "local-scaffold",
       "generator_role": "placeholder-scaffold",
       "expected_asset_path": "slide-assets/example-brand-campaign-proof-led-platform-story.png",
       "expected_filename": "example-brand-campaign-proof-led-platform-story.png",
-      "prompt": "Create a tall portrait campaign illustration for 'Proof-led platform story'. Use a tabloid front-page print layout treatment. The core idea is: Replace with the core concept in plain English.. Art direction: loud front-page urgency, cropped snippets, heavy blocks, and sensational proof framing with editorial aggression. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+      "prompt": "Create a tall portrait campaign illustration for 'The Proof Foundry'. Use a risograph editorial broadside treatment. The core idea is: A proof-building campaign that turns the core commercial claim into a visible, repeatable evidence system.. Art direction: misregistered ink, radical print-shop texture, and manifesto-like proof stacking with visible production grit. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references."
     },
     {
       "sequence": 2,
-      "title": "Buyer-education campaign",
-      "kind": "control",
-      "style_slug": "satellite-control-atlas",
-      "medium": "orbital control atlas interface",
+      "title": "The Buyer Maze",
+      "kind": "drift",
+      "style_slug": "cosmic-observatory-photo",
+      "style_family": "photography",
+      "medium": "cosmic long-exposure photography",
       "delivery_target": "true-raster-artwork",
       "generation_backend": "local-scaffold",
       "generator_role": "placeholder-scaffold",
       "expected_asset_path": "slide-assets/example-brand-campaign-buyer-education-campaign.png",
       "expected_filename": "example-brand-campaign-buyer-education-campaign.png",
-      "prompt": "Create a tall portrait campaign illustration for 'Buyer-education campaign'. Use a orbital control atlas interface treatment. The core idea is: Replace with the core concept in plain English.. Art direction: cartographic control surfaces, geospatial overlays, and mission-control precision rather than ordinary blueprints. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+      "prompt": "Create a tall portrait campaign illustration for 'The Buyer Maze'. Use a cosmic long-exposure photography treatment. The core idea is: A buyer-education campaign that helps prospects navigate the decision path without forcing the title to explain the mechanics.. Art direction: night-sky energy photography with observatory drama, luminous trails, and cinematic scientific atmosphere. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references."
     },
     {
       "sequence": 3,
-      "title": "Trust and credibility series",
-      "kind": "proof",
-      "style_slug": "pop-silkscreen",
-      "medium": "pop-art silkscreen print",
+      "title": "No Leap of Faith",
+      "kind": "drift",
+      "style_slug": "brushstroke-heatwave",
+      "style_family": "painting",
+      "medium": "gestural brushstroke painting",
       "delivery_target": "true-raster-artwork",
       "generation_backend": "local-scaffold",
       "generator_role": "placeholder-scaffold",
       "expected_asset_path": "slide-assets/example-brand-campaign-trust-and-credibility-series.png",
       "expected_filename": "example-brand-campaign-trust-and-credibility-series.png",
-      "prompt": "Create a tall portrait campaign illustration for 'Trust and credibility series'. Use a pop-art silkscreen print treatment. The core idea is: Replace with the core concept in plain English.. Art direction: graphic silkscreen blocks, comic-book punch, halftone rhythm, and poster-bold framing. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+      "prompt": "Create a tall portrait campaign illustration for 'No Leap of Faith'. Use a gestural brushstroke painting treatment. The core idea is: A trust-building campaign series that turns substantiation into a distinctive content platform.. Art direction: expressive painterly strokes, hot and cool energy swells, and visible texture from top to bottom. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references."
     },
     {
       "sequence": 4,
-      "title": "Differentiation launch moment",
+      "title": "The Category Thunderclap",
       "kind": "generic",
-      "style_slug": "cosmic-observatory-photo",
-      "medium": "cosmic long-exposure photography",
+      "style_slug": "noir-comic-storm-front",
+      "style_family": "comic-art",
+      "medium": "graphic novel storm-front illustration",
       "delivery_target": "true-raster-artwork",
       "generation_backend": "local-scaffold",
       "generator_role": "placeholder-scaffold",
       "expected_asset_path": "slide-assets/example-brand-campaign-differentiation-launch-moment.png",
       "expected_filename": "example-brand-campaign-differentiation-launch-moment.png",
-      "prompt": "Create a tall portrait campaign illustration for 'Differentiation launch moment'. Use a cosmic long-exposure photography treatment. The core idea is: Replace with the core concept in plain English.. Art direction: night-sky energy photography with observatory drama, luminous trails, and cinematic scientific atmosphere. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish."
+      "prompt": "Create a tall portrait campaign illustration for 'The Category Thunderclap'. Use a graphic novel storm-front illustration treatment. The core idea is: A high-impact campaign moment that makes the brand's sharpest difference feel vivid, timely, and commercially urgent.. Art direction: high-contrast comic noir with weather-map energy, heavy shadow, and dramatic motion across the full column. Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. Avoid generic flat corporate vector art. Make it visually distinct from the other campaign ideas and premium in finish. Hard constraints: no words, no letters, no numbers, no captions, no labels, no typography, no readable text, no UI copy, no signage. Do not show the target brand's logo, no logos, no target brand assets, no wordmark, no colour-coded brand assets, no product marks, no app screens, no packaging, and no recognisable owned brand identity. Use abstract or symbolic forms only for company/product references."
     }
   ]
 }

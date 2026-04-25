@@ -522,10 +522,31 @@ def section_icon_asset(asset_dir, key):
     return find_first_existing(asset_dir, [SECTION_MARKERS.get(key, "")])
 
 
+def pptx_safe_logo_candidate(asset_dir, value):
+    candidate = resolve_data_asset(asset_dir.parent, value)
+    if not candidate:
+        return None
+    if candidate.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".wmf"}:
+        return candidate
+    if candidate.suffix.lower() == ".svg":
+        for suffix in (".png", ".jpg", ".jpeg", ".webp"):
+            companion = candidate.with_suffix(suffix)
+            if companion.exists():
+                return companion
+    return None
+
+
 def competitor_logo_path(asset_dir, competitor):
-    generic = re.sub(r"[^a-z0-9]+", "-", competitor.lower()).strip("-")
+    row = competitor if isinstance(competitor, dict) else {}
+    competitor_name = plain(row.get("competitor") or row.get("name")) if row else plain(competitor)
+    for field in ("logo_url", "competitor_logo_url", "badge_url", "mark_url"):
+        safe_candidate = pptx_safe_logo_candidate(asset_dir, row.get(field)) if row else None
+        if safe_candidate:
+            return safe_candidate
+
+    generic = re.sub(r"[^a-z0-9]+", "-", competitor_name.lower()).strip("-")
     candidates = [
-        COMPETITOR_LOGOS.get(competitor, ""),
+        COMPETITOR_LOGOS.get(competitor_name, ""),
         f"{generic}-favicon.png",
         f"{generic}-logo.png",
         f"{generic}.png",
@@ -1014,7 +1035,7 @@ def build_competitor_slide(prs, data, asset_dir):
         visible_name = plain(row.get("display_name") or row.get("competitor"))
         monogram_source = plain(row.get("competitor") or visible_name)
         add_shape(slide, MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE, x, 1.86, 0.52, 0.52, PALETTE["white"], PALETTE["line"])
-        logo_file = competitor_logo_path(asset_dir, row["competitor"])
+        logo_file = competitor_logo_path(asset_dir, row)
         if logo_file:
             add_picture(slide, logo_file, x + 0.11, 1.97, width=0.3, height=0.3)
         else:

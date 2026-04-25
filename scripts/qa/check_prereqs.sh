@@ -17,11 +17,6 @@ print(json.dumps(sys.argv[1]))
 PY
 }
 
-pwsh_ok=false
-if command -v pwsh >/dev/null 2>&1 || command -v powershell >/dev/null 2>&1; then
-  pwsh_ok=true
-fi
-
 python_ok=false
 if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
   python_ok=true
@@ -59,7 +54,7 @@ if [[ "$writable" != true ]]; then
 fi
 
 ok=true
-for value in "$pwsh_ok" "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$writable"; do
+for value in "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$writable"; do
   if [[ "$value" != true ]]; then
     ok=false
     break
@@ -73,7 +68,7 @@ fi
 
 "$python_bin" - <<'PY' \
   "$ok" "$REPO_ROOT" "$CODEX_ROOT" \
-  "$pwsh_ok" "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$writable" \
+  "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$writable" \
   "$COMPANION_ROOT" "$CONFIG_EXAMPLE" "$write_detail"
 import json
 import sys
@@ -84,33 +79,28 @@ print(json.dumps({
     "codex_root": sys.argv[3],
     "checks": [
         {
-            "key": "powershell",
-            "ok": sys.argv[4].lower() == "true",
-            "detail": "Requires pwsh or PowerShell to run the repo scripts.",
-        },
-        {
             "key": "python",
-            "ok": sys.argv[5].lower() == "true",
+            "ok": sys.argv[4].lower() == "true",
             "detail": "Requires python3 or python for runtime and export helpers.",
         },
         {
             "key": "node",
-            "ok": sys.argv[6].lower() == "true",
+            "ok": sys.argv[5].lower() == "true",
             "detail": "Requires node and npm for native PPTX export via PptxGenJS.",
         },
         {
             "key": "companion_skills",
-            "ok": sys.argv[7].lower() == "true",
+            "ok": sys.argv[6].lower() == "true",
             "detail": f"Expected companion-skills folder at {sys.argv[9]}.",
         },
         {
             "key": "config_example",
-            "ok": sys.argv[8].lower() == "true",
+            "ok": sys.argv[7].lower() == "true",
             "detail": f"Expected config example at {sys.argv[10]}.",
         },
         {
             "key": "codex_root_writable",
-            "ok": sys.argv[9].lower() == "true",
+            "ok": sys.argv[8].lower() == "true",
             "detail": sys.argv[11],
         },
     ],

@@ -23,10 +23,14 @@ if (-not (Test-Path -LiteralPath $portableHtml)) {
 }
 
 if (-not $HandoffFolder) {
-    $HandoffFolder = Join-Path (Split-Path -Parent $resolvedBrandFolder) 'vercel'
+    $HandoffFolder = $resolvedBrandFolder
 }
 
 $resolvedHandoffFolder = [System.IO.Path]::GetFullPath($HandoffFolder)
+$brandRootWithSeparator = $resolvedBrandFolder.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+if (($resolvedHandoffFolder -ne $resolvedBrandFolder) -and (-not $resolvedHandoffFolder.StartsWith($brandRootWithSeparator, [System.StringComparison]::OrdinalIgnoreCase))) {
+    throw "Handoff folder must be the brand output folder or a child of it. Brand folder: $resolvedBrandFolder. Requested handoff: $resolvedHandoffFolder"
+}
 New-Item -ItemType Directory -Force -Path $resolvedHandoffFolder | Out-Null
 
 $indexHtml = Join-Path $resolvedHandoffFolder 'index.html'
@@ -36,23 +40,29 @@ $reportDataCopy = Join-Path $resolvedHandoffFolder 'report-data.json'
 $sourceSlideAssets = Join-Path $resolvedBrandFolder 'slide-assets'
 $handoffSlideAssets = Join-Path $resolvedHandoffFolder 'slide-assets'
 
-Copy-Item -LiteralPath $portableHtml -Destination $indexHtml -Force
-Copy-Item -LiteralPath $portableHtml -Destination $portableHtmlCopy -Force
+if ($portableHtml -ine $indexHtml) {
+    Copy-Item -LiteralPath $portableHtml -Destination $indexHtml -Force
+}
+if ($portableHtml -ine $portableHtmlCopy) {
+    Copy-Item -LiteralPath $portableHtml -Destination $portableHtmlCopy -Force
+}
 
-if (Test-Path -LiteralPath $pptx) {
+if ((Test-Path -LiteralPath $pptx) -and ($pptx -ine $pptxCopy)) {
     Copy-Item -LiteralPath $pptx -Destination $pptxCopy -Force
 }
 
-if (Test-Path -LiteralPath $reportData) {
+if ((Test-Path -LiteralPath $reportData) -and ($reportData -ine $reportDataCopy)) {
     Copy-Item -LiteralPath $reportData -Destination $reportDataCopy -Force
 }
 
-if (Test-Path -LiteralPath $sourceSlideAssets) {
+if ((Test-Path -LiteralPath $sourceSlideAssets) -and ($sourceSlideAssets -ine $handoffSlideAssets)) {
     if (Test-Path -LiteralPath $handoffSlideAssets) {
         Remove-Item -LiteralPath $handoffSlideAssets -Recurse -Force
     }
     Copy-Item -LiteralPath $sourceSlideAssets -Destination $handoffSlideAssets -Recurse -Force
 }
+
+[System.IO.Directory]::SetLastWriteTime($resolvedHandoffFolder, [DateTime]::Now)
 
 [pscustomobject]@{
     brand_folder = $resolvedBrandFolder

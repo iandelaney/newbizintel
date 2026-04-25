@@ -12,8 +12,14 @@ $ErrorActionPreference = 'Stop'
 $resolvedDataPath = (Resolve-Path -LiteralPath $DataPath).Path
 $results = [ordered]@{}
 . (Join-Path $PSScriptRoot '..\common\invoke_json_jobs.ps1')
+. (Join-Path $PSScriptRoot '..\common\assertions.ps1')
 
 $initialAuditJobs = @(
+    @{
+        key = 'intake_identity'
+        path = Join-Path $PSScriptRoot 'audit_intake_identity.ps1'
+        parameters = @{ DataPath = $resolvedDataPath }
+    },
     @{
         key = 'schema_validation'
         path = Join-Path $PSScriptRoot '..\structure\validate_report_data.ps1'
@@ -22,6 +28,11 @@ $initialAuditJobs = @(
     @{
         key = 'asset_validation'
         path = Join-Path $PSScriptRoot '..\assets\validate_brand_assets.ps1'
+        parameters = @{ DataPath = $resolvedDataPath }
+    },
+    @{
+        key = 'delivery_assets'
+        path = Join-Path $PSScriptRoot '..\assets\validate_delivery_assets.ps1'
         parameters = @{ DataPath = $resolvedDataPath }
     },
     @{
@@ -47,12 +58,23 @@ $initialAuditJobs = @(
 )
 
 $initialAudits = Invoke-JsonJobs -Jobs $initialAuditJobs -WorkingDirectory (Split-Path -Parent $resolvedDataPath) -Sequential:$NoParallel
+$results.intake_identity = $initialAudits.intake_identity
 $results.schema_validation = $initialAudits.schema_validation
 $results.asset_validation = $initialAudits.asset_validation
+$results.delivery_assets = $initialAudits.delivery_assets
 $results.required_logos = $initialAudits.required_logos
 $results.source_badges = $initialAudits.source_badges
 $results.editorial = $initialAudits.editorial
 $results.campaign_art_contract = $initialAudits.campaign_art_contract
+
+Assert-NewBizOkResult -Name 'Intake identity audit' -Result $results.intake_identity
+Assert-NewBizOkResult -Name 'Schema validation' -Result $results.schema_validation
+Assert-NewBizOkResult -Name 'Brand asset validation' -Result $results.asset_validation
+Assert-NewBizOkResult -Name 'Delivery asset validation' -Result $results.delivery_assets
+Assert-NewBizOkResult -Name 'Required logo manifest' -Result $results.required_logos
+Assert-NewBizOkResult -Name 'Source badge manifest' -Result $results.source_badges
+Assert-NewBizOkResult -Name 'Editorial audit' -Result $results.editorial
+Assert-NewBizOkResult -Name 'Campaign art contract audit' -Result $results.campaign_art_contract
 
 $renderParams = @{ DataPath = $resolvedDataPath }
 if ($TemplatePath) {
@@ -82,13 +104,23 @@ if ($portableHtml -match '(?i)<img\b[^>]*\bsrc="https?://') {
 
 $results.export = $exportResult
 $results.pptx = & (Join-Path $PSScriptRoot 'audit_pptx_output.ps1') -PptxPath $exportResult.pptx | ConvertFrom-Json
+Assert-NewBizOkResult -Name 'PPTX audit' -Result $results.pptx
 
-$bundleResult = & (Join-Path $PSScriptRoot '..\render\build_report_bundle.ps1') -DataPath $resolvedDataPath | ConvertFrom-Json
-$results.bundle = $bundleResult
+$results.bundle = [pscustomobject]@{
+    data = $resolvedDataPath
+    template = $results.render.template
+    html = $results.render.html
+    pptx = $results.export.pptx
+    schema_validation = $results.schema_validation
+    asset_validation = $results.asset_validation
+    archive = $results.export.archive
+    reused_current_export = $true
+}
 
 [pscustomobject]@{
     ok = $true
     data = $resolvedDataPath
+    intake_identity = $results.intake_identity
     schema_validation = $results.schema_validation
     asset_validation = $results.asset_validation
     required_logos = $results.required_logos

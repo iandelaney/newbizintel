@@ -1,5 +1,23 @@
 {
   "brand_folder": "C:/codex projects/output/example-brand",
+  "execution_model": "hybrid",
+  "hybrid_execution": {
+    "required_fanouts": [
+      "research.evidence_collection",
+      "assets.logo_acquisition",
+      "assets.source_badges",
+      "campaign_art.prep",
+      "qa.initial_audits"
+    ],
+    "required_reducers": [
+      "research.summary_reducer",
+      "structure.report_data_reducer",
+      "assets.asset_manifest_reducer",
+      "campaign_art.asset_manifest_reducer",
+      "qa.bundle_reducer"
+    ],
+    "events": []
+  },
   "status": {
     "intake": "pending",
     "research": "pending",
