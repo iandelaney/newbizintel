@@ -112,7 +112,7 @@ TASK_DEFINITIONS = [
         "title": "Brand, competitor, and source logos",
         "gates": ["gate_6_logos_and_assets"],
         "legacy_gates": ["gate_5_assets", "gate_5a_source_badges", "gate_5b_required_logos"],
-        "trust_test": "Brand, competitor, and news/source logos resolve without generic fallbacks.",
+        "trust_test": "Brand, competitor, and news/source logos resolve without generic fallbacks; competitor badges prefer square marks/icons over wide wordmarks.",
     },
     {
         "id": 7,
@@ -892,6 +892,16 @@ def quality_ok(path: Path, minimum: int = 64) -> bool:
     return bool(quality["exists"] and quality["valid_image"] and quality["width"] >= minimum and quality["height"] >= minimum)
 
 
+def square_quality_ok(path: Path, minimum: int = 96) -> bool:
+    quality = asset_quality(path)
+    if not bool(quality["exists"] and quality["valid_image"] and quality["width"] >= minimum and quality["height"] >= minimum):
+        return False
+    if not quality["height"]:
+        return False
+    aspect_ratio = quality["width"] / quality["height"]
+    return 0.75 <= aspect_ratio <= 1.33
+
+
 def normalize_svg_size(text: str) -> str:
     if re.search(r"<svg\b[^>]*\bwidth=", text, re.I):
         text = re.sub(r'(<svg\b[^>]*?)\swidth=["\'][^"\']+["\']', r'\1 width="256"', text, count=1, flags=re.I)
@@ -971,7 +981,82 @@ def acquire_logo(name: str, website: str, destination: Path, candidates: list[st
     return False, "no candidate passed quality check"
 
 
-def preferred_logo_asset(asset_dir: Path, stem: str) -> Path | None:
+def acquire_square_logo(name: str, website: str, asset_dir: Path, slug: str) -> tuple[bool, str]:
+    stems = [f"{slug}-mark", f"{slug}-favicon", slug]
+    for stem in stems:
+        for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
+            candidate = asset_dir / f"{stem}{suffix}"
+            if candidate.exists() and square_quality_ok(candidate):
+                return True, "local-square"
+    if not website:
+        return False, "no website for square logo acquisition"
+    parsed = urllib.parse.urlparse(normalize_url(website))
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    urls = [
+        f"{origin}/apple-touch-icon.png",
+        f"{origin}/apple-touch-icon-precomposed.png",
+        f"{origin}/favicon-512x512.png",
+        f"{origin}/favicon-256x256.png",
+        f"{origin}/favicon-192x192.png",
+        f"{origin}/favicon-180x180.png",
+        f"{origin}/favicon-128x128.png",
+        f"{origin}/favicon.png",
+        f"https://www.google.com/s2/favicons?sz=256&domain_url={urllib.parse.quote(origin)}",
+        f"https://www.google.com/s2/favicons?sz=128&domain_url={urllib.parse.quote(origin)}",
+    ]
+    for url in urls:
+        suffix = Path(urllib.parse.urlparse(url).path).suffix.lower() or ".png"
+        if suffix not in {".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"}:
+            suffix = ".png"
+        target = asset_dir / f"{slug}-mark{suffix}"
+        if download(url, target) and square_quality_ok(target):
+            return True, url
+        if target.exists():
+            target.unlink(missing_ok=True)
+    return False, "no square logo candidate passed quality check"
+
+
+def create_square_badge_from_logo(source: Path, destination: Path, canvas_size: int = 256) -> bool:
+    if not source.exists() or not quality_ok(source):
+        return False
+    try:
+        from PIL import Image, ImageChops
+
+        with Image.open(source) as image:
+            image = image.convert("RGBA")
+            alpha_bbox = image.getchannel("A").getbbox()
+            if alpha_bbox:
+                cropped = image.crop(alpha_bbox)
+            else:
+                background = Image.new("RGBA", image.size, image.getpixel((0, 0)))
+                diff = ImageChops.difference(image, background)
+                bbox = diff.getbbox()
+                cropped = image.crop(bbox) if bbox else image
+
+            if not cropped.width or not cropped.height:
+                return False
+            max_content = int(canvas_size * 0.72)
+            scale = min(max_content / cropped.width, max_content / cropped.height)
+            resized = cropped.resize((max(1, int(cropped.width * scale)), max(1, int(cropped.height * scale))), Image.LANCZOS)
+            canvas = Image.new("RGBA", (canvas_size, canvas_size), (255, 255, 255, 0))
+            x = (canvas_size - resized.width) // 2
+            y = (canvas_size - resized.height) // 2
+            canvas.alpha_composite(resized, (x, y))
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            canvas.save(destination)
+            return square_quality_ok(destination)
+    except Exception:
+        return False
+
+
+def preferred_logo_asset(asset_dir: Path, stem: str, prefer_square: bool = False) -> Path | None:
+    if prefer_square:
+        base = re.sub(r"-(logo|mark|favicon)$", "", stem)
+        for candidate_stem in (f"{base}-mark", f"{base}-favicon", base, stem):
+            for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
+                candidate = asset_dir / f"{candidate_stem}{suffix}"
+                if candidate.exists() and square_quality_ok(candidate):
+                    return candidate
     for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
         candidate = asset_dir / f"{stem}{suffix}"
         if candidate.exists() and quality_ok(candidate):
@@ -1004,11 +1089,17 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
         name = row.get("competitor") or row.get("name") or f"competitor-{index + 1}"
         website = row.get("website", "")
         slug = slugify(name)
+        square_ok, square_source = acquire_square_logo(name, website, asset_dir, slug)
         logo_path = asset_dir / f"{slug}-logo.svg"
-        ok, source = acquire_logo(name, website, logo_path)
+        ok, source = (square_ok, square_source) if square_ok else acquire_logo(name, website, logo_path)
         asset = ""
         if ok:
-            logo_asset = preferred_logo_asset(asset_dir, f"{slug}-logo")
+            logo_asset = preferred_logo_asset(asset_dir, f"{slug}-logo", prefer_square=True)
+            if logo_asset and not square_quality_ok(logo_asset):
+                generated_square = asset_dir / f"{slug}-mark.png"
+                if create_square_badge_from_logo(logo_asset, generated_square):
+                    logo_asset = generated_square
+                    source = f"{source}; generated-square-badge-from-wordmark"
             asset = relative_to_brand(logo_asset, brand_folder) if logo_asset else ""
             row["logo_url"] = asset
             row["competitor_logo_url"] = asset
@@ -1167,16 +1258,32 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
 
     data = read_json(data_path)
     generated_competitor_logos: list[str] = []
+    non_square_competitor_logos: list[str] = []
     for row in data.get("competitive_landscape", {}).get("table", []):
         name = row.get("competitor") or row.get("name") or "Unnamed competitor"
         for value in (row.get("logo_url"), row.get("competitor_logo_url"), row.get("badge_url"), row.get("mark_url")):
             if value and re.search(r"-pptx-logo\.(?:png|jpe?g|webp|svg)$", str(value), flags=re.I):
                 generated_competitor_logos.append(f"{name}: {value}")
                 break
+        selected = row.get("logo_url") or row.get("competitor_logo_url") or row.get("badge_url") or row.get("mark_url")
+        if selected:
+            selected_path = data_path.parent / str(selected)
+            if selected_path.exists() and not square_quality_ok(selected_path):
+                quality = asset_quality(selected_path)
+                non_square_competitor_logos.append(
+                    f"{name}: {selected} ({quality.get('width')}x{quality.get('height')})"
+                )
+        else:
+            non_square_competitor_logos.append(f"{name}: missing")
     if generated_competitor_logos:
         errors.append(
             "Competitor logos use generated PPTX text-card fallbacks instead of acquired logo assets: "
             + "; ".join(generated_competitor_logos)
+        )
+    if non_square_competitor_logos:
+        errors.append(
+            "Competitor logos must use square marks/icons or generated square badges, not wide wordmarks: "
+            + "; ".join(non_square_competitor_logos)
         )
 
     image_count = len(re.findall(r"<img\b", text, flags=re.I))

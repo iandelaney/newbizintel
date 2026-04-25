@@ -3,7 +3,7 @@
   "domain": "assets",
   "data": "report-data.json",
   "base_sha256": "42D5A148D2CEA7302FD20B34062AD35A926B80AD743BB2059FFC0BAA1A8F84FA",
-  "generated_at": "2026-04-25T13:46:41.4607914+00:00",
+  "generated_at": "2026-04-25T14:07:03.6170725+00:00",
   "patches": [
     {
       "path": "brand.logo_url",
@@ -11,6 +11,14 @@
     },
     {
       "path": "competitive_landscape.table[0].logo_url",
+      "value": "competitor-a-logo.svg"
+    },
+    {
+      "path": "competitive_landscape.table[0].competitor_logo_url",
+      "value": "competitor-a-logo.svg"
+    },
+    {
+      "path": "competitive_landscape.table[0].badge_url",
       "value": "competitor-a-logo.svg"
     },
     {

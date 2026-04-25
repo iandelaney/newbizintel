@@ -186,6 +186,15 @@ function Test-QualityAccepted {
     return $true
 }
 
+function Test-SquarePreferredQuality {
+    param([object]$Quality)
+
+    if (-not $Quality.exists -or -not $Quality.valid_image) { return $false }
+    if ($Quality.width -le 0 -or $Quality.height -le 0) { return $false }
+    $aspectRatio = [double]$Quality.width / [double]$Quality.height
+    return ($aspectRatio -ge 0.75 -and $aspectRatio -le 1.33)
+}
+
 function Add-CandidateAudit {
     param(
         [object]$Log,
@@ -230,9 +239,11 @@ function Find-LogoAsset {
         [string[]]$ForbiddenLeafNames = @(),
         [object]$CandidateLog,
         [string]$EntityType = 'unknown',
-        [string]$EntityName = ''
+        [string]$EntityName = '',
+        [switch]$PreferSquare
     )
 
+    $firstAccepted = $null
     foreach ($name in $Names) {
         if ([string]::IsNullOrWhiteSpace($name)) { continue }
         $leafName = Split-Path -Leaf $name
@@ -250,16 +261,25 @@ function Find-LogoAsset {
         $accepted = Test-QualityAccepted -Quality $quality -MinimumPixels $MinimumPixels
         Add-CandidateAudit -Log $CandidateLog -EntityType $EntityType -EntityName $EntityName -Candidate $name -ResolvedPath $candidate -ResolutionSource 'local' -Quality $quality -Accepted $accepted -Reason ''
         if ($accepted) {
-            return [pscustomobject]@{
+            $result = [pscustomobject]@{
                 asset = $name
                 resolved_path = $candidate
                 quality = $quality
                 resolution_source = 'local'
             }
+            if (-not $PreferSquare) {
+                return $result
+            }
+            if (Test-SquarePreferredQuality -Quality $quality) {
+                return $result
+            }
+            if ($null -eq $firstAccepted) {
+                $firstAccepted = $result
+            }
         }
     }
 
-    return $null
+    return $firstAccepted
 }
 
 function Get-AbsoluteUrl {
@@ -574,7 +594,7 @@ function Get-CompetitorCandidateNames {
     }
     foreach ($slug in @($hostSlug, $nameSlug, $depossessiveNameSlug, $domainNameSlug)) {
         if ([string]::IsNullOrWhiteSpace($slug)) { continue }
-        foreach ($suffix in @('logo', 'mark', 'favicon')) {
+        foreach ($suffix in @('mark', 'favicon', 'logo')) {
             $names.Add("$slug-$suffix.png")
             $names.Add("$slug-$suffix.jpg")
             $names.Add("$slug-$suffix.jpeg")
@@ -676,11 +696,11 @@ for ($i = 0; $i -lt $competitors.Count; $i++) {
     $website = [string]$row.website
     $explicit = @([string]$row.logo_url, [string]$row.competitor_logo_url, [string]$row.badge_url, [string]$row.mark_url) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $candidates = @($explicit) + (Get-CompetitorCandidateNames -Name $name -Website $website)
-    $logo = Find-LogoAsset -Names $candidates -BrandFolder $brandFolder -AssetDirectory $assetDirectory -MinimumPixels $MinimumPixels -RejectGeneratedPptxFallbacks -CandidateLog $candidateAudit -EntityType 'competitor' -EntityName $name
+    $logo = Find-LogoAsset -Names $candidates -BrandFolder $brandFolder -AssetDirectory $assetDirectory -MinimumPixels $MinimumPixels -RejectGeneratedPptxFallbacks -CandidateLog $candidateAudit -EntityType 'competitor' -EntityName $name -PreferSquare
 
-    if (-not $logo -and $AcquireMissing) {
+    if ($AcquireMissing -and ($null -eq $logo -or -not (Test-SquarePreferredQuality -Quality $logo.quality))) {
         $slug = ConvertTo-Slug $name
-        $targetName = "$slug-favicon.png"
+        $targetName = "$slug-mark.png"
         $targetPath = Join-Path $assetDirectory $targetName
         $download = Save-FaviconCandidate -DomainUrl (Get-DomainUrl $website) -DestinationPath $targetPath -MinimumPixels $MinimumPixels -CandidateLog $candidateAudit -EntityType 'competitor' -EntityName $name
         if ($download) {
@@ -693,6 +713,9 @@ for ($i = 0; $i -lt $competitors.Count; $i++) {
                 quality = $download.quality
                 resolution_source = [string]$download.resolution_source
             }
+        }
+        elseif ($logo -and -not (Test-SquarePreferredQuality -Quality $logo.quality)) {
+            $warnings.Add(("Competitor logo for {0} is a wide wordmark and no square mark/favicon could be acquired; using wordmark fallback." -f $name))
         }
     }
 
@@ -822,10 +845,12 @@ if ($brandLogo -and -not [string]::IsNullOrWhiteSpace([string]$brandLogo.asset))
 }
 foreach ($competitor in @($competitorResults)) {
     if ($competitor.ok -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$competitor.asset)) {
-        $patches.Add([pscustomobject]@{
-            path = ('competitive_landscape.table[{0}].logo_url' -f [int]$competitor.index)
-            value = [string]$competitor.asset
-        }) | Out-Null
+        foreach ($fieldName in @('logo_url', 'competitor_logo_url', 'badge_url')) {
+            $patches.Add([pscustomobject]@{
+                path = ('competitive_landscape.table[{0}].{1}' -f [int]$competitor.index, $fieldName)
+                value = [string]$competitor.asset
+            }) | Out-Null
+        }
     }
 }
 foreach ($newsSource in @($newsResults)) {
