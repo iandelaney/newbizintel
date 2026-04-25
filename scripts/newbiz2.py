@@ -1096,6 +1096,29 @@ def create_square_badge_from_logo(source: Path, destination: Path, canvas_size: 
         return False
 
 
+def create_tight_logo_asset(source: Path, destination: Path, padding: int = 8) -> bool:
+    if not source.exists() or not quality_ok(source):
+        return False
+    try:
+        from PIL import Image
+
+        bbox = visible_content_bbox(source)
+        if not bbox:
+            return False
+        with Image.open(source) as image:
+            image = image.convert("RGBA")
+            left = max(0, bbox[0] - padding)
+            top = max(0, bbox[1] - padding)
+            right = min(image.width, bbox[2] + padding)
+            bottom = min(image.height, bbox[3] + padding)
+            cropped = image.crop((left, top, right, bottom))
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            cropped.save(destination)
+            return quality_ok(destination, minimum=24) and visible_logo_occupancy_ok(destination, minimum_span=0.62)
+    except Exception:
+        return False
+
+
 def preferred_logo_asset(asset_dir: Path, stem: str, prefer_square: bool = False) -> Path | None:
     if prefer_square:
         base = re.sub(r"-(logo|mark|favicon)$", "", stem)
@@ -1147,6 +1170,19 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
                 if create_square_badge_from_logo(logo_asset, generated_square):
                     logo_asset = generated_square
                     source = f"{source}; generated-square-badge-from-wordmark"
+            if logo_asset:
+                quality = asset_quality(logo_asset)
+                bbox = visible_content_bbox(logo_asset)
+                if bbox and quality.get("width") and quality.get("height"):
+                    content_width = bbox[2] - bbox[0]
+                    content_height = bbox[3] - bbox[1]
+                    content_aspect = content_width / max(content_height, 1)
+                    content_height_share = content_height / max(int(quality["height"]), 1)
+                    if content_aspect >= 1.6 or content_height_share < 0.45:
+                        table_asset = asset_dir / f"{slug}-table-logo.png"
+                        if create_tight_logo_asset(logo_asset, table_asset):
+                            logo_asset = table_asset
+                            source = f"{source}; tight-table-logo"
             asset = relative_to_brand(logo_asset, brand_folder) if logo_asset else ""
             row["logo_url"] = asset
             row["competitor_logo_url"] = asset
@@ -1315,7 +1351,7 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
         selected = row.get("logo_url") or row.get("competitor_logo_url") or row.get("badge_url") or row.get("mark_url")
         if selected:
             selected_path = data_path.parent / str(selected)
-            if selected_path.exists() and not square_quality_ok(selected_path):
+            if selected_path.exists() and not (square_quality_ok(selected_path) or re.search(r"-table-logo\.(?:png|jpe?g|webp)$", str(selected_path), flags=re.I)):
                 quality = asset_quality(selected_path)
                 non_square_competitor_logos.append(
                     f"{name}: {selected} ({quality.get('width')}x{quality.get('height')})"
