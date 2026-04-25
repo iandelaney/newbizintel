@@ -112,5 +112,6 @@ The visible workflow task list, `run-state.json.task_list`, `workflow-task-list.
 - Treat Creative Campaign artwork as a delivery-grade asset, not decoration. Production reports must use bundled final raster artwork marked `final-raster-artwork`; local scaffold, placeholder, unverified, missing, undersized, or non-raster campaign art is a fail condition.
 - Use `scripts\qa\smoke_test_install.ps1` after installer or config-handoff changes so the colleague install path is proven, not assumed.
 - Use `scripts\qa\release_check.ps1` before calling the repo ready to share or publish.
+- Use `npm run qa:visual -- --html "<report-html>" --selector "#section-id" --out "<screenshot.png>"` for local browser visual checks; the repo declares Playwright as a dev dependency, so do not rely on ad-hoc global `require("playwright")` availability.
 - Treat `Univers` as the current real-brand regression target for the full modular path.
 - Prefer proving major orchestration or contract changes with `scripts\fixtures\run_univers_live_summary_proof.ps1` before claiming the modular workflow is stable.

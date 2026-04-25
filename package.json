@@ -4,7 +4,13 @@
   "version": "0.1.0",
   "description": "Modular new-business intelligence workflow with native PPTX export.",
   "license": "UNLICENSED",
+  "scripts": {
+    "qa:visual": "node scripts/qa/capture_html_screenshot.js"
+  },
   "dependencies": {
     "pptxgenjs": "^4.0.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1"
   }
 }
