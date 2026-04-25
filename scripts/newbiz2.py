@@ -2826,7 +2826,7 @@ def campaign_art_diversity_group(idea: dict[str, Any]) -> str:
         ("poster-collage", ("poster", "collage", "zine", "xerox", "risograph", "print")),
         ("painting", ("painting", "oil", "brush", "pastel", "watercolour", "baroque", "still-life")),
         ("photography", ("photo", "photographic", "cinematic", "infrared", "long-exposure")),
-        ("sculpture-paper", ("sculpture", "maquette", "paper", "relief", "clay", "model")),
+        ("sculpture-paper", ("sculpture", "sculptural", "maquette", "paper", "relief", "clay", "model")),
         ("comic-graphic", ("comic", "graphic novel", "noir")),
         ("cartographic", ("atlas", "cartographic", "geospatial", "map", "orbital")),
     ]
@@ -3045,6 +3045,30 @@ def module_campaign_art(args: argparse.Namespace) -> dict[str, Any]:
         reduction = apply_manifest(data_path, manifest_path)
     else:
         reduction = {"ok": False, "applied_count": 0}
+    import_result: dict[str, Any] = {"imported": 0, "skipped": True}
+    import_reduction: dict[str, Any] = {"ok": False, "applied_count": 0, "skipped": True}
+    if args.campaign_art_source_dir or args.campaign_art_latest_generated_batch:
+        import_script = SCRIPT_ROOT / "campaign-art" / "import_final_campaign_art.py"
+        import_args = ["--data", str(data_path), "--manifest-only"]
+        if args.campaign_art_source_dir:
+            import_args.extend(["--source-dir", str(Path(args.campaign_art_source_dir))])
+        if args.campaign_art_latest_generated_batch:
+            import_args.append("--latest-generated-batch")
+        if args.campaign_art_overwrite_final:
+            import_args.append("--overwrite-final")
+        import_result = run_python_script(import_script, import_args)
+        import_manifest_path = Path(import_result.get("report_data_patch_manifest", ""))
+        if import_manifest_path.exists():
+            import_reduction = apply_manifest(data_path, import_manifest_path)
+            add_event(
+                state,
+                "reducer",
+                "campaign_art.final_raster_import_reducer",
+                outputs=[str(import_manifest_path)],
+                notes=[f"imported:{import_result.get('imported', 0)}", f"source:{import_result.get('source_dir', '')}"],
+            )
+        else:
+            import_reduction = {"ok": False, "applied_count": 0, "manifest": str(import_manifest_path)}
     audit = audit_campaign_art(data_path)
     if not audit["ok"]:
         set_status(state, "campaign_art", "blocked")
@@ -3056,7 +3080,16 @@ def module_campaign_art(args: argparse.Namespace) -> dict[str, Any]:
     save_state(brand_folder, state)
     if not audit["ok"]:
         raise SystemExit("Campaign art gate blocked: " + "; ".join(audit["errors"]))
-    return {"module": "campaign-art", "data": str(data_path), "brand_folder": str(brand_folder), "generation": generation, "campaign_reduction": reduction, "contract_audit": audit}
+    return {
+        "module": "campaign-art",
+        "data": str(data_path),
+        "brand_folder": str(brand_folder),
+        "generation": generation,
+        "campaign_reduction": reduction,
+        "final_raster_import": import_result,
+        "final_raster_reduction": import_reduction,
+        "contract_audit": audit,
+    }
 
 
 def asset_src(data_path: Path, value: str) -> str:
@@ -3147,7 +3180,7 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
             if isinstance(values, list):
                 seo_evidence.extend(values)
         sections.append(
-            "<section><h2>SEO And Search Evidence</h2><div class='grid'>"
+            "<section><h2>SEO Audit and Search Evidence</h2><div class='grid'>"
             + "".join(card_html(item.get("title"), item.get("body")) for item in seo_evidence)
             + "</div></section>"
         )
@@ -3160,7 +3193,7 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
             rank_reason = item.get("rank_reason") or item.get("why_it_matters", "")
             subscore_summary = reputation_subscore_summary(item.get("influence_subscores"))
             items.append(f"<article class='news'>{f'<img src={html.escape(json.dumps(source_logo))} alt={html.escape(json.dumps(str(item.get('source', 'source')) + ' logo'))}>' if source_logo else ''}<p class='eyebrow'>{html.escape(str(item.get('date', '')))} | {html.escape(str(item.get('source', '')))} | Influence {html.escape(str(score))}</p><h3>{html.escape(str(item.get('headline', '')))}</h3><p><strong>Why it ranked:</strong> {html.escape(str(rank_reason))}</p>{f'<p class=\"muted\"><strong>Score basis:</strong> {html.escape(subscore_summary)}</p>' if subscore_summary else ''}<p>{html.escape(str(item.get('why_it_matters', '')))}</p></article>")
-        sections.append("<section><h2>Influential News</h2>" + "".join(items) + "</section>")
+        sections.append("<section><h2>Brand Reputation</h2>" + "".join(items) + "</section>")
     opportunities = data.get("opportunities", {})
     timelines = opportunities.get("timelines", []) if isinstance(opportunities, dict) else []
     marketing_strategy = opportunities.get("marketing_strategy", {}) if isinstance(opportunities, dict) else {}
@@ -3456,8 +3489,8 @@ def build_minimal_pptx(data_path: Path, output_path: Path) -> None:
             values = seo.get(key, [])
             if isinstance(values, list):
                 seo_evidence.extend(values)
-    slides.append(("Search And SEO Evidence", [item.get("body", "") for item in seo_evidence[:6]]))
-    slides.append(("Influential News", [f"{item.get('headline', '')} ({item.get('influence_score', '')}): {item.get('rank_reason') or item.get('why_it_matters', '')}" for item in data.get("brand_reputation", {}).get("influential_news", [])[:6]]))
+    slides.append(("SEO Audit and Search Evidence", [item.get("body", "") for item in seo_evidence[:6]]))
+    slides.append(("Brand Reputation", [f"{item.get('headline', '')} ({item.get('influence_score', '')}): {item.get('rank_reason') or item.get('why_it_matters', '')}" for item in data.get("brand_reputation", {}).get("influential_news", [])[:6]]))
     opportunities = data.get("opportunities", {})
     if isinstance(opportunities, dict):
         roadmap = []
@@ -3788,6 +3821,9 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--composio-semrush-available", action="store_true")
     parser.add_argument("--jina-fallback-available", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--semrush-database", choices=["uk", "us"], default="uk")
+    parser.add_argument("--campaign-art-source-dir")
+    parser.add_argument("--campaign-art-latest-generated-batch", action="store_true")
+    parser.add_argument("--campaign-art-overwrite-final", action="store_true")
 
 
 def main() -> None:

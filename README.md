@@ -72,8 +72,8 @@ The premium Creative Campaign path is now:
 
 1. Prepare prompts and handoff files:
 
-```powershell
-& .\scripts\campaign-art\run_module.ps1 -DataPath .\output\<brand>\report-data.json
+```bash
+python scripts/newbiz2.py campaign-art --data-path ./output/<brand>/report-data.json
 ```
 
 2. Generate one raster image per prompt from the produced brief and manifest:
@@ -83,17 +83,17 @@ The premium Creative Campaign path is now:
 
 3. Import the resulting batch and clear the campaign-art gate:
 
-```powershell
-& .\scripts\campaign-art\run_module.ps1 -DataPath .\output\<brand>\report-data.json -ImportSourceDir <folder-with-final-images>
+```bash
+python scripts/newbiz2.py campaign-art --data-path ./output/<brand>/report-data.json --campaign-art-source-dir <folder-with-final-images> --campaign-art-overwrite-final
 ```
 
 Or, when the images were just created by Codex image generation:
 
-```powershell
-& .\scripts\campaign-art\run_module.ps1 -DataPath .\output\<brand>\report-data.json -ImportLatestGeneratedBatch
+```bash
+python scripts/newbiz2.py campaign-art --data-path ./output/<brand>/report-data.json --campaign-art-latest-generated-batch --campaign-art-overwrite-final
 ```
 
-The import step normalizes the images into the expected portrait PNG outputs, marks them as `final-raster-artwork`, and lets QA distinguish true final art from placeholder scaffold output.
+The Python runner now applies the prompt manifest, imports the final imagegen raster batch, then audits the actual final files in one gate. The import step normalizes the images into the expected portrait PNG outputs, marks them as `final-raster-artwork`, and lets QA distinguish true final art from placeholder scaffold output. The PowerShell wrapper remains available as a Windows compatibility path, but it is not required for macOS users.
 
 ## Colleague install
 

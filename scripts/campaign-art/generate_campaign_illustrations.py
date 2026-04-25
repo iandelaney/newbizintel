@@ -413,6 +413,98 @@ SURPRISE_STYLE_LIBRARY = {
             },
         },
     ],
+    "freshness": [
+        {
+            "slug": "baroque-freshness-still-life",
+            "medium": "baroque forensic food still-life painting",
+            "family": "painting",
+            "style": "dramatic oil-painting realism, jewel-like fresh ingredients, kitchen light, inspection tags, chilled condensation, and rich table detail from top to bottom",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#201713",
+                "ink": "#f7ead7",
+                "accent": "#ff6b35",
+            },
+        },
+        {
+            "slug": "botanical-quality-ledger",
+            "medium": "botanical watercolour quality ledger",
+            "family": "painting",
+            "style": "hand-painted ingredient studies, produce cross-sections, delivery-route notations, pale washes, and meticulous freshness evidence without any readable words",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#f6f1df",
+                "ink": "#2f4d3c",
+                "accent": "#e56f3c",
+            },
+        },
+        {
+            "slug": "macro-cold-chain-photograph",
+            "medium": "macro food photography with cold-chain detail",
+            "family": "photography",
+            "style": "crisp photographic close-ups of vegetables, chilled packaging textures, ice crystals, barcode-like abstract marks, and premium editorial lighting",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#0d1b20",
+                "ink": "#f7f3e8",
+                "accent": "#7bdff2",
+            },
+        },
+        {
+            "slug": "clay-market-counter",
+            "medium": "painted clay food-market maquette",
+            "family": "sculptural-photography",
+            "style": "physical clay produce, miniature crates, delivery trays, tactile packaging, and warm studio shadows like a photographed handmade model",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#efe4cf",
+                "ink": "#5a3a2d",
+                "accent": "#65a66b",
+            },
+        },
+    ],
+    "comparison": [
+        {
+            "slug": "split-tabletop-theatre",
+            "medium": "photographed tabletop comparison theatre",
+            "family": "sculptural-photography",
+            "style": "a physical studio model with two contrasting service worlds, miniature plates, delivery props, tactile dividers, and theatrical side-lighting",
+            "renderer": "portfolio",
+            "palette": {
+                "bg": "#ece2d5",
+                "surface": "#d6bda4",
+                "surface2": "#f7eee4",
+                "shadow": "#826b5a",
+                "ink": "#4c3d33",
+                "accent": "#2d6cdf",
+                "highlight": "#f15d3a",
+            },
+        },
+        {
+            "slug": "magazine-test-kitchen-photo",
+            "medium": "editorial test-kitchen photography",
+            "family": "photography",
+            "style": "high-end magazine photography comparing meal paths through props, ingredients, utensils, score-card shapes, and crisp natural shadows without words",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#f5efe6",
+                "ink": "#26333b",
+                "accent": "#ff6b35",
+            },
+        },
+        {
+            "slug": "comic-comparison-court",
+            "medium": "comic-panel comparison courtroom",
+            "family": "comic-art",
+            "style": "bold illustrated courtroom energy, split panels, exaggerated evidence props, and graphic tension between choices with no lettering",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#fff0cf",
+                "ink": "#101010",
+                "accent": "#ff3b30",
+            },
+        },
+    ],
     "portfolio": [
         {
             "slug": "clay-maquette",
@@ -577,6 +669,28 @@ def build_premium_art_brief(
 
 def motif_key(title: str, concept: str, medium: str = "") -> str:
     source = f"{medium} {title} {concept}".lower()
+    if "control" in source or "layer" in source:
+        return "control"
+    if "proof" in source or "trust" in source or "doubt" in source or "confidence" in source:
+        return "proof"
+    if any(
+        term in source
+        for term in (
+            "freshness",
+            "fresh",
+            "receipt",
+            "recipe",
+            "ingredient",
+            "produce",
+            "meal",
+            "box",
+            "delivery",
+            "quality",
+        )
+    ):
+        return "freshness"
+    if any(term in source for term in ("comparison", "compare", "table", "challenger", "fair")):
+        return "comparison"
     if "sculpt" in source or "maquette" in source or "relief" in source:
         return "portfolio"
     if "blueprint" in source or "diagram" in source or "technical" in source:
@@ -587,10 +701,6 @@ def motif_key(title: str, concept: str, medium: str = "") -> str:
         return "drift"
     if "drift" in source or "waste" in source:
         return "drift"
-    if "control" in source or "layer" in source:
-        return "control"
-    if "proof" in source or "trust" in source:
-        return "proof"
     if "pilot" in source or "portfolio" in source or "scale" in source:
         return "portfolio"
     return "generic"
@@ -1085,7 +1195,9 @@ def generate(
         existing_medium = idea.get("illustration_medium") or ""
         existing_style_name = (idea.get("illustration_style_name") or "").strip()
         existing_style_family = (idea.get("illustration_style_family") or "").strip()
-        kind = motif_key(title, concept, existing_medium)
+        # Do not let a stale generated medium bias the next run's topic choice.
+        # Old art metadata is especially dangerous when refreshing failed diversity.
+        kind = motif_key(title, concept)
         if surprise_mode:
             profile = choose_profile(kind, used_slugs, used_families, surprise_mode=True)
             medium = profile["medium"]
