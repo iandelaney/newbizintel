@@ -82,6 +82,16 @@ The visible workflow task list, `run-state.json.task_list`, `workflow-task-list.
 7. Creative campaign ideas and artwork
    - Primary gate: `gate_7_campaign_ideas_and_art`
    - Trust test: Campaign ideas pass editorial checks and artwork is final raster, not scaffold.
+
+## Department Opportunity Signals
+
+The `agency_opportunity.department_opportunity_map` items are an external-facing opportunity section, not an internal department-selection rubric.
+
+- The rendered cards must describe the actual opportunity each department has with the target brand.
+- Do not render `value_note`, "Value:", lead-selection rules, sequencing rules, "best when", "only when", or "should lead/follow" language inside the card grid.
+- Use `opportunity_signal` as the card body. `rationale` may support downstream tables, but should still explain the concrete brand opportunity rather than internal agency rules.
+- Status fields such as `tone`, `opportunity`, `cost_multiplier`, and `lead_department` may remain in the data for scoring, ordering, and later workflow decisions, but must not be the visible lead content of the cards.
+- Do not render a separate `Department Opportunity Map` table. It duplicates the cards and tends to expose internal scoring/rubric language.
 8. HTML, portable HTML, and PPTX render
    - Primary gate: `gate_8_render_outputs`
    - Trust test: Rendered HTML, portable HTML, and PPTX exist and are current.

@@ -639,6 +639,9 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
         warnings,
         prefix="brand_reputation.influential_news",
     )
+    for index, item in enumerate(data.get("agency_opportunity", {}).get("department_opportunity_map", [])):
+        if not has_value(item.get("opportunity_signal")):
+            errors.append(f"agency_opportunity.department_opportunity_map[{index}].opportunity_signal is required.")
     if errors:
         return {"ok": False, "data": str(data_path), "errors": errors, "warnings": warnings}
     return {"ok": True, "data": str(data_path), "warnings": warnings}
@@ -1518,6 +1521,13 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
         errors.append("News/source logos fell back to text badges in rendered HTML.")
     if re.search(r'class="[^"]*brand-logo-slot--fallback', text):
         errors.append("Brand logo fell back to initials in rendered HTML.")
+    if "Department Opportunity Map" in text:
+        errors.append("Department Opportunity Map is redundant and must not be rendered.")
+    signal_start = text.find("Department Opportunity Signals")
+    signal_end = text.find("Most Likely Workstreams", signal_start)
+    signal_section = text[signal_start:signal_end] if signal_start >= 0 and signal_end > signal_start else ""
+    if signal_section and re.search(r'(?:Value:|<span class="opportunity-chip)', signal_section, flags=re.I):
+        errors.append("Department Opportunity Signals cards must describe target-brand opportunities, not value labels or lead/status chips.")
 
     data = read_json(data_path)
     generated_competitor_logos: list[str] = []

@@ -192,48 +192,48 @@
         "tone": "good",
         "opportunity": "Green",
         "cost_multiplier": "1.1",
-        "value_note": "Give this a modest edge only when a real PR and communications opening exists. Treat that edge as roughly 10% rather than a dominant override, and let the objectively strongest opportunity lead.",
-        "rationale": "Replace with the rationale for this department score."
+        "opportunity_signal": "Describe the specific reputation, media, stakeholder, or communications opportunity this brand gives PR & Comms.",
+        "rationale": "Summarise the concrete PR & Comms opportunity for the target brand, not rules for whether the department should lead."
       },
       {
         "department": "Content",
         "tone": "good",
         "opportunity": "Green",
         "cost_multiplier": "1",
-        "value_note": "Best when the main need is message clarity, proof packaging, and better web journeys.",
-        "rationale": "Replace with the rationale for this department score."
+        "opportunity_signal": "Describe the specific owned-content, proof, editorial, or buyer-journey opportunity this brand gives Content.",
+        "rationale": "Summarise the concrete Content opportunity for the target brand, not rules for when Content should lead."
       },
       {
         "department": "Digital Marketing",
         "tone": "good",
         "opportunity": "Green",
         "cost_multiplier": "1",
-        "value_note": "Best when the sharper story needs turning into search, traffic, and conversion gains.",
-        "rationale": "Replace with the rationale for this department score."
+        "opportunity_signal": "Describe the specific search, CRM, paid, conversion, or performance opportunity this brand gives Digital Marketing.",
+        "rationale": "Summarise the concrete Digital Marketing opportunity for the target brand, not rules for whether the department should be involved."
       },
       {
         "department": "Brands",
         "tone": "good",
         "opportunity": "Green",
         "cost_multiplier": "2",
-        "value_note": "Best when the existing brand expression is actively limiting how the proposition lands.",
-        "rationale": "Replace with the rationale for this department score."
+        "opportunity_signal": "Describe the specific proposition, identity, architecture, or brand-expression opportunity this brand gives Brands.",
+        "rationale": "Summarise the concrete Brands opportunity for the target brand, not rules for when brand work should happen."
       },
       {
         "department": "Creative Services",
         "tone": "warn",
         "opportunity": "Amber",
         "cost_multiplier": "1.5",
-        "value_note": "Best after the message and proof architecture are set, so assets and campaigns have clearer foundations.",
-        "rationale": "Replace with the rationale for this department score."
+        "opportunity_signal": "Describe the specific campaign, asset system, visual storytelling, or activation opportunity this brand gives Creative Services.",
+        "rationale": "Summarise the concrete Creative Services opportunity for the target brand, not sequencing rules."
       },
       {
         "department": "Insights & Intelligence",
         "tone": "good",
         "opportunity": "Green",
         "cost_multiplier": "1.5",
-        "value_note": "Best when buyer-language testing, category framing, or proof-gap diagnosis will materially improve the lead engagement.",
-        "rationale": "Replace with the rationale for this department score."
+        "opportunity_signal": "Describe the specific research, buyer-language, category, competitor, or proof-gap opportunity this brand gives Insights & Intelligence.",
+        "rationale": "Summarise the concrete Insights & Intelligence opportunity for the target brand, not rules for when research is useful."
       }
     ]
   },

@@ -924,16 +924,11 @@ def build_agency_opportunity_slide(prs, data, asset_dir):
             if plain(item.get("department")) == lead_department:
                 fill = PALETTE["soft_blue"]
                 dot = PALETTE["navy"]
-            value_note = compact(item.get("value_note"), 42)
-            status_line = plain(item.get("opportunity"))
-            if plain(item.get("department")) == lead_department:
-                status_line = f"{status_line} | Lead" if status_line else "Lead"
-            third_line = value_note or compact(item.get("rationale"), 42)
+            third_line = compact(item.get("opportunity_signal") or item.get("rationale"), 64)
             add_shape(target_slide, MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE, left, top, card_width, card_height, fill, PALETTE["line"])
             add_textbox(target_slide, left + 0.56, top + 0.06, card_width - 0.68, card_height - 0.12, [
                 {"text": plain(item.get("department")), "size": 13.2, "bold": True, "color": PALETTE["navy"], "font": "Aptos Display", "fit": True},
-                {"text": status_line, "size": 11.2, "bold": True, "color": dot, "fit": True},
-                {"text": third_line, "size": 9.0, "color": PALETTE["ink"], "fit": True},
+                {"text": third_line, "size": 9.5, "color": PALETTE["ink"], "fit": True},
             ])
             add_shape(target_slide, MSO_AUTO_SHAPE_TYPE.OVAL, left + 0.18, top + 0.19, 0.12, 0.12, dot)
             add_shape(target_slide, MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE, left + 0.17, top + 0.33, 0.28, 0.28, PALETTE["white"], PALETTE["line"])

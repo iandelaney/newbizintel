@@ -343,6 +343,14 @@ if (Test-HasValue $data.agency_opportunity) {
     if (-not (Test-HasValue $data.agency_opportunity.priority_workstreams)) { Add-MissingError 'agency_opportunity.priority_workstreams' }
     if (-not (Test-HasValue $data.agency_opportunity.archetype_advantages)) { Add-MissingError 'agency_opportunity.archetype_advantages' }
     if (-not (Test-HasValue $data.agency_opportunity.department_opportunity_map)) { Add-MissingError 'agency_opportunity.department_opportunity_map' }
+    else {
+        $departmentIndex = 0
+        foreach ($departmentItem in @($data.agency_opportunity.department_opportunity_map)) {
+            if (-not (Test-HasValue $departmentItem.department)) { Add-MissingError "agency_opportunity.department_opportunity_map[$departmentIndex].department" }
+            if (-not (Test-HasValue $departmentItem.opportunity_signal)) { Add-MissingError "agency_opportunity.department_opportunity_map[$departmentIndex].opportunity_signal" }
+            $departmentIndex += 1
+        }
+    }
 
     $leadOffering = $data.agency_opportunity.lead_offering
     if (-not (Test-HasValue $leadOffering)) {

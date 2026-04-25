@@ -617,36 +617,16 @@ function ConvertTo-DepartmentSignalGridHtml {
         }
 
         $toneClass = Get-OpportunityToneClass ([string]$item.tone)
-        $opportunity = [string]$item.opportunity
-        if ([string]::IsNullOrWhiteSpace($opportunity)) {
-            $opportunity = 'Amber'
-        }
-        $valueNote = [string]$item.value_note
-        $metaParts = @()
-        if (-not [string]::IsNullOrWhiteSpace($valueNote)) {
-            $metaParts += 'Value: {0}' -f (ConvertTo-HtmlEncoded $valueNote)
-        }
-        $metaHtml = ''
-        if ($metaParts.Count -gt 0) {
-            $metaHtml = '<p class="opportunity-signal__meta">{0}</p>' -f ($metaParts -join ' | ')
-        }
-
-        $leadBadge = ''
-        if (-not [string]::IsNullOrWhiteSpace($LeadDepartment) -and $department -eq $LeadDepartment) {
-            $leadBadge = '<span class="opportunity-chip opportunity-chip--lead opportunity-chip--{0}">Lead</span>' -f $toneClass
+        $signal = [string]$item.opportunity_signal
+        if ([string]::IsNullOrWhiteSpace($signal)) {
+            $signal = [string]$item.rationale
         }
 
         $departmentHtml = ConvertTo-DepartmentLabelHtml -Department $department -ToneClass $toneClass
         $rows.Add(@"
       <div class="opportunity-signal opportunity-signal--$toneClass">
-        <div class="opportunity-signal__top">
-          <span class="opportunity-dot opportunity-dot--$toneClass"></span>
-          <span class="opportunity-chip opportunity-chip--$toneClass">$(ConvertTo-HtmlEncoded $opportunity)</span>
-          $leadBadge
-        </div>
         $departmentHtml
-        $metaHtml
-        <p>$(ConvertTo-HtmlEncoded ([string]$item.rationale))</p>
+        <p>$(ConvertTo-HtmlEncoded $signal)</p>
       </div>
 "@) | Out-Null
     }
@@ -1604,9 +1584,7 @@ $(ConvertTo-LeadOfferingHtml $data.agency_opportunity.lead_offering @($data.agen
     $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Department Opportunity Signals' -IconKey 'opportunities' -Class 'category-heading')
 $(ConvertTo-DepartmentSignalGridHtml -Items @($data.agency_opportunity.department_opportunity_map) -LeadDepartment ([string]$data.agency_opportunity.lead_offering.lead_department))
 $(ConvertTo-CardGridHtml @($data.agency_opportunity.cards))
-    $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Department Opportunity Map' -IconKey 'opportunities' -Class 'category-heading')
-$(ConvertTo-DepartmentOpportunityTableHtml -Items @($data.agency_opportunity.department_opportunity_map) -LeadDepartment ([string]$data.agency_opportunity.lead_offering.lead_department))
-    $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Most Likely Workstreams' -IconKey 'content' -Class 'category-heading')
+  $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Most Likely Workstreams' -IconKey 'content' -Class 'category-heading')
 $(ConvertTo-ListHtml @($data.agency_opportunity.priority_workstreams))
     $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Why Archetype Is Well Matched' -IconKey 'summary' -Class 'category-heading')
 $(ConvertTo-ListHtml @($data.agency_opportunity.archetype_advantages))
