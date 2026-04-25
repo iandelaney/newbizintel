@@ -375,6 +375,27 @@
     ],
     "charts": [
       {
+        "title": "Target vs competitor search visibility",
+        "subtitle": "Replace with SEMrush, Similarweb, GSC, or another named visibility metric; if using ranks, explain the conversion and display the original rank.",
+        "value_suffix": "",
+        "series": [
+          {
+            "label": "Example Brand",
+            "value": 0,
+            "display_value": "#0",
+            "note": "Replace with the target brand's search visibility, traffic, keyword, organic rank, or indexed rank evidence.",
+            "tone": "green"
+          },
+          {
+            "label": "Competitor A",
+            "value": 0,
+            "display_value": "#0",
+            "note": "Replace with the competitor's search visibility, traffic, keyword, organic rank, or indexed rank evidence.",
+            "tone": "blue"
+          }
+        ]
+      },
+      {
         "title": "Example SEO opportunity signals",
         "subtitle": "Indexed interpretation from SEMrush, Similarweb, GSC, or another named search evidence source.",
         "value_suffix": "",
