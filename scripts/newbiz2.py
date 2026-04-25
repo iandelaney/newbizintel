@@ -2811,14 +2811,85 @@ def campaign_section(data: dict[str, Any]) -> dict[str, Any]:
     return data.get("creative_campaign_ideas") or data.get("creative_campaigns") or {}
 
 
+def campaign_art_diversity_group(idea: dict[str, Any]) -> str:
+    text = " ".join(
+        str(idea.get(field) or "").lower()
+        for field in (
+            "illustration_style_family",
+            "illustration_style_name",
+            "illustration_medium",
+            "illustration_prompt",
+        )
+    )
+    groups = [
+        ("technical-system", ("technical", "blueprint", "schematic", "interface", "circuit", "systems")),
+        ("poster-collage", ("poster", "collage", "zine", "xerox", "risograph", "print")),
+        ("painting", ("painting", "oil", "brush", "pastel", "watercolour", "baroque", "still-life")),
+        ("photography", ("photo", "photographic", "cinematic", "infrared", "long-exposure")),
+        ("sculpture-paper", ("sculpture", "maquette", "paper", "relief", "clay", "model")),
+        ("comic-graphic", ("comic", "graphic novel", "noir")),
+        ("cartographic", ("atlas", "cartographic", "geospatial", "map", "orbital")),
+    ]
+    for group, needles in groups:
+        if any(needle in text for needle in needles):
+            return group
+    return re.sub(r"[^a-z0-9]+", "-", str(idea.get("illustration_style_family") or "unknown").lower()).strip("-") or "unknown"
+
+
+def campaign_art_visual_fingerprint(path: Path) -> dict[str, Any] | None:
+    try:
+        from PIL import Image, ImageStat
+
+        with Image.open(path) as image:
+            image = image.convert("RGB").resize((32, 32))
+            grayscale = image.convert("L")
+            pixels = list(grayscale.tobytes())
+            average = sum(pixels) / max(len(pixels), 1)
+            bits = tuple(1 if pixel >= average else 0 for pixel in pixels)
+            stat = ImageStat.Stat(image)
+            mean = tuple(float(value) for value in stat.mean)
+            histogram = image.histogram()
+            bucketed: list[int] = []
+            for channel in range(3):
+                channel_hist = histogram[channel * 256 : (channel + 1) * 256]
+                for start in range(0, 256, 32):
+                    bucketed.append(sum(channel_hist[start : start + 32]))
+            return {"bits": bits, "mean": mean, "histogram": bucketed}
+    except Exception:
+        return None
+
+
+def hamming_similarity(left: tuple[int, ...], right: tuple[int, ...]) -> float:
+    if not left or not right or len(left) != len(right):
+        return 0.0
+    distance = sum(1 for a, b in zip(left, right) if a != b)
+    return 1.0 - (distance / len(left))
+
+
+def cosine_similarity(left: list[int], right: list[int]) -> float:
+    numerator = sum(a * b for a, b in zip(left, right))
+    left_norm = sum(a * a for a in left) ** 0.5
+    right_norm = sum(b * b for b in right) ** 0.5
+    if not left_norm or not right_norm:
+        return 0.0
+    return numerator / (left_norm * right_norm)
+
+
 def audit_campaign_art(data_path: Path) -> dict[str, Any]:
     data = read_json(data_path)
     ideas = campaign_section(data).get("ideas", [])
     errors = []
+    diversity_groups: list[str] = []
+    style_names: list[str] = []
+    fingerprints: list[tuple[int, str, dict[str, Any]]] = []
     for index, idea in enumerate(ideas):
         url = idea.get("illustration_url")
         role = idea.get("illustration_asset_role")
         backend = idea.get("illustration_generation_backend")
+        style_name = str(idea.get("illustration_style_name") or "").strip()
+        if style_name:
+            style_names.append(style_name.lower())
+        diversity_groups.append(campaign_art_diversity_group(idea))
         if role != "final-raster-artwork":
             errors.append(f"ideas[{index}] artwork is not marked final-raster-artwork.")
         if not url:
@@ -2831,9 +2902,41 @@ def audit_campaign_art(data_path: Path) -> dict[str, Any]:
             errors.append(f"ideas[{index}] artwork is not raster: {url}")
         elif not quality_ok(path, minimum=256):
             errors.append(f"ideas[{index}] artwork failed image quality: {url}")
+        else:
+            fingerprint = campaign_art_visual_fingerprint(path)
+            if fingerprint:
+                fingerprints.append((index, str(idea.get("title") or f"idea {index + 1}"), fingerprint))
         if backend in {"local-scaffold", "placeholder"}:
             errors.append(f"ideas[{index}] uses scaffold backend.")
-    return {"ok": not errors, "errors": errors}
+    if len(style_names) != len(set(style_names)):
+        errors.append("Campaign artwork must use distinct style names for each idea.")
+    if len(ideas) >= 3:
+        unique_groups = set(diversity_groups)
+        if len(unique_groups) < min(len(ideas), 3):
+            errors.append(
+                "Campaign artwork lacks treatment diversity: "
+                + ", ".join(diversity_groups)
+            )
+        repeated_groups = [group for group, count in Counter(diversity_groups).items() if group != "unknown" and count > 1]
+        if repeated_groups:
+            errors.append(
+                "Campaign artwork repeats broad treatment group(s): "
+                + ", ".join(sorted(repeated_groups))
+            )
+    for left_index, left_title, left_fp in fingerprints:
+        for right_index, right_title, right_fp in fingerprints:
+            if right_index <= left_index:
+                continue
+            hash_similarity = hamming_similarity(left_fp["bits"], right_fp["bits"])
+            colour_similarity = cosine_similarity(left_fp["histogram"], right_fp["histogram"])
+            mean_delta = sum(abs(a - b) for a, b in zip(left_fp["mean"], right_fp["mean"])) / 3
+            if hash_similarity >= 0.86 and colour_similarity >= 0.9 and mean_delta < 32:
+                errors.append(
+                    f"Campaign artwork is too visually similar between ideas[{left_index}] '{left_title}' "
+                    f"and ideas[{right_index}] '{right_title}' "
+                    f"(hash similarity {hash_similarity:.2f}, colour similarity {colour_similarity:.2f})."
+                )
+    return {"ok": not errors, "errors": errors, "diversity_groups": diversity_groups}
 
 
 def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, Any]:

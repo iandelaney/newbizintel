@@ -81,7 +81,7 @@ The visible workflow task list, `run-state.json.task_list`, `workflow-task-list.
    - Trust test: Brand, competitor, and news/source logos resolve without generic fallbacks. Competitor logos must prefer real square marks, favicons, or app icons over wide wordmarks; if no real square mark exists, create a square badge by trimming and centring the real acquired wordmark rather than using a generic text card. A square asset is not enough on its own: the visible logo content must occupy enough of the badge to be legible in the competitor table. Wide wordmarks must be converted into square initial-letter marks, not rectangular table logo assets or tiny square-padded wordmarks.
 7. Creative campaign ideas and artwork
    - Primary gate: `gate_7_campaign_ideas_and_art`
-   - Trust test: Campaign ideas pass editorial checks and artwork is final raster, not scaffold.
+   - Trust test: Campaign ideas pass editorial checks, artwork is final raster rather than scaffold, and the artwork set is diverse. The gate must fail if multiple campaign images repeat the same broad treatment family such as technical/interface, poster/collage, photography, painting, sculpture/paper, comic/graphic, or cartographic, or if image fingerprint checks find two raster assets that are visually too similar.
 
 ## Department Opportunity Signals
 
@@ -131,6 +131,7 @@ The `agency_opportunity.department_opportunity_map` items are an external-facing
 - Do not introduce hidden dependencies on sibling folders or local workspace-only helper paths.
 - Do not require PowerShell or a separate Slides skill on macOS. Python plus optional Node is acceptable; PPTX must still have a bundled fallback when optional render dependencies are absent.
 - Treat Creative Campaign artwork as a delivery-grade asset, not decoration. Production reports must use bundled final raster artwork marked `final-raster-artwork`; local scaffold, placeholder, unverified, missing, undersized, or non-raster campaign art is a fail condition.
+- Treat Creative Campaign artwork diversity as a quality gate, not a subjective nice-to-have. If two ideas look samey, especially because they share a broad medium or treatment family, regenerate or replace one before render/QA.
 - Use `scripts\qa\smoke_test_install.ps1` after installer or config-handoff changes so the colleague install path is proven, not assumed.
 - Use `scripts\qa\release_check.ps1` before calling the repo ready to share or publish.
 - Use `npm run qa:visual -- --html "<report-html>" --selector "#section-id" --out "<screenshot.png>"` for local browser visual checks; the repo declares Playwright as a dev dependency, so do not rely on ad-hoc global `require("playwright")` availability.
