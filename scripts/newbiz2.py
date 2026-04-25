@@ -1783,18 +1783,6 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
             subscore_summary = reputation_subscore_summary(item.get("influence_subscores"))
             items.append(f"<article class='news'>{f'<img src={html.escape(json.dumps(source_logo))} alt={html.escape(json.dumps(str(item.get('source', 'source')) + ' logo'))}>' if source_logo else ''}<p class='eyebrow'>{html.escape(str(item.get('date', '')))} | {html.escape(str(item.get('source', '')))} | Influence {html.escape(str(score))}</p><h3>{html.escape(str(item.get('headline', '')))}</h3><p><strong>Why it ranked:</strong> {html.escape(str(rank_reason))}</p>{f'<p class=\"muted\"><strong>Score basis:</strong> {html.escape(subscore_summary)}</p>' if subscore_summary else ''}<p>{html.escape(str(item.get('why_it_matters', '')))}</p></article>")
         sections.append("<section><h2>Influential News</h2>" + "".join(items) + "</section>")
-    campaigns = campaign_section(data).get("ideas", [])
-    if campaigns:
-        blocks = []
-        for idea in campaigns:
-            image = asset_src(data_path, idea.get("illustration_url", ""))
-            activation_plan = idea.get("activation_plan", [])
-            blocks.append(
-                f"<article class='campaign'>{f'<img src={html.escape(json.dumps(image))} alt=\"\">' if image else ''}<div><p class='eyebrow'>Creative campaign idea</p><h3>{html.escape(str(idea.get('title', '')))}</h3>"
-                f"<p><strong>Concept:</strong> {html.escape(str(idea.get('concept', '')))}</p><p><strong>Activation:</strong> {html.escape(str(idea.get('activation', '')))}</p>"
-                f"{list_html([plan.get('name') for plan in activation_plan if isinstance(plan, dict)])}</div></article>"
-            )
-        sections.append("<section><h2>Creative Campaign Ideas</h2>" + "".join(blocks) + "</section>")
     opportunities = data.get("opportunities", {})
     timelines = opportunities.get("timelines", []) if isinstance(opportunities, dict) else []
     marketing_strategy = opportunities.get("marketing_strategy", {}) if isinstance(opportunities, dict) else {}
@@ -1808,6 +1796,18 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
                 f"<p><strong>Why:</strong> {html.escape(str(marketing_strategy.get('why_it_matters', '')))}</p></div>"
             )
         sections.append("<section><h2>30 / 60 / 90 Day Plan</h2>" + strategy_intro + "<div class='grid'>" + "".join(card_html(item.get("title"), " ".join(item.get("items", []))) for item in timelines) + "</div></section>")
+    campaigns = campaign_section(data).get("ideas", [])
+    if campaigns:
+        blocks = []
+        for idea in campaigns:
+            image = asset_src(data_path, idea.get("illustration_url", ""))
+            activation_plan = idea.get("activation_plan", [])
+            blocks.append(
+                f"<article class='campaign'>{f'<img src={html.escape(json.dumps(image))} alt=\"\">' if image else ''}<div><p class='eyebrow'>Creative campaign idea</p><h3>{html.escape(str(idea.get('title', '')))}</h3>"
+                f"<p><strong>Concept:</strong> {html.escape(str(idea.get('concept', '')))}</p><p><strong>Activation:</strong> {html.escape(str(idea.get('activation', '')))}</p>"
+                f"{list_html([plan.get('name') for plan in activation_plan if isinstance(plan, dict)])}</div></article>"
+            )
+        sections.append("<section><h2>Creative Campaign Ideas</h2>" + "".join(blocks) + "</section>")
     css = """
     :root{--ink:#09213b;--muted:#5d6b7a;--line:#d8e2ec;--panel:#f7fafc;--accent:#153a5b}
     *{box-sizing:border-box} body{margin:0;font-family:Aptos,Segoe UI,Arial,sans-serif;color:var(--ink);background:#f4f7fa;line-height:1.55}
@@ -2052,8 +2052,6 @@ def build_minimal_pptx(data_path: Path, output_path: Path) -> None:
     slides.append(("Competitive Landscape", [f"{row.get('competitor') or row.get('name')}: {row.get('implication') or row.get('why_it_matters') or ''}" for row in data.get("competitive_landscape", {}).get("table", [])[:6]]))
     slides.append(("Search And SEO Evidence", [item.get("body", "") for item in data.get("seo_audit", {}).get("semrush_evidence", [])[:6]]))
     slides.append(("Influential News", [f"{item.get('headline', '')} ({item.get('influence_score', '')}): {item.get('rank_reason') or item.get('why_it_matters', '')}" for item in data.get("brand_reputation", {}).get("influential_news", [])[:6]]))
-    campaigns = campaign_section(data).get("ideas", [])
-    slides.append(("Creative Campaign Ideas", [f"{idea.get('title', '')}: {idea.get('concept', '')}" for idea in campaigns[:6]]))
     opportunities = data.get("opportunities", {})
     if isinstance(opportunities, dict):
         roadmap = []
@@ -2066,6 +2064,8 @@ def build_minimal_pptx(data_path: Path, output_path: Path) -> None:
     else:
         roadmap = []
     slides.append(("30 / 60 / 90 Day Plan", roadmap))
+    campaigns = campaign_section(data).get("ideas", [])
+    slides.append(("Creative Campaign Ideas", [f"{idea.get('title', '')}: {idea.get('concept', '')}" for idea in campaigns[:6]]))
 
     slide_count = len(slides)
     content_overrides = "\n".join(f'<Override PartName="/ppt/slides/slide{i}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>' for i in range(1, slide_count + 1))

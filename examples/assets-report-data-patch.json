@@ -3,7 +3,7 @@
   "domain": "assets",
   "data": "report-data.json",
   "base_sha256": "18315D2DA8A0C60DA635F7A59B9E09DC7E0F669B24D8328CEA206D8148CA0BB9",
-  "generated_at": "2026-04-25T17:36:23.4852099+00:00",
+  "generated_at": "2026-04-25T17:47:40.7714927+00:00",
   "patches": [
     {
       "path": "brand.logo_url",

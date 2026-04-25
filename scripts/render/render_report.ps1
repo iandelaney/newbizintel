@@ -1681,8 +1681,8 @@ $tocItems = @(
     [pscustomobject]@{ id = 'seo-audit'; label = 'SEO Audit' }
     [pscustomobject]@{ id = 'brand-reputation'; label = 'Brand Reputation Snapshot' }
     [pscustomobject]@{ id = 'content-strategy'; label = 'Content Strategy Recommendations' }
-    [pscustomobject]@{ id = 'creative-campaign-ideas'; label = 'Creative Campaign Ideas' }
     [pscustomobject]@{ id = 'opportunities'; label = 'Opportunities' }
+    [pscustomobject]@{ id = 'creative-campaign-ideas'; label = 'Creative Campaign Ideas' }
     [pscustomobject]@{ id = 'appendix'; label = 'Appendix' }
 )
 
@@ -1832,16 +1832,16 @@ $(ConvertTo-ListHtml @($data.content_strategy.example_ideas))
     $(ConvertTo-RichText ([string]$data.content_strategy.response_to_findings))
 $(ConvertTo-BackToContentsHtml)
 
-    $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Creative Campaign Ideas' -IconKey 'ideas' -Id 'creative-campaign-ideas')
-$(ConvertTo-CreativeCampaignIdeasHtml @($data.creative_campaign_ideas.ideas))
-$(ConvertTo-BackToContentsHtml)
-
     $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Opportunities' -IconKey 'opportunities' -Id 'opportunities')
 $(ConvertTo-OpportunityMarketingStrategyHtml $data.opportunities.marketing_strategy)
 $(ConvertTo-TimelineHtml @($data.opportunities.timelines))
 $(ConvertTo-BackToContentsHtml)
 
-    $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Appendix' -IconKey 'appendix' -Id 'appendix')
+    $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Creative Campaign Ideas' -IconKey 'ideas' -Id 'creative-campaign-ideas')
+$(ConvertTo-CreativeCampaignIdeasHtml @($data.creative_campaign_ideas.ideas))
+$(ConvertTo-BackToContentsHtml)
+
+  $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Appendix' -IconKey 'appendix' -Id 'appendix')
     <div class="source-list">
       $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Sources Reviewed' -IconKey 'sources' -Class 'category-heading')
 $(ConvertTo-SourceListHtml @($data.appendix.sources_reviewed))
