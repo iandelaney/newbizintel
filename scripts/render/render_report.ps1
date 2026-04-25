@@ -1680,9 +1680,9 @@ $tocItems = @(
     [pscustomobject]@{ id = 'competitive-landscape'; label = 'Competitive Landscape' }
     [pscustomobject]@{ id = 'seo-audit'; label = 'SEO Audit' }
     [pscustomobject]@{ id = 'brand-reputation'; label = 'Brand Reputation Snapshot' }
-    [pscustomobject]@{ id = 'content-strategy'; label = 'Content Strategy Recommendations' }
     [pscustomobject]@{ id = 'opportunities'; label = 'Opportunities' }
     [pscustomobject]@{ id = 'creative-campaign-ideas'; label = 'Creative Campaign Ideas' }
+    [pscustomobject]@{ id = 'content-strategy'; label = 'Content Strategy Recommendations' }
     [pscustomobject]@{ id = 'appendix'; label = 'Appendix' }
 )
 
@@ -1822,6 +1822,15 @@ $(ConvertTo-RecommendationCardsHtml -Items @($data.brand_reputation.recommended_
 $(ConvertTo-RecommendationCardsHtml -Items @($data.brand_reputation.content_implications) -Tone 'gold')
 $(ConvertTo-BackToContentsHtml)
 
+    $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Opportunities' -IconKey 'opportunities' -Id 'opportunities')
+$(ConvertTo-OpportunityMarketingStrategyHtml $data.opportunities.marketing_strategy)
+$(ConvertTo-TimelineHtml @($data.opportunities.timelines))
+$(ConvertTo-BackToContentsHtml)
+
+    $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Creative Campaign Ideas' -IconKey 'ideas' -Id 'creative-campaign-ideas')
+$(ConvertTo-CreativeCampaignIdeasHtml @($data.creative_campaign_ideas.ideas))
+$(ConvertTo-BackToContentsHtml)
+
     $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Content Strategy Recommendations' -IconKey 'content' -Id 'content-strategy')
 $(ConvertTo-CardGridHtml @($data.content_strategy.cards))
     $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Priority Content Opportunities' -IconKey 'opportunities' -Class 'category-heading')
@@ -1830,15 +1839,6 @@ $(ConvertTo-ListHtml @($data.content_strategy.priority_opportunities))
 $(ConvertTo-ListHtml @($data.content_strategy.example_ideas))
     $(ConvertTo-HeadingHtml -Level 'h3' -Text 'How This Strategy Responds to the Findings' -IconKey 'summary' -Class 'category-heading')
     $(ConvertTo-RichText ([string]$data.content_strategy.response_to_findings))
-$(ConvertTo-BackToContentsHtml)
-
-    $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Opportunities' -IconKey 'opportunities' -Id 'opportunities')
-$(ConvertTo-OpportunityMarketingStrategyHtml $data.opportunities.marketing_strategy)
-$(ConvertTo-TimelineHtml @($data.opportunities.timelines))
-$(ConvertTo-BackToContentsHtml)
-
-    $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Creative Campaign Ideas' -IconKey 'ideas' -Id 'creative-campaign-ideas')
-$(ConvertTo-CreativeCampaignIdeasHtml @($data.creative_campaign_ideas.ideas))
 $(ConvertTo-BackToContentsHtml)
 
   $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Appendix' -IconKey 'appendix' -Id 'appendix')

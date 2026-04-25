@@ -1808,6 +1808,16 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
                 f"{list_html([plan.get('name') for plan in activation_plan if isinstance(plan, dict)])}</div></article>"
             )
         sections.append("<section><h2>Creative Campaign Ideas</h2>" + "".join(blocks) + "</section>")
+    content_strategy = data.get("content_strategy", {})
+    if isinstance(content_strategy, dict) and (
+        content_strategy.get("cards") or content_strategy.get("priority_opportunities") or content_strategy.get("example_ideas")
+    ):
+        content_blocks = "".join(card_html(item.get("title"), item.get("body")) for item in content_strategy.get("cards", []) if isinstance(item, dict))
+        content_blocks += list_html(content_strategy.get("priority_opportunities", []))
+        content_blocks += list_html(content_strategy.get("example_ideas", []))
+        if content_strategy.get("response_to_findings"):
+            content_blocks += f"<p>{html.escape(str(content_strategy.get('response_to_findings')))}</p>"
+        sections.append("<section><h2>Content Strategy Recommendations</h2>" + content_blocks + "</section>")
     css = """
     :root{--ink:#09213b;--muted:#5d6b7a;--line:#d8e2ec;--panel:#f7fafc;--accent:#153a5b}
     *{box-sizing:border-box} body{margin:0;font-family:Aptos,Segoe UI,Arial,sans-serif;color:var(--ink);background:#f4f7fa;line-height:1.55}
@@ -2066,6 +2076,11 @@ def build_minimal_pptx(data_path: Path, output_path: Path) -> None:
     slides.append(("30 / 60 / 90 Day Plan", roadmap))
     campaigns = campaign_section(data).get("ideas", [])
     slides.append(("Creative Campaign Ideas", [f"{idea.get('title', '')}: {idea.get('concept', '')}" for idea in campaigns[:6]]))
+    content_strategy = data.get("content_strategy", {})
+    if isinstance(content_strategy, dict):
+        content_bullets = [card.get("body", "") for card in content_strategy.get("cards", [])[:4] if isinstance(card, dict)]
+        content_bullets.extend(str(item) for item in content_strategy.get("priority_opportunities", [])[:3])
+        slides.append(("Content Strategy Recommendations", content_bullets))
 
     slide_count = len(slides)
     content_overrides = "\n".join(f'<Override PartName="/ppt/slides/slide{i}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>' for i in range(1, slide_count + 1))
