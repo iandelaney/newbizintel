@@ -420,8 +420,37 @@
       "Replace with the platform readout or public-web monitoring note."
     ],
     "influence_ranking": {
-      "ranking_method": "Score candidate stories from 1 to 100 using source authority, buyer relevance, novelty, reputation risk or opportunity, recency, and evidence quality; order the final set by score descending.",
+      "discovery_mode": "broad_first_scored_reduction",
       "candidate_story_count": 12,
+      "candidate_pool_summary": [
+        "Candidate story discovered during the broad pass #1.",
+        "Candidate story discovered during the broad pass #2.",
+        "Candidate story discovered during the broad pass #3.",
+        "Candidate story discovered during the broad pass #4.",
+        "Candidate story discovered during the broad pass #5.",
+        "Candidate story discovered during the broad pass #6.",
+        "Candidate story discovered during the broad pass #7.",
+        "Candidate story discovered during the broad pass #8.",
+        "Candidate story discovered during the broad pass #9.",
+        "Candidate story discovered during the broad pass #10.",
+        "Candidate story discovered during the broad pass #11.",
+        "Candidate story discovered during the broad pass #12."
+      ],
+      "broad_discovery_queries": [
+        "Example Brand news reputation 2026",
+        "Example Brand reviews controversy trust 2026",
+        "Example Brand investors partnerships market performance 2026",
+        "Example Brand category growth analyst trade press 2026"
+      ],
+      "verification_queries": [
+        "Exact selected story verification query after scoring"
+      ],
+      "discovery_sequence": [
+        "Start with broad discovery queries across news, reputation, investor, customer, trade, and analyst contexts.",
+        "Score all candidate stories before reduction using the weighted influence model.",
+        "Run targeted verification only after scoring to confirm dates, source wording, URLs, and counter-evidence."
+      ],
+      "ranking_method": "Score candidate stories from 1 to 100 using source authority, buyer relevance, novelty, reputation risk or opportunity, recency, and evidence quality; order the final set by score descending.",
       "search_queries": [
         "Example Brand news last six months",
         "Example Brand reputation reviews controversy trust",

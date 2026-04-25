@@ -2,8 +2,8 @@
   "ok": true,
   "domain": "assets",
   "data": "report-data.json",
-  "base_sha256": "90D1DF8C4913FC0E290820352DAB9994E4BFE493ADCE09B8CF62820E05344E10",
-  "generated_at": "2026-04-25T12:44:00.9794737+00:00",
+  "base_sha256": "42D5A148D2CEA7302FD20B34062AD35A926B80AD743BB2059FFC0BAA1A8F84FA",
+  "generated_at": "2026-04-25T13:46:41.4607914+00:00",
   "patches": [
     {
       "path": "brand.logo_url",

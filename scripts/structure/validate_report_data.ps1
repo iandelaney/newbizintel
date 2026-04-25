@@ -66,6 +66,122 @@ function Test-ExactNewsDate {
     return $Value -match '^\d{1,2}\s+[A-Z][a-z]+\s+\d{4}$'
 }
 
+$script:ReputationScoreWeights = [ordered]@{
+    source_authority = 0.25
+    buyer_relevance = 0.25
+    reputation_risk_or_opportunity = 0.20
+    evidence_quality = 0.15
+    novelty = 0.10
+    recency = 0.05
+}
+
+$script:ReputationSourceTypes = @(
+    'national_business_press',
+    'trade_press',
+    'financial_investor_press',
+    'consumer_press',
+    'review_platform',
+    'regulatory_or_legal',
+    'analyst_or_research',
+    'industry_body',
+    'owned_newsroom',
+    'social_or_forum'
+)
+
+function Get-IntOrNull {
+    param([object]$Value)
+
+    if ($null -eq $Value -or $Value -is [bool]) { return $null }
+    if ($Value -is [int]) { return [int]$Value }
+    $text = [string]$Value
+    if ($text -match '^\d+$') { return [int]$text }
+    return $null
+}
+
+function Get-ReputationInfluenceScore {
+    param([object]$Subscores)
+
+    if ($null -eq $Subscores) { return $null }
+    $total = 0.0
+    foreach ($factor in $script:ReputationScoreWeights.Keys) {
+        $value = Get-IntOrNull $Subscores.$factor
+        if ($null -eq $value -or $value -lt 1 -or $value -gt 100) { return $null }
+        $total += ([double]$value * [double]$script:ReputationScoreWeights[$factor])
+    }
+    return [int][Math]::Round($total)
+}
+
+function Test-ReputationDiscoverySequence {
+    param(
+        [object]$Method,
+        [object[]]$FinalNews,
+        [string]$PathPrefix
+    )
+
+    if ($null -eq $Method) {
+        $errors.Add("$PathPrefix must describe the ranking method, candidate pool, broad discovery queries, scoring, and verification sequence.")
+        return
+    }
+
+    if ([string]$Method.discovery_mode -ne 'broad_first_scored_reduction') {
+        $errors.Add("$PathPrefix.discovery_mode must be 'broad_first_scored_reduction'.")
+    }
+
+    $candidateCount = Get-IntOrNull $Method.candidate_story_count
+    $candidatePool = @($Method.candidate_pool_summary)
+    if ($candidatePool.Count -lt 12) {
+        $errors.Add("$PathPrefix.candidate_pool_summary must list at least 12 discovered candidate stories before reduction.")
+    }
+    elseif ($null -ne $candidateCount -and $candidatePool.Count -lt $candidateCount) {
+        $errors.Add("$PathPrefix.candidate_pool_summary must contain at least candidate_story_count items.")
+    }
+
+    $broadQueries = @($Method.broad_discovery_queries) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+    $distinctBroadQueries = @($broadQueries | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } | Select-Object -Unique)
+    if ($distinctBroadQueries.Count -lt 4) {
+        $errors.Add("$PathPrefix.broad_discovery_queries must list at least 4 distinct broad, non-story-specific discovery queries.")
+    }
+
+    $sequence = @($Method.discovery_sequence) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+    if ($sequence.Count -lt 3) {
+        $errors.Add("$PathPrefix.discovery_sequence must document broad discovery, scoring/reduction, and targeted verification in order.")
+    }
+    else {
+        $broadIndex = -1
+        $scoreIndex = -1
+        $verifyIndex = -1
+        for ($i = 0; $i -lt $sequence.Count; $i++) {
+            $step = ([string]$sequence[$i]).ToLowerInvariant()
+            if ($broadIndex -lt 0 -and ($step.Contains('broad') -or $step.Contains('discover'))) { $broadIndex = $i }
+            if ($scoreIndex -lt 0 -and ($step.Contains('score') -or $step.Contains('scor') -or $step.Contains('reduc'))) { $scoreIndex = $i }
+            if ($verifyIndex -lt 0 -and ($step.Contains('verif') -or $step.Contains('target') -or $step.Contains('confirm'))) { $verifyIndex = $i }
+        }
+        if ($broadIndex -lt 0 -or $scoreIndex -lt 0 -or $verifyIndex -lt 0 -or -not ($broadIndex -lt $scoreIndex -and $scoreIndex -lt $verifyIndex)) {
+            $errors.Add("$PathPrefix.discovery_sequence must show broad discovery first, scoring/reduction second, and targeted verification last.")
+        }
+    }
+
+    $finalSources = @($FinalNews | ForEach-Object { ([string]$_.source).ToLowerInvariant() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    $finalHeadlines = @($FinalNews | ForEach-Object { ([string]$_.headline).ToLowerInvariant() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    for ($i = 0; $i -lt $broadQueries.Count; $i++) {
+        $query = ([string]$broadQueries[$i]).ToLowerInvariant()
+        foreach ($source in $finalSources) {
+            if ($query.Contains($source)) {
+                $errors.Add("$PathPrefix.broad_discovery_queries[$i] must not pre-select a final publisher/source.")
+            }
+        }
+        $queryWords = @([regex]::Matches($query, '[a-z0-9]+') | ForEach-Object { $_.Value } | Where-Object { $_.Length -gt 2 })
+        foreach ($headline in $finalHeadlines) {
+            $headlineWords = @([regex]::Matches($headline, '[a-z0-9]+') | ForEach-Object { $_.Value } | Where-Object { $_.Length -gt 2 } | Select-Object -Unique)
+            $overlap = @($queryWords | Where-Object { $headlineWords -contains $_ })
+            if ($overlap.Count -ge 5) {
+                $errors.Add("$PathPrefix.broad_discovery_queries[$i] appears to pre-select a final story headline; move story-specific checks to verification_queries.")
+                break
+            }
+        }
+    }
+}
+
 function Test-NewsLogoResolvable {
     param(
         [object]$Item,
@@ -341,14 +457,130 @@ elseif ($influentialNews.Count -gt 6) {
     Add-WarningMessage("brand_reputation.influential_news contains $($influentialNews.Count) stories. NewBizIntel now aims for a concise 5 to 6 item shortlist.")
 }
 
+$influenceRanking = $data.brand_reputation.influence_ranking
+Test-ReputationDiscoverySequence -Method $influenceRanking -FinalNews $influentialNews -PathPrefix 'brand_reputation.influence_ranking'
+
+if ($null -ne $influenceRanking) {
+    $candidateCount = Get-IntOrNull $influenceRanking.candidate_story_count
+    if ($null -eq $candidateCount -or $candidateCount -lt 12) {
+        $errors.Add('brand_reputation.influence_ranking.candidate_story_count must be at least 12 before reduction to the final ranked set.')
+    }
+
+    $searchQueries = @($influenceRanking.search_queries) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+    if ((@($searchQueries | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } | Select-Object -Unique)).Count -lt 4) {
+        $errors.Add('brand_reputation.influence_ranking.search_queries must list at least 4 distinct search queries.')
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$influenceRanking.ranking_method) -or ([string]$influenceRanking.ranking_method) -notmatch '(?i)score') {
+        $errors.Add('brand_reputation.influence_ranking.ranking_method must explain the influence scoring approach.')
+    }
+
+    $confidenceScore = Get-IntOrNull $influenceRanking.confidence_score
+    if ($null -eq $confidenceScore -or $confidenceScore -lt 70 -or $confidenceScore -gt 100) {
+        $errors.Add('brand_reputation.influence_ranking.confidence_score must be an integer from 70 to 100 for the gate to pass.')
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$influenceRanking.confidence_rationale)) {
+        $errors.Add('brand_reputation.influence_ranking.confidence_rationale must explain why the final ranking is reliable enough to use.')
+    }
+
+    if (@($influenceRanking.limitations | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -eq 0) {
+        $errors.Add('brand_reputation.influence_ranking.limitations must disclose coverage caveats, even when confidence is high.')
+    }
+
+    $rankingFactors = @($influenceRanking.ranking_factors)
+    foreach ($factor in $script:ReputationScoreWeights.Keys) {
+        if ($rankingFactors -notcontains $factor) {
+            $errors.Add("brand_reputation.influence_ranking.ranking_factors must include: $($script:ReputationScoreWeights.Keys -join ', ').")
+            break
+        }
+    }
+
+    foreach ($factor in $script:ReputationScoreWeights.Keys) {
+        $actual = $null
+        try { $actual = [double]$influenceRanking.score_weights.$factor } catch { $actual = $null }
+        $expected = [double]$script:ReputationScoreWeights[$factor]
+        if ($null -eq $actual -or [Math]::Abs($actual - $expected) -gt 0.0001) {
+            $errors.Add("brand_reputation.influence_ranking.score_weights.$factor must be $expected.")
+        }
+    }
+}
+
+$seenSources = New-Object System.Collections.Generic.List[string]
+$seenSourceTypes = New-Object System.Collections.Generic.List[string]
+$influenceScores = New-Object System.Collections.Generic.List[int]
+
 for ($i = 0; $i -lt $influentialNews.Count; $i++) {
     $item = $influentialNews[$i]
     $pathPrefix = "brand_reputation.influential_news[$i]"
+
+    foreach ($field in @('date', 'headline', 'source', 'url', 'why_it_matters', 'source_type', 'sentiment', 'rank_reason')) {
+        if (-not (Test-HasValue $item.$field)) {
+            Add-MissingError "$pathPrefix.$field"
+        }
+    }
 
     if (-not (Test-ExactNewsDate ([string]$item.date))) {
         $errors.Add("$pathPrefix.date must use an exact publication date like '19 November 2025'.")
     }
 
+    if (-not ([string]$item.url).StartsWith('http://') -and -not ([string]$item.url).StartsWith('https://')) {
+        $errors.Add("$pathPrefix.url must be an http(s) URL.")
+    }
+
+    $score = Get-IntOrNull $item.influence_score
+    if ($null -eq $score -or $score -lt 1 -or $score -gt 100) {
+        $errors.Add("$pathPrefix.influence_score must be an integer from 1 to 100.")
+    }
+    else {
+        $influenceScores.Add($score)
+    }
+
+    $calculatedScore = Get-ReputationInfluenceScore $item.influence_subscores
+    if ($null -eq $calculatedScore) {
+        $errors.Add("$pathPrefix.influence_subscores must provide integer values from 1 to 100 for: $($script:ReputationScoreWeights.Keys -join ', ').")
+    }
+    elseif ($null -ne $score -and $calculatedScore -ne $score) {
+        $errors.Add("$pathPrefix.influence_score must equal the weighted subscore calculation ($calculatedScore); found $score.")
+    }
+
+    $sourceType = [string]$item.source_type
+    if ($script:ReputationSourceTypes -notcontains $sourceType) {
+        $errors.Add("$pathPrefix.source_type must be one of: $($script:ReputationSourceTypes -join ', ').")
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($sourceType)) {
+        $seenSourceTypes.Add($sourceType)
+    }
+
+    $source = ([string]$item.source).Trim().ToLowerInvariant()
+    if (-not [string]::IsNullOrWhiteSpace($source)) {
+        $seenSources.Add($source)
+    }
+}
+
+if ($influentialNews.Count -ge 5 -and (@($seenSources | Select-Object -Unique)).Count -lt 3) {
+    $errors.Add('brand_reputation.influential_news must include at least 3 distinct publishers/sources.')
+}
+
+$sourceCounts = @{}
+foreach ($source in $seenSources) {
+    if (-not $sourceCounts.ContainsKey($source)) { $sourceCounts[$source] = 0 }
+    $sourceCounts[$source] += 1
+}
+$repeatedSources = @($sourceCounts.Keys | Where-Object { $sourceCounts[$_] -gt 2 })
+if ($repeatedSources.Count -gt 0) {
+    $errors.Add("brand_reputation.influential_news must not include more than 2 stories from the same publisher/source: $($repeatedSources -join ', ').")
+}
+
+if ((@($seenSourceTypes | Select-Object -Unique)).Count -lt 3) {
+    $errors.Add('brand_reputation.influential_news must cover at least 3 source classes, not just one channel.')
+}
+
+for ($i = 1; $i -lt $influenceScores.Count; $i++) {
+    if ($influenceScores[$i] -gt $influenceScores[$i - 1]) {
+        $errors.Add('brand_reputation.influential_news must be ordered by influence_score descending.')
+        break
+    }
 }
 
 if ($errors.Count -gt 0) {

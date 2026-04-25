@@ -20,6 +20,7 @@ function Test-HasValue {
 $allowedStatuses = @('pending', 'passed', 'partial', 'quota-limited', 'blocked', 'failed')
 $allowedCurrentWebTools = @('tavily', 'jina', 'tavily+jina', 'jina+tavily')
 $requiredValidationKeys = @('competitor_discovery', 'recent_news', 'reputation_public_web', 'source_gathering')
+$requiredReputationFactors = @('source_authority', 'buyer_relevance', 'reputation_risk_or_opportunity', 'evidence_quality', 'novelty', 'recency')
 $errors = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
 
@@ -36,6 +37,53 @@ foreach ($field in @('competitor_discovery', 'recent_news', 'reputation_public_w
     $value = [string]$summary.status.$field
     if (-not ($allowedStatuses -contains $value)) {
         $errors.Add("status.$field must be one of: $($allowedStatuses -join ', '). Current value: '$value'")
+    }
+}
+
+$ranking = $summary.influence_ranking
+if (-not (Test-HasValue $ranking)) {
+    $errors.Add('Missing influence_ranking. Reputation story selection must document broad discovery, scoring, and verification.')
+}
+else {
+    if ([string]$ranking.discovery_mode -ne 'broad_first_scored_reduction') {
+        $errors.Add("influence_ranking.discovery_mode must be 'broad_first_scored_reduction'.")
+    }
+    if ([int]$ranking.candidate_story_count -lt 12) {
+        $errors.Add('influence_ranking.candidate_story_count must be at least 12.')
+    }
+    if (@($ranking.candidate_pool_summary).Count -lt 12) {
+        $errors.Add('influence_ranking.candidate_pool_summary must list at least 12 broad-discovery candidates.')
+    }
+    if (@($ranking.broad_discovery_queries | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Select-Object -Unique).Count -lt 4) {
+        $errors.Add('influence_ranking.broad_discovery_queries must list at least 4 broad, non-story-specific discovery queries.')
+    }
+    $sequence = [string]::Join(' ', @($ranking.discovery_sequence)).ToLowerInvariant()
+    if ($sequence -notmatch 'broad|discover' -or $sequence -notmatch 'score|scor|reduc' -or $sequence -notmatch 'verif|target|confirm') {
+        $errors.Add('influence_ranking.discovery_sequence must document broad discovery, scoring/reduction, and targeted verification.')
+    }
+    foreach ($factor in $requiredReputationFactors) {
+        if (@($ranking.ranking_factors) -notcontains $factor) {
+            $errors.Add("influence_ranking.ranking_factors must include: $($requiredReputationFactors -join ', ').")
+            break
+        }
+    }
+}
+
+$newsScores = @()
+foreach ($item in @($summary.influential_news)) {
+    foreach ($field in @('date', 'headline', 'source', 'url', 'why_it_matters', 'source_type', 'sentiment', 'influence_score', 'influence_subscores', 'rank_reason')) {
+        if (-not (Test-HasValue $item.$field)) {
+            $errors.Add("influential_news item missing required field: $field")
+        }
+    }
+    if (Test-HasValue $item.influence_score) {
+        $newsScores += [int]$item.influence_score
+    }
+}
+for ($i = 1; $i -lt $newsScores.Count; $i++) {
+    if ($newsScores[$i] -gt $newsScores[$i - 1]) {
+        $errors.Add('influential_news must be ordered by influence_score descending.')
+        break
     }
 }
 

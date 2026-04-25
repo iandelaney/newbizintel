@@ -430,6 +430,58 @@ def calculate_reputation_influence_score(subscores: dict[str, Any]) -> int | Non
     return int(round(total))
 
 
+def validate_reputation_discovery_sequence(
+    method: dict[str, Any],
+    final_news: list[Any],
+    errors: list[str],
+    *,
+    prefix: str,
+) -> None:
+    method_prefix = prefix.replace("influential_news", "influence_ranking")
+    discovery_mode = str(method.get("discovery_mode", "")).strip()
+    if discovery_mode != "broad_first_scored_reduction":
+        errors.append(f"{method_prefix}.discovery_mode must be 'broad_first_scored_reduction'.")
+
+    candidate_pool = method.get("candidate_pool_summary")
+    candidate_count = as_int(method.get("candidate_story_count"))
+    if not isinstance(candidate_pool, list) or len([item for item in candidate_pool if str(item).strip()]) < 12:
+        errors.append(f"{method_prefix}.candidate_pool_summary must list at least 12 discovered candidate stories before reduction.")
+    elif candidate_count is not None and len(candidate_pool) < candidate_count:
+        errors.append(f"{method_prefix}.candidate_pool_summary must contain at least candidate_story_count items.")
+
+    broad_queries = method.get("broad_discovery_queries")
+    distinct_broad_queries = {str(q).strip().lower() for q in broad_queries} if isinstance(broad_queries, list) else set()
+    distinct_broad_queries = {query for query in distinct_broad_queries if query}
+    if len(distinct_broad_queries) < 4:
+        errors.append(f"{method_prefix}.broad_discovery_queries must list at least 4 distinct broad, non-story-specific discovery queries.")
+
+    discovery_sequence = method.get("discovery_sequence")
+    if not isinstance(discovery_sequence, list) or len([step for step in discovery_sequence if str(step).strip()]) < 3:
+        errors.append(f"{method_prefix}.discovery_sequence must document broad discovery, scoring/reduction, and targeted verification in order.")
+    else:
+        steps = [str(step).strip().lower() for step in discovery_sequence if str(step).strip()]
+        broad_index = next((idx for idx, step in enumerate(steps) if "broad" in step or "discover" in step), None)
+        score_index = next((idx for idx, step in enumerate(steps) if "score" in step or "scor" in step or "reduc" in step), None)
+        verify_index = next((idx for idx, step in enumerate(steps) if "verif" in step or "target" in step or "confirm" in step), None)
+        if broad_index is None or score_index is None or verify_index is None or not (broad_index < score_index < verify_index):
+            errors.append(f"{method_prefix}.discovery_sequence must show broad discovery first, scoring/reduction second, and targeted verification last.")
+
+    final_headlines = [str(item.get("headline", "")).lower() for item in final_news if isinstance(item, dict)]
+    final_sources = {str(item.get("source", "")).lower() for item in final_news if isinstance(item, dict) and str(item.get("source", "")).strip()}
+    for index, raw_query in enumerate(broad_queries if isinstance(broad_queries, list) else []):
+        query = str(raw_query).strip().lower()
+        if not query:
+            continue
+        if any(source and source in query for source in final_sources):
+            errors.append(f"{method_prefix}.broad_discovery_queries[{index}] must not pre-select a final publisher/source.")
+        query_words = [word for word in re.findall(r"[a-z0-9]+", query) if len(word) > 2]
+        for headline in final_headlines:
+            headline_words = set(word for word in re.findall(r"[a-z0-9]+", headline) if len(word) > 2)
+            if len([word for word in query_words if word in headline_words]) >= 5:
+                errors.append(f"{method_prefix}.broad_discovery_queries[{index}] appears to pre-select a final story headline; move story-specific checks to verification_queries.")
+                break
+
+
 def reputation_subscore_summary(subscores: Any) -> str:
     if not isinstance(subscores, dict):
         return ""
@@ -468,6 +520,7 @@ def validate_reputation_ranking_contract(
     if not isinstance(method, dict):
         errors.append(f"{prefix.replace('influential_news', 'influence_ranking')} must describe the ranking method, candidate volume, source classes, and search queries.")
         method = {}
+    validate_reputation_discovery_sequence(method, news, errors, prefix=prefix)
     candidate_count = as_int(method.get("candidate_story_count"))
     if candidate_count is None or candidate_count < 12:
         errors.append(f"{prefix.replace('influential_news', 'influence_ranking')}.candidate_story_count must be at least 12 before reduction to the final ranked set.")

@@ -421,43 +421,164 @@
     "platform_readout": [
       "Replace with the platform readout or public-web monitoring note."
     ],
+    "influence_ranking": {
+      "discovery_mode": "broad_first_scored_reduction",
+      "candidate_story_count": 12,
+      "candidate_pool_summary": [
+        "Example Brand broad news candidate about market momentum",
+        "Example Brand broad news candidate about customer trust",
+        "Example Brand broad news candidate about investor scrutiny",
+        "Example Brand broad news candidate about product adoption",
+        "Example Brand broad news candidate about partnership change",
+        "Example Brand broad news candidate about analyst commentary",
+        "Example Brand broad news candidate about review-platform friction",
+        "Example Brand broad news candidate about regulatory context",
+        "Example Brand broad news candidate about category growth",
+        "Example Brand broad news candidate about leadership change",
+        "Example Brand broad news candidate about service reliability",
+        "Example Brand broad news candidate about innovation proof"
+      ],
+      "broad_discovery_queries": [
+        "Example Brand news reputation 2026",
+        "Example Brand customer trust reviews controversy 2026",
+        "Example Brand investors partnerships market performance 2026",
+        "Example Brand category growth analyst trade press 2026"
+      ],
+      "verification_queries": [
+        "Example Source A exact headline verification",
+        "Example Source B exact headline verification"
+      ],
+      "discovery_sequence": [
+        "Started with broad discovery queries across news, reputation, investor, customer, trade, and analyst contexts.",
+        "Scored all candidate stories before reduction using the weighted influence model.",
+        "Ran targeted verification only after scoring to confirm dates, source wording, URLs, and counter-evidence."
+      ],
+      "ranking_method": "Score candidate stories from 1 to 100 using source authority, buyer relevance, reputation risk or opportunity, evidence quality, novelty, and recency; order the final set by score descending.",
+      "search_queries": [
+        "Example Brand news reputation 2026",
+        "Example Brand customer trust reviews controversy 2026",
+        "Example Brand investors partnerships market performance 2026",
+        "Example Brand category growth analyst trade press 2026"
+      ],
+      "ranking_factors": [
+        "source_authority",
+        "buyer_relevance",
+        "reputation_risk_or_opportunity",
+        "evidence_quality",
+        "novelty",
+        "recency"
+      ],
+      "score_weights": {
+        "source_authority": 0.25,
+        "buyer_relevance": 0.25,
+        "reputation_risk_or_opportunity": 0.2,
+        "evidence_quality": 0.15,
+        "novelty": 0.1,
+        "recency": 0.05
+      },
+      "confidence_score": 76,
+      "confidence_rationale": "Example fixture confidence is sufficient because it demonstrates the required broad-first candidate pool, scoring model, source diversity, and verification sequence.",
+      "limitations": [
+        "Example fixture uses representative placeholder sources rather than live coverage."
+      ]
+    },
     "influential_news": [
       {
         "date": "11 March 2026",
-        "headline": "Replace with influential story #1.",
-        "source": "Example Brand",
+        "headline": "Example Brand market momentum story",
+        "source": "Example Source A",
+        "source_type": "national_business_press",
+        "sentiment": "positive",
+        "influence_score": 89,
+        "influence_subscores": {
+          "source_authority": 90,
+          "buyer_relevance": 88,
+          "reputation_risk_or_opportunity": 92,
+          "evidence_quality": 90,
+          "novelty": 85,
+          "recency": 88
+        },
+        "rank_reason": "Ranks first because it combines high-authority reach, buyer relevance, and a clear reputation opportunity.",
         "url": "https://example.com/news/story-1",
         "why_it_matters": "Replace with why this story shapes buyer or market perception.",
         "publisher_logo_url": "slide-assets/example-brand-logo.svg"
       },
       {
         "date": "12 March 2026",
-        "headline": "Replace with influential story #2.",
-        "source": "Example Brand",
+        "headline": "Example Brand trust challenge story",
+        "source": "Example Source B",
+        "source_type": "financial_investor_press",
+        "sentiment": "mixed",
+        "influence_score": 86,
+        "influence_subscores": {
+          "source_authority": 86,
+          "buyer_relevance": 88,
+          "reputation_risk_or_opportunity": 85,
+          "evidence_quality": 86,
+          "novelty": 82,
+          "recency": 86
+        },
+        "rank_reason": "Ranks second because it raises a commercially material confidence question for buyers and investors.",
         "url": "https://example.com/news/story-2",
         "why_it_matters": "Replace with why this story shapes buyer or market perception.",
         "publisher_logo_url": "slide-assets/example-brand-logo.svg"
       },
       {
         "date": "13 March 2026",
-        "headline": "Replace with influential story #3.",
-        "source": "Example Brand",
+        "headline": "Example Brand analyst category story",
+        "source": "Example Source C",
+        "source_type": "analyst_or_research",
+        "sentiment": "positive",
+        "influence_score": 83,
+        "influence_subscores": {
+          "source_authority": 82,
+          "buyer_relevance": 84,
+          "reputation_risk_or_opportunity": 84,
+          "evidence_quality": 84,
+          "novelty": 82,
+          "recency": 84
+        },
+        "rank_reason": "Ranks third because it provides research-led evidence that can support the market narrative.",
         "url": "https://example.com/news/story-3",
         "why_it_matters": "Replace with why this story shapes buyer or market perception.",
         "publisher_logo_url": "slide-assets/example-brand-logo.svg"
       },
       {
         "date": "14 March 2026",
-        "headline": "Replace with influential story #4.",
-        "source": "Example Brand",
+        "headline": "Example Brand customer review story",
+        "source": "Example Source D",
+        "source_type": "review_platform",
+        "sentiment": "mixed",
+        "influence_score": 80,
+        "influence_subscores": {
+          "source_authority": 78,
+          "buyer_relevance": 82,
+          "reputation_risk_or_opportunity": 80,
+          "evidence_quality": 82,
+          "novelty": 80,
+          "recency": 82
+        },
+        "rank_reason": "Ranks fourth because review evidence is close to customer decision-making even when its authority is lower.",
         "url": "https://example.com/news/story-4",
         "why_it_matters": "Replace with why this story shapes buyer or market perception.",
         "publisher_logo_url": "slide-assets/example-brand-logo.svg"
       },
       {
         "date": "15 March 2026",
-        "headline": "Replace with influential story #5.",
-        "source": "Example Brand",
+        "headline": "Example Brand trade innovation story",
+        "source": "Example Source E",
+        "source_type": "trade_press",
+        "sentiment": "positive",
+        "influence_score": 78,
+        "influence_subscores": {
+          "source_authority": 74,
+          "buyer_relevance": 80,
+          "reputation_risk_or_opportunity": 78,
+          "evidence_quality": 80,
+          "novelty": 78,
+          "recency": 80
+        },
+        "rank_reason": "Ranks fifth because it is useful trade context but less influential than national, investor, analyst, and review evidence.",
         "url": "https://example.com/news/story-5",
         "why_it_matters": "Replace with why this story shapes buyer or market perception.",
         "publisher_logo_url": "slide-assets/example-brand-logo.svg"

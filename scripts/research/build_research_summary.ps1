@@ -63,13 +63,9 @@ foreach ($row in @($data.competitive_landscape.table)) {
 
 $news = @()
 foreach ($item in @($data.brand_reputation.influential_news)) {
-    $news += [pscustomobject]@{
-        date = [string]$item.date
-        headline = [string]$item.headline
-        source = [string]$item.source
-        url = [string]$item.url
-        why_it_matters = [string]$item.why_it_matters
-    }
+    # Preserve the full reputation contract. Stripping score/source fields here
+    # lets bootstrap summaries pass through an easier path than live summaries.
+    $news += $item
 }
 
 $semrushEvidence = @()
@@ -113,9 +109,11 @@ $summary = [ordered]@{
     brand_website = [string]$data.brand.website
     competitors = $competitors
     influential_news = $news
+    influence_ranking = $data.brand_reputation.influence_ranking
     reputation = [ordered]@{
         platform_readout = @($data.brand_reputation.platform_readout)
         recommended_actions = @($data.brand_reputation.recommended_actions)
+        influence_ranking = $data.brand_reputation.influence_ranking
     }
     seo = [ordered]@{
         semrush_evidence = $semrushEvidence
