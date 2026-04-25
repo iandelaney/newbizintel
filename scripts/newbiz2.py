@@ -24,6 +24,7 @@ import time
 import urllib.parse
 import urllib.request
 import zipfile
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,26 @@ SKILL_ROOT = SCRIPT_ROOT.parent
 TEMPLATE_PATH = SKILL_ROOT / "templates" / "report-data.template.json"
 TEMPLATE_ASSETS = SKILL_ROOT / "templates" / "slide-assets"
 RUN_STATE_CONTRACT = SKILL_ROOT / "references" / "run-state.contract.json"
+REPUTATION_SOURCE_TYPES = {
+    "national_business_press",
+    "trade_press",
+    "financial_investor_press",
+    "consumer_press",
+    "review_platform",
+    "regulatory_or_legal",
+    "analyst_or_research",
+    "industry_body",
+    "owned_newsroom",
+    "social_or_forum",
+}
+REPUTATION_RANKING_FACTORS = (
+    "source_authority",
+    "buyer_relevance",
+    "novelty",
+    "reputation_risk_or_opportunity",
+    "recency",
+    "evidence_quality",
+)
 
 
 TASK_DEFINITIONS = [
@@ -377,6 +398,102 @@ def ensure_path(data: dict[str, Any], dotted_path: str, errors: list[str]) -> No
         errors.append(f"Missing or empty required report-data field: {dotted_path}")
 
 
+def as_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def normalised_source(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip()).lower()
+
+
+def validate_reputation_ranking_contract(
+    news: Any,
+    method: Any,
+    errors: list[str],
+    warnings: list[str],
+    *,
+    prefix: str,
+) -> None:
+    if not isinstance(news, list):
+        errors.append(f"{prefix} must be a list of ranked stories.")
+        return
+    if len(news) < 5:
+        errors.append(f"{prefix} must include at least 5 stories. Current count: {len(news)}")
+    if len(news) > 6:
+        warnings.append(f"{prefix} contains {len(news)} stories; aim for 5 to 6.")
+
+    if not isinstance(method, dict):
+        errors.append(f"{prefix.replace('influential_news', 'influence_ranking')} must describe the ranking method, candidate volume, source classes, and search queries.")
+        method = {}
+    candidate_count = as_int(method.get("candidate_story_count"))
+    if candidate_count is None or candidate_count < 12:
+        errors.append(f"{prefix.replace('influential_news', 'influence_ranking')}.candidate_story_count must be at least 12 before reduction to the final ranked set.")
+    search_queries = method.get("search_queries")
+    if not isinstance(search_queries, list) or len([q for q in search_queries if str(q).strip()]) < 4:
+        errors.append(f"{prefix.replace('influential_news', 'influence_ranking')}.search_queries must list at least 4 distinct search queries.")
+    ranking_method = str(method.get("ranking_method", "")).strip()
+    if not ranking_method or "score" not in ranking_method.lower():
+        errors.append(f"{prefix.replace('influential_news', 'influence_ranking')}.ranking_method must explain the influence scoring approach.")
+    confidence_score = as_int(method.get("confidence_score"))
+    if confidence_score is None or confidence_score < 70 or confidence_score > 100:
+        errors.append(f"{prefix.replace('influential_news', 'influence_ranking')}.confidence_score must be an integer from 70 to 100 for the gate to pass.")
+    if not str(method.get("confidence_rationale", "")).strip():
+        errors.append(f"{prefix.replace('influential_news', 'influence_ranking')}.confidence_rationale must explain why the final ranking is reliable enough to use.")
+    limitations = method.get("limitations")
+    if not isinstance(limitations, list) or not [item for item in limitations if str(item).strip()]:
+        errors.append(f"{prefix.replace('influential_news', 'influence_ranking')}.limitations must disclose coverage caveats, even when confidence is high.")
+    factors = method.get("ranking_factors")
+    if not isinstance(factors, list) or not set(REPUTATION_RANKING_FACTORS).issubset({str(item) for item in factors}):
+        errors.append(
+            f"{prefix.replace('influential_news', 'influence_ranking')}.ranking_factors must include: "
+            + ", ".join(REPUTATION_RANKING_FACTORS)
+        )
+
+    sources: list[str] = []
+    source_types: list[str] = []
+    scores: list[int] = []
+    for index, item in enumerate(news):
+        item_prefix = f"{prefix}[{index}]"
+        if not isinstance(item, dict):
+            errors.append(f"{item_prefix} must be an object.")
+            continue
+        for field in ("date", "headline", "source", "url", "why_it_matters", "source_type", "sentiment", "rank_reason"):
+            if not str(item.get(field, "")).strip():
+                errors.append(f"{item_prefix}.{field} is required.")
+        if not re.match(r"^\d{1,2}\s+[A-Z][a-z]+\s+\d{4}$", str(item.get("date", ""))):
+            errors.append(f"{item_prefix}.date must use an exact date like '19 November 2025'.")
+        if not str(item.get("url", "")).startswith(("http://", "https://")):
+            errors.append(f"{item_prefix}.url must be an http(s) URL.")
+        score = as_int(item.get("influence_score"))
+        if score is None or score < 1 or score > 100:
+            errors.append(f"{item_prefix}.influence_score must be an integer from 1 to 100.")
+        else:
+            scores.append(score)
+        source_type = str(item.get("source_type", "")).strip()
+        if source_type not in REPUTATION_SOURCE_TYPES:
+            errors.append(f"{item_prefix}.source_type must be one of: {', '.join(sorted(REPUTATION_SOURCE_TYPES))}.")
+        else:
+            source_types.append(source_type)
+        sources.append(normalised_source(item.get("source")))
+
+    unique_sources = {source for source in sources if source}
+    if len(news) >= 5 and len(unique_sources) < 3:
+        errors.append(f"{prefix} must use at least 3 distinct publishers/sources.")
+    repeated_sources = [source for source, count in Counter(sources).items() if source and count > 2]
+    if repeated_sources:
+        errors.append(f"{prefix} must not include more than 2 stories from the same publisher/source: {', '.join(repeated_sources)}.")
+    if len({source_type for source_type in source_types if source_type}) < 3:
+        errors.append(f"{prefix} must cover at least 3 source classes, not just one channel.")
+    if scores and scores != sorted(scores, reverse=True):
+        errors.append(f"{prefix} must be ordered by influence_score descending.")
+
+
 def validate_report_data(data_path: Path) -> dict[str, Any]:
     data = read_json(data_path)
     errors: list[str] = []
@@ -403,13 +520,13 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     if len(semrush) < 2:
         errors.append(f"seo_audit.semrush_evidence must include at least 2 SEO evidence points. Current count: {len(semrush)}")
     news = data.get("brand_reputation", {}).get("influential_news", [])
-    if len(news) < 5:
-        errors.append(f"brand_reputation.influential_news must include at least 5 stories. Current count: {len(news)}")
-    if len(news) > 6:
-        warnings.append(f"brand_reputation.influential_news contains {len(news)} stories; aim for 5 to 6.")
-    for index, item in enumerate(news):
-        if not re.match(r"^\d{1,2}\s+[A-Z][a-z]+\s+\d{4}$", str(item.get("date", ""))):
-            errors.append(f"brand_reputation.influential_news[{index}].date must use an exact date like '19 November 2025'.")
+    validate_reputation_ranking_contract(
+        news,
+        data.get("brand_reputation", {}).get("influence_ranking"),
+        errors,
+        warnings,
+        prefix="brand_reputation.influential_news",
+    )
     if errors:
         return {"ok": False, "data": str(data_path), "errors": errors, "warnings": warnings}
     return {"ok": True, "data": str(data_path), "warnings": warnings}
@@ -490,6 +607,7 @@ def build_summary_from_data(data_path: Path, mode: str = "bootstrap-from-report-
         "brand_website": data.get("brand", {}).get("website"),
         "competitors": data.get("competitive_landscape", {}).get("table", []),
         "influential_news": news,
+        "influence_ranking": data.get("brand_reputation", {}).get("influence_ranking", {}),
         "reputation": data.get("brand_reputation", {}),
         "seo": data.get("seo_audit", {}),
         "source_map": source_map,
@@ -504,6 +622,7 @@ def build_summary_from_data(data_path: Path, mode: str = "bootstrap-from-report-
 
 def validate_research_summary(summary: dict[str, Any]) -> dict[str, Any]:
     errors = []
+    warnings = []
     status = summary.get("status", {})
     for key in ("competitor_discovery", "recent_news", "reputation_public_web", "source_gathering", "semrush"):
         if key not in status:
@@ -512,7 +631,15 @@ def validate_research_summary(summary: dict[str, Any]) -> dict[str, Any]:
         errors.append("Missing locked_sets.competitors")
     if not summary.get("influential_news"):
         errors.append("Missing influential_news")
-    return {"ok": not errors, "errors": errors, "warnings": []}
+    else:
+        validate_reputation_ranking_contract(
+            summary.get("influential_news"),
+            summary.get("influence_ranking") or summary.get("reputation", {}).get("influence_ranking"),
+            errors,
+            warnings,
+            prefix="influential_news",
+        )
+    return {"ok": not errors, "errors": errors, "warnings": warnings}
 
 
 def module_research(args: argparse.Namespace) -> dict[str, Any]:
@@ -577,6 +704,8 @@ def merge_research_into_data(data: dict[str, Any], summary: dict[str, Any]) -> d
             data.setdefault("cover", {})["competitors"] = names
     if summary.get("influential_news"):
         data.setdefault("brand_reputation", {})["influential_news"] = summary["influential_news"]
+    if isinstance(summary.get("influence_ranking"), dict):
+        data.setdefault("brand_reputation", {})["influence_ranking"] = summary["influence_ranking"]
     if isinstance(summary.get("reputation"), dict):
         data.setdefault("brand_reputation", {}).update(summary["reputation"])
     if isinstance(summary.get("seo"), dict):
@@ -1044,7 +1173,9 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
         items = []
         for item in news:
             source_logo = asset_src(data_path, item.get("source_logo_url", "") or item.get("publisher_logo_url", ""))
-            items.append(f"<article class='news'>{f'<img src={html.escape(json.dumps(source_logo))} alt={html.escape(json.dumps(str(item.get('source', 'source')) + ' logo'))}>' if source_logo else ''}<p class='eyebrow'>{html.escape(str(item.get('date', '')))} | {html.escape(str(item.get('source', '')))}</p><h3>{html.escape(str(item.get('headline', '')))}</h3><p>{html.escape(str(item.get('why_it_matters', '')))}</p></article>")
+            score = item.get("influence_score", "")
+            rank_reason = item.get("rank_reason") or item.get("why_it_matters", "")
+            items.append(f"<article class='news'>{f'<img src={html.escape(json.dumps(source_logo))} alt={html.escape(json.dumps(str(item.get('source', 'source')) + ' logo'))}>' if source_logo else ''}<p class='eyebrow'>{html.escape(str(item.get('date', '')))} | {html.escape(str(item.get('source', '')))} | Influence {html.escape(str(score))}</p><h3>{html.escape(str(item.get('headline', '')))}</h3><p><strong>Why it ranked:</strong> {html.escape(str(rank_reason))}</p><p>{html.escape(str(item.get('why_it_matters', '')))}</p></article>")
         sections.append("<section><h2>Influential News</h2>" + "".join(items) + "</section>")
     campaigns = campaign_section(data).get("ideas", [])
     if campaigns:
@@ -1281,7 +1412,7 @@ def build_minimal_pptx(data_path: Path, output_path: Path) -> None:
     slides.append(("Agency Opportunity", [agency.get("summary", ""), agency.get("score_summary", ""), agency.get("lead_offering", {}).get("verdict", "")]))
     slides.append(("Competitive Landscape", [f"{row.get('competitor') or row.get('name')}: {row.get('implication') or row.get('why_it_matters') or ''}" for row in data.get("competitive_landscape", {}).get("table", [])[:6]]))
     slides.append(("Search And SEO Evidence", [item.get("body", "") for item in data.get("seo_audit", {}).get("semrush_evidence", [])[:6]]))
-    slides.append(("Influential News", [f"{item.get('headline', '')}: {item.get('why_it_matters', '')}" for item in data.get("brand_reputation", {}).get("influential_news", [])[:6]]))
+    slides.append(("Influential News", [f"{item.get('headline', '')} ({item.get('influence_score', '')}): {item.get('rank_reason') or item.get('why_it_matters', '')}" for item in data.get("brand_reputation", {}).get("influential_news", [])[:6]]))
     campaigns = campaign_section(data).get("ideas", [])
     slides.append(("Creative Campaign Ideas", [f"{idea.get('title', '')}: {idea.get('concept', '')}" for idea in campaigns[:6]]))
     opportunities = data.get("opportunities", {})

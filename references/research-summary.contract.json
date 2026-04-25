@@ -12,13 +12,40 @@
   ],
   "influential_news": [
     {
-      "date": "2026-03-11",
+      "date": "11 March 2026",
       "headline": "Example story",
       "source": "Example Source",
+      "source_type": "national_business_press",
+      "sentiment": "positive",
+      "influence_score": 95,
+      "rank_reason": "Why this story ranks as more influential than lower-scored candidates.",
       "url": "https://example.com/story",
       "why_it_matters": "Reason this story matters."
     }
   ],
+  "influence_ranking": {
+    "ranking_method": "Score candidate stories from 1 to 100 and order the final set by score descending.",
+    "candidate_story_count": 12,
+    "search_queries": [
+      "Example Brand news last six months",
+      "Example Brand reputation reviews controversy trust",
+      "Example Brand investor trade press growth partnership",
+      "Example Brand customer complaints service quality"
+    ],
+    "ranking_factors": [
+      "source_authority",
+      "buyer_relevance",
+      "novelty",
+      "reputation_risk_or_opportunity",
+      "recency",
+      "evidence_quality"
+    ],
+    "confidence_score": 70,
+    "confidence_rationale": "Explain why the final ranking is reliable enough to use.",
+    "limitations": [
+      "Disclose source coverage gaps or unresolved ambiguity."
+    ]
+  },
   "reputation": {
     "platform_readout": [],
     "recommended_actions": []

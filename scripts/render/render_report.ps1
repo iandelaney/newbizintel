@@ -1203,16 +1203,20 @@ function ConvertTo-NewsTableHtml {
     $rows = foreach ($item in $Items) {
         [pscustomobject]@{
             date = [string]$item.date
+            influence = [string]$item.influence_score
             headline = [string]$item.headline
             source = (ConvertTo-PublisherLogoHtml $item)
+            rank_reason = if ($item.rank_reason) { [string]$item.rank_reason } else { [string]$item.why_it_matters }
             why_it_matters = [string]$item.why_it_matters
         }
     }
 
     return ConvertTo-TableHtml -Rows $rows -Columns @(
         @{ header = 'Date'; key = 'date' },
+        @{ header = 'Influence'; key = 'influence' },
         @{ header = 'Headline'; key = 'headline' },
         @{ header = 'Source'; key = 'source'; raw_html = $true },
+        @{ header = 'Why it ranked'; key = 'rank_reason' },
         @{ header = 'Why it mattered'; key = 'why_it_matters' }
     )
 }

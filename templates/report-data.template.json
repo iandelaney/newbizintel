@@ -419,11 +419,38 @@
     "platform_readout": [
       "Replace with the platform readout or public-web monitoring note."
     ],
+    "influence_ranking": {
+      "ranking_method": "Score candidate stories from 1 to 100 using source authority, buyer relevance, novelty, reputation risk or opportunity, recency, and evidence quality; order the final set by score descending.",
+      "candidate_story_count": 12,
+      "search_queries": [
+        "Example Brand news last six months",
+        "Example Brand reputation reviews controversy trust",
+        "Example Brand investor trade press growth partnership",
+        "Example Brand customer complaints service quality"
+      ],
+      "ranking_factors": [
+        "source_authority",
+        "buyer_relevance",
+        "novelty",
+        "reputation_risk_or_opportunity",
+        "recency",
+        "evidence_quality"
+      ],
+      "confidence_score": 70,
+      "confidence_rationale": "Replace with a concise explanation of source coverage, cross-checking, and why the ranking is reliable.",
+      "limitations": [
+        "Replace with any gaps in source availability, paywalled coverage, platform coverage, or unresolved ambiguity."
+      ]
+    },
     "influential_news": [
       {
         "date": "11 March 2026",
         "headline": "Replace with influential story #1.",
-        "source": "Example Brand",
+        "source": "Example National Business Source",
+        "source_type": "national_business_press",
+        "sentiment": "positive",
+        "influence_score": 95,
+        "rank_reason": "Replace with why this story ranked above the others.",
         "publisher_logo_url": "slide-assets/news.png",
         "url": "https://example.com/news/story-1",
         "why_it_matters": "Replace with why this story shapes buyer or market perception."
@@ -431,7 +458,11 @@
       {
         "date": "12 March 2026",
         "headline": "Replace with influential story #2.",
-        "source": "Example Brand",
+        "source": "Example Trade Source",
+        "source_type": "trade_press",
+        "sentiment": "mixed",
+        "influence_score": 88,
+        "rank_reason": "Replace with why this story ranked above the others.",
         "publisher_logo_url": "slide-assets/news.png",
         "url": "https://example.com/news/story-2",
         "why_it_matters": "Replace with why this story shapes buyer or market perception."
@@ -439,7 +470,11 @@
       {
         "date": "13 March 2026",
         "headline": "Replace with influential story #3.",
-        "source": "Example Brand",
+        "source": "Example Investor Source",
+        "source_type": "financial_investor_press",
+        "sentiment": "neutral",
+        "influence_score": 82,
+        "rank_reason": "Replace with why this story ranked above the others.",
         "publisher_logo_url": "slide-assets/news.png",
         "url": "https://example.com/news/story-3",
         "why_it_matters": "Replace with why this story shapes buyer or market perception."
@@ -447,7 +482,11 @@
       {
         "date": "14 March 2026",
         "headline": "Replace with influential story #4.",
-        "source": "Example Brand",
+        "source": "Example Review Platform",
+        "source_type": "review_platform",
+        "sentiment": "negative",
+        "influence_score": 76,
+        "rank_reason": "Replace with why this story ranked above the others.",
         "publisher_logo_url": "slide-assets/news.png",
         "url": "https://example.com/news/story-4",
         "why_it_matters": "Replace with why this story shapes buyer or market perception."
@@ -455,7 +494,11 @@
       {
         "date": "15 March 2026",
         "headline": "Replace with influential story #5.",
-        "source": "Example Brand",
+        "source": "Example Consumer Source",
+        "source_type": "consumer_press",
+        "sentiment": "positive",
+        "influence_score": 71,
+        "rank_reason": "Replace with why this story ranked above the others.",
         "publisher_logo_url": "slide-assets/news.png",
         "url": "https://example.com/news/story-5",
         "why_it_matters": "Replace with why this story shapes buyer or market perception."
