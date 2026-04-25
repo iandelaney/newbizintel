@@ -68,6 +68,10 @@ REPUTATION_SCORE_WEIGHTS = {
 }
 PLACEHOLDER_MARKERS = (
     ("Replace with", "template instruction text"),
+    ("to be finalised", "unfinished generated content"),
+    ("specific detail to be finalised", "unfinished generated content"),
+    ("validated evidence", "unfinished generated content"),
+    ("lorem ipsum", "placeholder copy"),
     ("Example Brand", "template brand name"),
     ("Competitor A", "template competitor"),
     ("Competitor B", "template competitor"),
@@ -525,6 +529,95 @@ def audit_placeholder_content(payload: Any, *, root_label: str = "payload", allo
     return {"ok": not matches, "matches": matches, "errors": errors}
 
 
+def audit_missing_content(payload: Any, *, root_label: str = "report_data") -> dict[str, Any]:
+    errors: list[str] = []
+    allowed_empty_keys = {
+        "warnings",
+        "errors",
+        "files",
+        "missing_data",
+        "similarweb_evidence",
+        "semrush_evidence",
+        "platform_readout",
+        "value_suffix",
+        "prefix",
+        "suffix",
+    }
+    optional_empty_paths = {
+        "report_data.seo_audit.similarweb_evidence",
+        "report_data.seo_audit.semrush_evidence",
+        "report_data.appendix.missing_data",
+    }
+    required_non_empty_paths = {
+        "report_data.usp_ksp_review.rows",
+        "report_data.seo_audit.priority_issues",
+        "report_data.brand_reputation.cards",
+        "report_data.brand_reputation.platform_readout",
+        "report_data.brand_reputation.recommended_actions",
+        "report_data.brand_reputation.content_implications",
+        "report_data.content_strategy.cards",
+        "report_data.content_strategy.priority_opportunities",
+        "report_data.content_strategy.example_ideas",
+        "report_data.creative_campaign_ideas.ideas",
+    }
+
+    def is_optional_path(path: str) -> bool:
+        if path in optional_empty_paths:
+            return True
+        if any(path.endswith(f".{key}") for key in allowed_empty_keys):
+            return True
+        return False
+
+    def walk(value: Any, path: str) -> None:
+        if value is None:
+            if not is_optional_path(path):
+                errors.append(f"{path} is null.")
+            return
+        if isinstance(value, str):
+            if not value.strip() and not is_optional_path(path):
+                errors.append(f"{path} is an empty string.")
+            return
+        if isinstance(value, list):
+            if len(value) == 0 and (path in required_non_empty_paths or not is_optional_path(path)):
+                errors.append(f"{path} is an empty list.")
+            for index, child in enumerate(value):
+                walk(child, f"{path}[{index}]")
+            return
+        if isinstance(value, dict):
+            if len(value) == 0 and (path in required_non_empty_paths or not is_optional_path(path)):
+                errors.append(f"{path} is an empty object.")
+            for key, child in value.items():
+                walk(child, f"{path}.{key}")
+
+    walk(payload, root_label)
+    return {"ok": not errors, "errors": errors[:50]}
+
+
+def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
+    errors: list[str] = []
+    patterns = {
+        "empty unordered list": r"<ul(?:\s[^>]*)?>\s*</ul>",
+        "empty ordered list": r"<ol(?:\s[^>]*)?>\s*</ol>",
+        "empty table cell": r"<t[dh](?:\s[^>]*)?>\s*</t[dh]>",
+        "empty article": r"<article(?:\s[^>]*)?>\s*</article>",
+        "empty card": r"<div class=\"card\">\s*(?:<strong>\s*</strong>)?\s*</div>",
+        "empty table body": r"<tbody(?:\s[^>]*)?>\s*</tbody>",
+    }
+    for label, pattern in patterns.items():
+        count = len(re.findall(pattern, html_text, flags=re.I | re.S))
+        if count:
+            errors.append(f"Rendered HTML contains {count} {label} element(s).")
+    for marker, reason in PLACEHOLDER_MARKERS:
+        if marker.lower() == "replace with":
+            count = len(re.findall(re.escape(marker), html_text, flags=re.I))
+        else:
+            pattern = re.compile(rf"(?<![A-Za-z0-9]){re.escape(marker)}(?![A-Za-z0-9])", re.I)
+            count = len(pattern.findall(html_text))
+        if count:
+            errors.append(f"Rendered HTML contains {count} {reason} marker(s): {marker}.")
+    return {"ok": not errors, "errors": errors}
+
+
 def calculate_reputation_influence_score(subscores: dict[str, Any]) -> int | None:
     total = 0.0
     for factor, weight in REPUTATION_SCORE_WEIGHTS.items():
@@ -785,6 +878,9 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
         "storybrand.messaging_fixes",
         "storybrand.content_implications",
         "usp_ksp_review.score",
+        "usp_ksp_review.score_summary",
+        "usp_ksp_review.rows",
+        "usp_ksp_review.overall_verdict",
         "seo_audit.cards",
         "seo_audit.priority_issues",
         "brand_reputation.influential_news",
@@ -794,6 +890,21 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     ]
     for path in required:
         ensure_path(data, path, errors)
+    content_audit = audit_missing_content(data)
+    if not content_audit["ok"]:
+        errors.extend(f"missing_content_audit: {error}" for error in content_audit.get("errors", []))
+    usp = data.get("usp_ksp_review", {})
+    if isinstance(usp, dict):
+        usp_rows = usp.get("rows", [])
+        if not isinstance(usp_rows, list) or len(usp_rows) < 3:
+            errors.append("usp_ksp_review.rows must include at least 3 populated claim/proof rows.")
+        for index, row in enumerate(usp_rows if isinstance(usp_rows, list) else []):
+            if not isinstance(row, dict):
+                errors.append(f"usp_ksp_review.rows[{index}] must be an object.")
+                continue
+            for key in ("claim_type", "claim_summary", "proof_points", "proof_feedback"):
+                if not has_value(row.get(key)):
+                    errors.append(f"usp_ksp_review.rows[{index}].{key} is required.")
     seo = data.get("seo_audit", {})
     semrush = seo.get("semrush_evidence", []) if isinstance(seo, dict) else []
     similarweb = seo.get("similarweb_evidence", []) if isinstance(seo, dict) else []
@@ -810,6 +921,16 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
             "seo_audit must include at least 2 search/SEO evidence points across "
             f"semrush_evidence, similarweb_evidence, and search_evidence. Current count: {total_seo_evidence}"
         )
+    priority_issues = seo.get("priority_issues", []) if isinstance(seo, dict) else []
+    if not isinstance(priority_issues, list) or len(priority_issues) < 3:
+        errors.append("seo_audit.priority_issues must include at least 3 issue/evidence/reason/fix objects.")
+    for index, item in enumerate(priority_issues if isinstance(priority_issues, list) else []):
+        if not isinstance(item, dict):
+            errors.append(f"seo_audit.priority_issues[{index}] must be an object, not a bare string.")
+            continue
+        for key in ("issue", "evidence", "why_it_matters", "recommended_fix"):
+            if not has_value(item.get(key)):
+                errors.append(f"seo_audit.priority_issues[{index}].{key} is required.")
     validate_seo_charts(data.get("seo_audit", {}).get("charts", []), errors)
     strategy = data.get("opportunities", {}).get("marketing_strategy", {})
     if isinstance(strategy, dict):
@@ -848,6 +969,35 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     for index, item in enumerate(data.get("agency_opportunity", {}).get("department_opportunity_map", [])):
         if not has_value(item.get("opportunity_signal")):
             errors.append(f"agency_opportunity.department_opportunity_map[{index}].opportunity_signal is required.")
+    campaign_ideas = data.get("creative_campaign_ideas", {}).get("ideas", [])
+    seen_activation_signatures: set[str] = set()
+    generic_activation_names = {"flagship proof asset", "destination page", "channel cut-downs"}
+    for idea_index, idea in enumerate(campaign_ideas if isinstance(campaign_ideas, list) else []):
+        plan = idea.get("activation_plan", {}) if isinstance(idea, dict) else {}
+        items = plan.get("order_of_precedence", []) if isinstance(plan, dict) else []
+        if not isinstance(items, list) or len(items) < 3:
+            errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence must include at least 3 detailed items.")
+            continue
+        names = []
+        for item_index, item in enumerate(items):
+            if not isinstance(item, dict):
+                errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}] must be an object.")
+                continue
+            name = str(item.get("name") or "").strip()
+            names.append(name.lower())
+            for key in ("name", "primary_goal", "contains", "inputs_needed"):
+                if not has_value(item.get(key)):
+                    errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].{key} is required.")
+            for list_key in ("contains", "inputs_needed"):
+                value = item.get(list_key)
+                if not isinstance(value, list) or len([entry for entry in value if has_value(entry)]) < 2:
+                    errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].{list_key} must include at least 2 concrete items.")
+        if set(names).issubset(generic_activation_names):
+            errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan is too generic; item names must be campaign-specific.")
+        signature = "|".join(names)
+        if signature and signature in seen_activation_signatures:
+            errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan duplicates another campaign's activation sequence.")
+        seen_activation_signatures.add(signature)
     storybrand = data.get("storybrand", {})
     messaging_assessment = storybrand.get("existing_messaging_assessment", {})
     published_statements = messaging_assessment.get("published_statements", [])
@@ -1010,7 +1160,7 @@ def build_published_statements(data: dict[str, Any], summary: dict[str, Any], br
 
 def clean_placeholder_text(value: str, brand: str) -> str:
     if any(placeholder_marker_matches(value, marker) for marker, _reason in PLACEHOLDER_MARKERS):
-        return f"{brand}-specific detail to be finalised from validated evidence."
+        return f"{brand} evidence requires a fresh synthesis before this section can be published."
     return value
 
 
@@ -1176,9 +1326,24 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         "similarweb_evidence": similarweb,
         "search_evidence": public_search,
         "priority_issues": [
-            "Distinguish public search evidence from direct SEMrush metrics until API access has units or a provider backup succeeds.",
-            "Build comparison and alternatives pages around high-consideration meal-kit decisions.",
-            "Connect reputation-led trust content to SEO pages so search traffic lands on proof, not just acquisition offers.",
+            {
+                "issue": "Direct SEO metrics are incomplete",
+                "evidence": "Direct SEMrush data is unavailable, quota-limited, or partial for this run, so the diagnosis uses labelled public search evidence and competitor discovery.",
+                "why_it_matters": "The report should be honest about certainty. Directional public-web evidence can guide content opportunities, but media and search-budget decisions need firmer provider data.",
+                "recommended_fix": "Keep public-web findings clearly labelled, retry direct SEMrush or SimilarWeb before final search investment, and update the section when provider metrics are available.",
+            },
+            {
+                "issue": "Comparison intent needs a stronger owned answer",
+                "evidence": f"Competitor discovery repeatedly surfaces alternatives such as {competitor_text}, showing that buyers compare before choosing.",
+                "why_it_matters": "If the brand does not answer comparison searches itself, review sites, forums, marketplaces, and competitors frame the buying decision.",
+                "recommended_fix": "Create fair comparison pages and modules that explain fit, value, proof, service, and trade-offs in plain customer language.",
+            },
+            {
+                "issue": "Trust and service questions need search-ready proof",
+                "evidence": f"Reputation research led by {sentence(top_news.get('headline'), 'trust-sensitive public stories')} shows that confidence depends on visible proof, not only proposition clarity.",
+                "why_it_matters": "Searches around cancellation, refunds, delivery reliability, freshness, or service recovery often happen close to conversion or churn.",
+                "recommended_fix": "Build proof-led pages and on-page modules for customer control, delivery standards, freshness, refunds, substitutions, and escalation routes.",
+            },
         ],
         "content_implications": [
             "Create search-led proof pages for subscription control, delivery reliability, freshness, refunds, and comparisons.",
@@ -1222,6 +1387,44 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             "influential_news": news,
             "influence_ranking": summary.get("influence_ranking", {}),
             "summary": f"{brand}'s reputation picture is split between a simple consumer proposition and material trust questions around labour, compliance, subscription practices, service, and performance.",
+            "cards": [
+                {
+                    "title": "Monitoring method and coverage notes",
+                    "body": f"This readout combines broad-first news discovery, ranked influential-story scoring, public search evidence, and source-map review. Direct platform listening should be added before treating this as a full social sentiment monitor.",
+                },
+                {
+                    "title": "Positive themes",
+                    "body": f"The strongest positive material is around recipe usefulness, partnership momentum, household convenience, and the potential to turn recipe inspiration into a more trusted repeat-use proposition.",
+                },
+                {
+                    "title": "Negative themes",
+                    "body": f"The material risk themes are subscription control, billing and cancellation confidence, delivery or fulfilment reliability, freshness or safety concerns, and investor scrutiny around growth quality.",
+                },
+                {
+                    "title": "Trust signals and risks",
+                    "body": f"{brand} should make service recovery, plan control, freshness handling, and customer feedback loops visible before third-party coverage or reviews define those issues for buyers.",
+                },
+            ],
+            "platform_readout": [
+                {
+                    "platform": "News and business media",
+                    "tone": "mixed",
+                    "signal": f"Influential coverage includes both growth/partnership positives and risk-led stories such as {sentence(top_news.get('headline'), 'subscription-control scrutiny')}.",
+                    "implication": "Use owned content and PR lines to separate the useful customer proposition from operational or investor-risk narratives.",
+                },
+                {
+                    "platform": "Search and comparison journeys",
+                    "tone": "amber",
+                    "signal": f"Competitor and alternatives evidence shows buyers compare {brand} with {competitor_text} before deciding.",
+                    "implication": "Create fair comparison and proof content so search traffic lands on helpful owned evidence rather than only third-party opinions.",
+                },
+                {
+                    "platform": "Customer trust touchpoints",
+                    "tone": "amber",
+                    "signal": "Reputation themes point to anxiety around control, service recovery, freshness, delivery reliability, and refunds.",
+                    "implication": "Treat help, CRM, and conversion pages as reputation infrastructure, not just operational support.",
+                },
+            ],
             "recommended_actions": [
                 "Create a visible trust and service-recovery proof layer across acquisition and help journeys.",
                 "Prepare clear public lines on subscription control, marketing consent, and customer remedy routes.",
@@ -1238,12 +1441,43 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
 
     data["usp_ksp_review"] = {
         "score": "6.6 / 10",
+        "score_summary": f"{brand} has a clear category proposition, but its strongest selling points need more visible proof around control, quality, service recovery, and comparison value.",
         "summary": f"{brand}'s USP is easy to understand, but its distinctiveness depends on making control, quality, and service proof more tangible than competitors.",
-        "cards": [
-            {"title": "USP clarity", "body": "Meal planning, ingredients, and recipes are clear customer benefits."},
-            {"title": "KSP strength", "body": "The strongest proof points should be recipe choice, convenience, freshness, customer control, and recovery when things go wrong."},
-            {"title": "Gap", "body": "The public proposition needs stronger evidence against subscription and service concerns."},
+        "rows": [
+            {
+                "claim_type": "Core USP",
+                "icon_key": "summary",
+                "claim_summary": "The brand makes the category promise easy to understand and puts a useful household outcome at the centre.",
+                "proof_points": "Published proposition and product evidence show the main convenience, choice, and category benefit.",
+                "proof_feedback": "Clear, but not distinctive enough on its own because close competitors can make similar category claims.",
+            },
+            {
+                "claim_type": "Key selling point: choice",
+                "icon_key": "content",
+                "claim_summary": "Choice, flexibility, and reduced planning friction are the most immediate customer benefits.",
+                "proof_points": "Website messaging, competitor discovery, and category content show that choice and ease drive consideration.",
+                "proof_feedback": "Strong as a buyer benefit, but it should be supported with decision guidance so choice feels manageable and relevant.",
+            },
+            {
+                "claim_type": "Key selling point: trust",
+                "icon_key": "reputation",
+                "claim_summary": "The offer becomes more persuasive when control, reliability, and service recovery are made visible.",
+                "proof_points": "Reputation and search evidence show customers need proof around service, control, delivery, value, or issue resolution.",
+                "proof_feedback": "This is the biggest proof gap and the strongest route to sharper differentiation.",
+            },
+            {
+                "claim_type": "Differentiation test",
+                "icon_key": "seo",
+                "claim_summary": "The brand can differentiate by becoming easier to compare, trust, and act on than alternatives.",
+                "proof_points": "Competitor and search evidence indicates buyers actively compare alternatives and look for reassurance.",
+                "proof_feedback": "The USP is strongest when convenience, proof, and customer control are treated as one system.",
+            },
         ],
+        "overall_verdict": {
+            "headline": "Strong category proposition; medium distinctiveness until proof is made visible.",
+            "uniqueness_verdict": "Not unique enough as a convenience claim alone, but potentially distinctive as a proof-backed customer-control proposition.",
+            "who_for": "Best for buyers who like the promise but need reassurance about fit, value, flexibility, service, and proof before committing.",
+        },
     }
 
     data["opportunities"] = {
@@ -1272,6 +1506,88 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         ("The Freshness Receipts", "Trust depends on practical evidence, not just appetite appeal.", "A transparency series that turns sourcing, packing, delivery, and customer feedback into visible receipts.", "Proof hub, short videos, email modules, and customer-service content."),
         ("The Comparison Table", "Meal-kit buyers actively compare alternatives before choosing.", "A helpful challenger campaign that makes fair comparison a service rather than a defensive page.", "Competitor comparison hub, search assets, downloadable guide, and sales/partnership proof deck."),
     ]
+    activation_templates = [
+        [
+            {
+                "name": "Customer-control proof asset",
+                "primary_goal": "Make the highest-friction control moments visible before channel rollout.",
+                "contains": ["Plan-change, pause, cancel, refund, delivery, and recovery scenarios", "Plain-English proof of what the customer can control", "Clear next actions into plan choice or help content"],
+                "inputs_needed": ["Product and service rules", "Customer-service issue taxonomy", "UX support for a simple proof journey"],
+            },
+            {
+                "name": "Service recovery destination",
+                "primary_goal": "Give search, paid, CRM, and PR traffic one transparent place to land.",
+                "contains": ["Scenario cards for common issues", "Approved recovery standards", "Links into account, support, or conversion paths"],
+                "inputs_needed": ["Support-team input", "Approved claims language", "Analytics plan"],
+            },
+            {
+                "name": "Reassurance cut-downs",
+                "primary_goal": "Turn proof into repeatable acquisition and retention assets.",
+                "contains": ["Paid/social proof cards", "CRM modules", "Retargeting variants by concern"],
+                "inputs_needed": ["Media plan", "Audience segments", "Creative production"],
+            },
+        ],
+        [
+            {
+                "name": "Dinner confidence page",
+                "primary_goal": "Show that inspiration is backed by practical confidence.",
+                "contains": ["Recipe-choice guidance by customer need", "Freshness, delivery, and fallback proof modules", "First-order expectation setting"],
+                "inputs_needed": ["Recipe performance data", "Freshness and delivery standards", "Landing-page messaging hierarchy"],
+            },
+            {
+                "name": "First-box reassurance guide",
+                "primary_goal": "Reduce hesitation for customers considering their first order.",
+                "contains": ["What arrives and what can be changed", "Billing and plan-control explanation", "Substitution, refund, and support reassurance"],
+                "inputs_needed": ["Product and billing rules", "Customer-service FAQs", "Design support"],
+            },
+            {
+                "name": "Doubt-buster retargeting",
+                "primary_goal": "Bring hesitant visitors back with proof matched to likely objections.",
+                "contains": ["Variants for value, control, freshness, and delivery", "Short proof cards", "CRM and paid-social cut-downs"],
+                "inputs_needed": ["Audience signals", "Media plan", "Approved proof library"],
+            },
+        ],
+        [
+            {
+                "name": "Freshness proof hub",
+                "primary_goal": "Make freshness and fulfilment evidence tangible rather than assumed.",
+                "contains": ["Sourcing, packing, chilled-chain, and delivery proof", "Customer feedback loops", "Plain-language recovery routes"],
+                "inputs_needed": ["Operations evidence", "Supplier or sourcing proof", "Customer-service data"],
+            },
+            {
+                "name": "Box journey story",
+                "primary_goal": "Show the journey from operational promise to customer outcome.",
+                "contains": ["Sourcing-to-table sequence", "Proof moments at each stage", "Exception and recovery route"],
+                "inputs_needed": ["Logistics process detail", "Visual production brief", "Legal approval"],
+            },
+            {
+                "name": "Freshness campaign cut-downs",
+                "primary_goal": "Create channel assets that dramatise proof without overclaiming.",
+                "contains": ["Social proof cards", "CRM reassurance blocks", "On-page recipe-selection proof"],
+                "inputs_needed": ["Approved visual claims", "Media and CRM specs", "Design production"],
+            },
+        ],
+        [
+            {
+                "name": "Fair decision guide",
+                "primary_goal": "Help buyers choose confidently instead of leaving comparison to third parties.",
+                "contains": ["Decision criteria by customer need", "Transparent fit and trade-off guidance", "Links into plans, recipes, and proof"],
+                "inputs_needed": ["Competitor review", "Pricing and proposition rules", "SEO query set"],
+            },
+            {
+                "name": "Comparison hub",
+                "primary_goal": "Capture high-intent alternative searches with useful, fair content.",
+                "contains": ["Competitor and alternative modules", "Proof-led comparison tables", "FAQs around control, delivery, and service"],
+                "inputs_needed": ["Legal and brand guardrails", "Search-priority keywords", "Current competitor claims"],
+            },
+            {
+                "name": "Search landing variants",
+                "primary_goal": "Match visitors to the comparison question they arrived with.",
+                "contains": ["Alternative, value, family, and flexibility variants", "Proof blocks by intent", "CTA into plan choice or confidence content"],
+                "inputs_needed": ["SEO and paid-search clusters", "Analytics plan", "A/B test design"],
+            },
+        ],
+    ]
     data["creative_campaign_ideas"] = {
         "artwork_delivery_mode": "final-raster-required",
         "illustration_generation_backend": "imagegen",
@@ -1296,9 +1612,11 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                 "why_it_will_work": "It turns trust and comparison anxieties into visible, practical assets rather than leaving them to reviews or help-centre fragments.",
                 "intended_effect": "Improve confidence at sign-up, reduce avoidable objections, and create stronger proof for acquisition and retention.",
             }
-            for title, addresses, concept, activation in campaign_base
+            for index, (title, addresses, concept, activation) in enumerate(campaign_base)
         ],
     }
+    for index, idea in enumerate(data["creative_campaign_ideas"]["ideas"]):
+        idea["activation_plan"] = {"order_of_precedence": activation_templates[index]}
 
     data["content_strategy"] = {
         "cards": [
@@ -2948,6 +3266,9 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
 
     size = html_path.stat().st_size
     text = html_path.read_text(encoding="utf-8", errors="ignore")
+    completeness_audit = audit_rendered_html_completeness(text)
+    if not completeness_audit["ok"]:
+        errors.extend(completeness_audit.get("errors", []))
     if size < 100_000:
         errors.append(f"HTML report is too small for the rich presentation layer ({size} bytes).")
     for label in ("Competitive Landscape", "SEO Audit", "Brand Reputation", "Creative Campaign Ideas"):
