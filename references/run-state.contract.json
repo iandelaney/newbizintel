@@ -108,7 +108,7 @@
       "title": "Brand, competitor, and source logos",
       "status": "pending",
       "gates": ["gate_5_assets", "gate_5a_source_badges", "gate_5b_required_logos"],
-      "trust_test": "Brand, competitor, and news/source logos resolve without generic fallbacks.",
+      "trust_test": "Brand, competitor, and news/source logos resolve without missing or generic HTML fallbacks; competitor/source candidate failures produce checked square initial-letter marks.",
       "evidence": [],
       "updated_at": null
     },

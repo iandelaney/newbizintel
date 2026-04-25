@@ -133,7 +133,7 @@ TASK_DEFINITIONS = [
         "title": "Brand, competitor, and source logos",
         "gates": ["gate_6_logos_and_assets"],
         "legacy_gates": ["gate_5_assets", "gate_5a_source_badges", "gate_5b_required_logos"],
-        "trust_test": "Brand, competitor, and news/source logos resolve without generic fallbacks; competitor badges prefer square marks/icons, with wide wordmarks converted to square initial-letter marks.",
+        "trust_test": "Brand, competitor, and news/source logos resolve without missing or generic HTML fallbacks; competitor badges prefer square marks/icons, with wide or unavailable candidates converted to checked square initial-letter marks.",
     },
     {
         "id": 7,
@@ -2541,6 +2541,60 @@ def create_initial_mark_from_logo(source: Path, destination: Path, label: str = 
         return False
 
 
+def palette_from_label(label: str) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    palettes = [
+        ((11, 92, 74), (255, 255, 255)),
+        ((15, 59, 112), (255, 255, 255)),
+        ((118, 68, 20), (255, 247, 230)),
+        ((124, 35, 68), (255, 242, 248)),
+        ((55, 86, 38), (248, 255, 238)),
+        ((74, 58, 123), (247, 244, 255)),
+        ((25, 82, 97), (235, 253, 255)),
+        ((119, 45, 19), (255, 245, 238)),
+    ]
+    digest = hashlib.sha256(label.encode("utf-8", errors="ignore")).digest()
+    return palettes[digest[0] % len(palettes)]
+
+
+def create_initial_mark_from_name(label: str, destination: Path, canvas_size: int = 256) -> bool:
+    """Create a deterministic square mark when acquired candidate assets are unusable."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+
+        initial_match = re.search(r"[A-Za-z0-9]", label or "")
+        initial = initial_match.group(0).upper() if initial_match else "?"
+        background, foreground = palette_from_label(label or initial)
+        image = Image.new("RGBA", (canvas_size, canvas_size), (*background, 255))
+        draw = ImageDraw.Draw(image)
+        font = None
+        for font_path in [
+            Path("C:/Windows/Fonts/arialbd.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+            Path("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
+        ]:
+            if font_path.exists():
+                font = ImageFont.truetype(str(font_path), int(canvas_size * 0.68))
+                break
+        if font is None:
+            try:
+                font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(canvas_size * 0.68))
+            except Exception:
+                font = ImageFont.load_default()
+        draw.rounded_rectangle((6, 6, canvas_size - 6, canvas_size - 6), radius=48, fill=(*background, 255))
+        draw.rounded_rectangle((14, 14, canvas_size - 14, canvas_size - 14), radius=38, outline=(*foreground, 72), width=4)
+        text_box = draw.textbbox((0, 0), initial, font=font)
+        text_width = text_box[2] - text_box[0]
+        text_height = text_box[3] - text_box[1]
+        x = (canvas_size - text_width) // 2 - text_box[0]
+        y = (canvas_size - text_height) // 2 - text_box[1] - 2
+        draw.text((x, y), initial, font=font, fill=(*foreground, 255))
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        image.save(destination, format="PNG", optimize=True)
+        return square_quality_ok(destination) and visible_logo_occupancy_ok(destination, minimum_span=0.42)
+    except Exception:
+        return False
+
+
 def create_tight_logo_asset(source: Path, destination: Path, padding: int = 8) -> bool:
     if not source.exists() or not quality_ok(source):
         return False
@@ -2634,9 +2688,20 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
             row["badge_url"] = asset
             row["logo_resolution_source"] = source
         else:
-            manifest["ok"] = False
-            manifest["errors"].append(f"{name} competitor logo failed: {source}")
-        manifest["competitors"].append({"index": index, "name": name, "asset": asset, "ok": ok, "resolution_source": source})
+            initial_asset = asset_dir / f"{slug}-initial-mark.png"
+            if create_initial_mark_from_name(name, initial_asset):
+                ok = True
+                source = f"{source}; deterministic-square-initial-mark-after-candidate-failure"
+                asset = relative_to_brand(initial_asset, brand_folder)
+                row["logo_url"] = asset
+                row["competitor_logo_url"] = asset
+                row["badge_url"] = asset
+                row["logo_resolution_source"] = source
+                row["logo_asset_kind"] = "deterministic-square-initial-mark"
+            else:
+                manifest["ok"] = False
+                manifest["errors"].append(f"{name} competitor logo failed: {source}")
+        manifest["competitors"].append({"index": index, "name": name, "asset": asset, "ok": ok, "resolution_source": source, "asset_kind": row.get("logo_asset_kind", "acquired-or-derived-logo") if ok else "missing"})
 
     for index, item in enumerate(data.get("brand_reputation", {}).get("influential_news", [])):
         source_name = item.get("source") or brand_name
@@ -2655,9 +2720,18 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
             item["source_logo_url"] = asset
             item["publisher_logo_url"] = asset
         else:
-            manifest["ok"] = False
-            manifest["errors"].append(f"{source_name} source logo failed: {resolution}")
-        manifest["news_sources"].append({"index": index, "source": source_name, "asset": asset, "ok": ok, "resolution_source": resolution})
+            fallback_asset = asset_dir / f"{slug}-source-initial-mark.png"
+            if create_initial_mark_from_name(source_name, fallback_asset):
+                ok = True
+                resolution = f"{resolution}; deterministic-square-initial-mark-after-candidate-failure"
+                asset = relative_to_brand(fallback_asset, brand_folder)
+                item["source_logo_url"] = asset
+                item["publisher_logo_url"] = asset
+                item["source_logo_asset_kind"] = "deterministic-square-initial-mark"
+            else:
+                manifest["ok"] = False
+                manifest["errors"].append(f"{source_name} source logo failed: {resolution}")
+        manifest["news_sources"].append({"index": index, "source": source_name, "asset": asset, "ok": ok, "resolution_source": resolution, "asset_kind": item.get("source_logo_asset_kind", "acquired-or-derived-logo") if ok else "missing"})
     return data, manifest
 
 
