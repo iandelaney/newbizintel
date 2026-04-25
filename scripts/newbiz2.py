@@ -1858,15 +1858,34 @@ def inject_task_list_into_html(html_path: Path, brand_folder: Path) -> None:
         return
     text = html_path.read_text(encoding="utf-8")
     pattern = re.compile(r"<section id=\"newbiz2-workflow-task-list\".*?</section>", re.S)
+    original_text = text
     if pattern.search(text):
-        text = pattern.sub(section, text)
+        text = pattern.sub(section, text, count=1)
     elif "</main>" in text:
         text = text.replace("</main>", section + "</main>")
     elif "</body>" in text:
         text = text.replace("</body>", section + "</body>")
     else:
         text = text + section
+    if ("<html" in original_text.lower() or "<!doctype" in original_text.lower()) and (
+        "</html>" not in text.lower() or len(text) < max(4096, int(len(original_text) * 0.5))
+    ):
+        raise SystemExit(f"Refusing to inject task list because it would corrupt full report HTML: {html_path}")
     html_path.write_text(text, encoding="utf-8")
+
+
+def assert_deployable_report_html(html_path: Path) -> None:
+    if not html_path.exists():
+        raise SystemExit(f"Report HTML does not exist: {html_path}")
+    text = html_path.read_text(encoding="utf-8", errors="replace")
+    lowered = text.lower()
+    required_markers = ("<html", "</html>", "new business intelligence", "creative campaign ideas")
+    missing = [marker for marker in required_markers if marker not in lowered]
+    if missing or len(text) < 20000:
+        raise SystemExit(
+            "Refusing deployment handoff because the HTML does not look like a complete NewBiz2 report. "
+            f"Path: {html_path}; bytes: {len(text)}; missing markers: {', '.join(missing) or 'none'}"
+        )
 
 
 def make_text_logo_png(label: str, output_path: Path) -> None:
@@ -2237,16 +2256,18 @@ def prepare_random_vercel_stage(data_path: Path) -> dict[str, Any]:
     brand_folder = brand_folder_from_data(data_path)
     html_path = brand_folder / "newbizintel-report.html"
     index_path = brand_folder / "index.html"
-    if html_path.exists():
-        inject_task_list_into_html(html_path, brand_folder)
-        shutil.copy2(html_path, index_path)
-    elif not index_path.exists():
+    source_html = html_path if html_path.exists() else index_path
+    if not source_html.exists():
         raise SystemExit("Cannot prepare Vercel stage because neither newbizintel-report.html nor index.html exists.")
+    assert_deployable_report_html(source_html)
 
     token = secrets.token_hex(6)
     stage_root = brand_folder / "vercel-random-stages" / f"site-{token}"
     stage_root.mkdir(parents=True, exist_ok=False)
-    shutil.copy2(index_path, stage_root / "index.html")
+    stage_index = stage_root / "index.html"
+    shutil.copy2(source_html, stage_index)
+    inject_task_list_into_html(stage_index, brand_folder)
+    assert_deployable_report_html(stage_index)
 
     for directory_name in ("slide-assets", "assets"):
         source = brand_folder / directory_name
@@ -2283,12 +2304,14 @@ def module_deploy(args: argparse.Namespace) -> dict[str, Any]:
         set_gate(state, "gate_7_delivery", "failed")
         save_state(brand_folder, state)
         raise SystemExit("Cannot refresh delivery handoff because newbizintel-report.html is missing.")
+    assert_deployable_report_html(html_path)
     shutil.copy2(html_path, brand_folder / "index.html")
     set_status(state, "deploy", "passed")
     set_gate(state, "gate_7_delivery", "passed")
     save_state(brand_folder, state)
-    inject_task_list_into_html(html_path, brand_folder)
-    shutil.copy2(html_path, brand_folder / "index.html")
+    index_path = brand_folder / "index.html"
+    inject_task_list_into_html(index_path, brand_folder)
+    assert_deployable_report_html(index_path)
     return {
         "module": "deploy",
         "data": str(data_path),
