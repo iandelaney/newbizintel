@@ -17,7 +17,15 @@
       "source": "Example Source",
       "source_type": "national_business_press",
       "sentiment": "positive",
-      "influence_score": 95,
+      "influence_score": 92,
+      "influence_subscores": {
+        "source_authority": 95,
+        "buyer_relevance": 92,
+        "reputation_risk_or_opportunity": 90,
+        "evidence_quality": 94,
+        "novelty": 88,
+        "recency": 90
+      },
       "rank_reason": "Why this story ranks as more influential than lower-scored candidates.",
       "url": "https://example.com/story",
       "why_it_matters": "Reason this story matters."
@@ -35,11 +43,19 @@
     "ranking_factors": [
       "source_authority",
       "buyer_relevance",
-      "novelty",
       "reputation_risk_or_opportunity",
-      "recency",
-      "evidence_quality"
+      "evidence_quality",
+      "novelty",
+      "recency"
     ],
+    "score_weights": {
+      "source_authority": 0.25,
+      "buyer_relevance": 0.25,
+      "reputation_risk_or_opportunity": 0.2,
+      "evidence_quality": 0.15,
+      "novelty": 0.1,
+      "recency": 0.05
+    },
     "confidence_score": 70,
     "confidence_rationale": "Explain why the final ranking is reliable enough to use.",
     "limitations": [

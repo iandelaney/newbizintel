@@ -431,11 +431,19 @@
       "ranking_factors": [
         "source_authority",
         "buyer_relevance",
-        "novelty",
         "reputation_risk_or_opportunity",
-        "recency",
-        "evidence_quality"
+        "evidence_quality",
+        "novelty",
+        "recency"
       ],
+      "score_weights": {
+        "source_authority": 0.25,
+        "buyer_relevance": 0.25,
+        "reputation_risk_or_opportunity": 0.2,
+        "evidence_quality": 0.15,
+        "novelty": 0.1,
+        "recency": 0.05
+      },
       "confidence_score": 70,
       "confidence_rationale": "Replace with a concise explanation of source coverage, cross-checking, and why the ranking is reliable.",
       "limitations": [
@@ -449,7 +457,15 @@
         "source": "Example National Business Source",
         "source_type": "national_business_press",
         "sentiment": "positive",
-        "influence_score": 95,
+        "influence_score": 92,
+        "influence_subscores": {
+          "source_authority": 95,
+          "buyer_relevance": 92,
+          "reputation_risk_or_opportunity": 90,
+          "evidence_quality": 94,
+          "novelty": 88,
+          "recency": 90
+        },
         "rank_reason": "Replace with why this story ranked above the others.",
         "publisher_logo_url": "slide-assets/news.png",
         "url": "https://example.com/news/story-1",
@@ -461,7 +477,15 @@
         "source": "Example Trade Source",
         "source_type": "trade_press",
         "sentiment": "mixed",
-        "influence_score": 88,
+        "influence_score": 86,
+        "influence_subscores": {
+          "source_authority": 84,
+          "buyer_relevance": 90,
+          "reputation_risk_or_opportunity": 86,
+          "evidence_quality": 86,
+          "novelty": 82,
+          "recency": 84
+        },
         "rank_reason": "Replace with why this story ranked above the others.",
         "publisher_logo_url": "slide-assets/news.png",
         "url": "https://example.com/news/story-2",
@@ -473,7 +497,15 @@
         "source": "Example Investor Source",
         "source_type": "financial_investor_press",
         "sentiment": "neutral",
-        "influence_score": 82,
+        "influence_score": 80,
+        "influence_subscores": {
+          "source_authority": 86,
+          "buyer_relevance": 78,
+          "reputation_risk_or_opportunity": 78,
+          "evidence_quality": 82,
+          "novelty": 74,
+          "recency": 76
+        },
         "rank_reason": "Replace with why this story ranked above the others.",
         "publisher_logo_url": "slide-assets/news.png",
         "url": "https://example.com/news/story-3",
@@ -485,7 +517,15 @@
         "source": "Example Review Platform",
         "source_type": "review_platform",
         "sentiment": "negative",
-        "influence_score": 76,
+        "influence_score": 75,
+        "influence_subscores": {
+          "source_authority": 70,
+          "buyer_relevance": 82,
+          "reputation_risk_or_opportunity": 78,
+          "evidence_quality": 72,
+          "novelty": 68,
+          "recency": 70
+        },
         "rank_reason": "Replace with why this story ranked above the others.",
         "publisher_logo_url": "slide-assets/news.png",
         "url": "https://example.com/news/story-4",
@@ -497,7 +537,15 @@
         "source": "Example Consumer Source",
         "source_type": "consumer_press",
         "sentiment": "positive",
-        "influence_score": 71,
+        "influence_score": 70,
+        "influence_subscores": {
+          "source_authority": 74,
+          "buyer_relevance": 70,
+          "reputation_risk_or_opportunity": 66,
+          "evidence_quality": 70,
+          "novelty": 64,
+          "recency": 68
+        },
         "rank_reason": "Replace with why this story ranked above the others.",
         "publisher_logo_url": "slide-assets/news.png",
         "url": "https://example.com/news/story-5",

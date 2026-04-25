@@ -50,11 +50,19 @@ REPUTATION_SOURCE_TYPES = {
 REPUTATION_RANKING_FACTORS = (
     "source_authority",
     "buyer_relevance",
-    "novelty",
     "reputation_risk_or_opportunity",
-    "recency",
     "evidence_quality",
+    "novelty",
+    "recency",
 )
+REPUTATION_SCORE_WEIGHTS = {
+    "source_authority": 0.25,
+    "buyer_relevance": 0.25,
+    "reputation_risk_or_opportunity": 0.20,
+    "evidence_quality": 0.15,
+    "novelty": 0.10,
+    "recency": 0.05,
+}
 
 
 TASK_DEFINITIONS = [
@@ -412,6 +420,35 @@ def normalised_source(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip()).lower()
 
 
+def calculate_reputation_influence_score(subscores: dict[str, Any]) -> int | None:
+    total = 0.0
+    for factor, weight in REPUTATION_SCORE_WEIGHTS.items():
+        value = as_int(subscores.get(factor))
+        if value is None or value < 1 or value > 100:
+            return None
+        total += value * weight
+    return int(round(total))
+
+
+def reputation_subscore_summary(subscores: Any) -> str:
+    if not isinstance(subscores, dict):
+        return ""
+    labels = {
+        "source_authority": "authority",
+        "buyer_relevance": "buyer",
+        "reputation_risk_or_opportunity": "impact",
+        "evidence_quality": "evidence",
+        "novelty": "novelty",
+        "recency": "recency",
+    }
+    parts = []
+    for factor in REPUTATION_RANKING_FACTORS:
+        value = as_int(subscores.get(factor))
+        if value is not None:
+            parts.append(f"{labels[factor]} {value}")
+    return ", ".join(parts)
+
+
 def validate_reputation_ranking_contract(
     news: Any,
     method: Any,
@@ -454,6 +491,19 @@ def validate_reputation_ranking_contract(
             f"{prefix.replace('influential_news', 'influence_ranking')}.ranking_factors must include: "
             + ", ".join(REPUTATION_RANKING_FACTORS)
         )
+    weights = method.get("score_weights")
+    if not isinstance(weights, dict):
+        errors.append(f"{prefix.replace('influential_news', 'influence_ranking')}.score_weights must define the scoring weights.")
+    else:
+        for factor, expected in REPUTATION_SCORE_WEIGHTS.items():
+            raw = weights.get(factor)
+            try:
+                actual = float(raw)
+            except (TypeError, ValueError):
+                errors.append(f"{prefix.replace('influential_news', 'influence_ranking')}.score_weights.{factor} must be {expected}.")
+                continue
+            if abs(actual - expected) > 0.0001:
+                errors.append(f"{prefix.replace('influential_news', 'influence_ranking')}.score_weights.{factor} must be {expected}.")
 
     sources: list[str] = []
     source_types: list[str] = []
@@ -475,6 +525,15 @@ def validate_reputation_ranking_contract(
             errors.append(f"{item_prefix}.influence_score must be an integer from 1 to 100.")
         else:
             scores.append(score)
+        subscores = item.get("influence_subscores")
+        if not isinstance(subscores, dict):
+            errors.append(f"{item_prefix}.influence_subscores must provide the six weighted factor scores.")
+        else:
+            calculated = calculate_reputation_influence_score(subscores)
+            if calculated is None:
+                errors.append(f"{item_prefix}.influence_subscores values must be integers from 1 to 100 for: {', '.join(REPUTATION_RANKING_FACTORS)}.")
+            elif score is not None and calculated != score:
+                errors.append(f"{item_prefix}.influence_score must equal the weighted subscore calculation ({calculated}); found {score}.")
         source_type = str(item.get("source_type", "")).strip()
         if source_type not in REPUTATION_SOURCE_TYPES:
             errors.append(f"{item_prefix}.source_type must be one of: {', '.join(sorted(REPUTATION_SOURCE_TYPES))}.")
@@ -1175,7 +1234,8 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
             source_logo = asset_src(data_path, item.get("source_logo_url", "") or item.get("publisher_logo_url", ""))
             score = item.get("influence_score", "")
             rank_reason = item.get("rank_reason") or item.get("why_it_matters", "")
-            items.append(f"<article class='news'>{f'<img src={html.escape(json.dumps(source_logo))} alt={html.escape(json.dumps(str(item.get('source', 'source')) + ' logo'))}>' if source_logo else ''}<p class='eyebrow'>{html.escape(str(item.get('date', '')))} | {html.escape(str(item.get('source', '')))} | Influence {html.escape(str(score))}</p><h3>{html.escape(str(item.get('headline', '')))}</h3><p><strong>Why it ranked:</strong> {html.escape(str(rank_reason))}</p><p>{html.escape(str(item.get('why_it_matters', '')))}</p></article>")
+            subscore_summary = reputation_subscore_summary(item.get("influence_subscores"))
+            items.append(f"<article class='news'>{f'<img src={html.escape(json.dumps(source_logo))} alt={html.escape(json.dumps(str(item.get('source', 'source')) + ' logo'))}>' if source_logo else ''}<p class='eyebrow'>{html.escape(str(item.get('date', '')))} | {html.escape(str(item.get('source', '')))} | Influence {html.escape(str(score))}</p><h3>{html.escape(str(item.get('headline', '')))}</h3><p><strong>Why it ranked:</strong> {html.escape(str(rank_reason))}</p>{f'<p class=\"muted\"><strong>Score basis:</strong> {html.escape(subscore_summary)}</p>' if subscore_summary else ''}<p>{html.escape(str(item.get('why_it_matters', '')))}</p></article>")
         sections.append("<section><h2>Influential News</h2>" + "".join(items) + "</section>")
     campaigns = campaign_section(data).get("ideas", [])
     if campaigns:

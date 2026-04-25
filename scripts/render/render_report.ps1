@@ -1201,12 +1201,29 @@ function ConvertTo-NewsTableHtml {
     }
 
     $rows = foreach ($item in $Items) {
+        $subscores = @()
+        if ($item.influence_subscores) {
+            foreach ($entry in @(
+                @{ key = 'source_authority'; label = 'authority' },
+                @{ key = 'buyer_relevance'; label = 'buyer' },
+                @{ key = 'reputation_risk_or_opportunity'; label = 'impact' },
+                @{ key = 'evidence_quality'; label = 'evidence' },
+                @{ key = 'novelty'; label = 'novelty' },
+                @{ key = 'recency'; label = 'recency' }
+            )) {
+                $value = $item.influence_subscores.($entry.key)
+                if ($null -ne $value -and "$value".Trim()) {
+                    $subscores += "$($entry.label) $value"
+                }
+            }
+        }
         [pscustomobject]@{
             date = [string]$item.date
             influence = [string]$item.influence_score
             headline = [string]$item.headline
             source = (ConvertTo-PublisherLogoHtml $item)
             rank_reason = if ($item.rank_reason) { [string]$item.rank_reason } else { [string]$item.why_it_matters }
+            score_basis = ($subscores -join ', ')
             why_it_matters = [string]$item.why_it_matters
         }
     }
@@ -1217,6 +1234,7 @@ function ConvertTo-NewsTableHtml {
         @{ header = 'Headline'; key = 'headline' },
         @{ header = 'Source'; key = 'source'; raw_html = $true },
         @{ header = 'Why it ranked'; key = 'rank_reason' },
+        @{ header = 'Score basis'; key = 'score_basis' },
         @{ header = 'Why it mattered'; key = 'why_it_matters' }
     )
 }
