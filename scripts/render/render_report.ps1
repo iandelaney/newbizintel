@@ -1416,7 +1416,7 @@ function ConvertTo-CreativeCampaignIdeasHtml {
             return ''
         }
 
-        $itemHtml = foreach ($item in $items) {
+        $itemHtml = @(foreach ($item in $items) {
             $name = [string]$item.name
             if ([string]::IsNullOrWhiteSpace($name)) {
                 continue
@@ -1429,6 +1429,14 @@ function ConvertTo-CreativeCampaignIdeasHtml {
 
             if (-not [string]::IsNullOrWhiteSpace([string]$item.looks_like)) {
                 $parts += '<p><strong>What it looks like</strong> {0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.looks_like))
+            }
+
+            $exampleMoments = @($item.example_moments | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+            if ($exampleMoments.Count -gt 0) {
+                $exampleHtml = foreach ($entry in $exampleMoments) {
+                    '<li>{0}</li>' -f (ConvertTo-HtmlEncoded ([string]$entry))
+                }
+                $parts += '<div class="idea-activation-plan__examples"><strong>Example moments</strong><ul>{0}</ul></div>' -f ($exampleHtml -join '')
             }
 
             if (-not [string]::IsNullOrWhiteSpace([string]$item.why_this_format)) {
@@ -1458,15 +1466,26 @@ function ConvertTo-CreativeCampaignIdeasHtml {
   $(($parts -join "`n"))
 </li>
 "@
-        }
+        })
 
         if (-not $itemHtml -or $itemHtml.Count -eq 0) {
             return ''
         }
 
-        return @"
+        if ($itemHtml.Count -eq 1) {
+            return @"
 <div class="idea-activation-plan">
   <p><strong>Activation expression</strong></p>
+  <div class="idea-activation-plan__single">
+    $($itemHtml[0] -replace '^<li class="idea-activation-plan__item">', '<div class="idea-activation-plan__item">' -replace '</li>$', '</div>')
+  </div>
+</div>
+"@
+        }
+
+        return @"
+<div class="idea-activation-plan">
+  <p><strong>Activation expressions</strong></p>
   <ol class="idea-activation-plan__list">
     $(($itemHtml -join "`n"))
   </ol>
