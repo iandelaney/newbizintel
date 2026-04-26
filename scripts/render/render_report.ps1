@@ -1676,11 +1676,21 @@ function ConvertTo-LabelValueGridHtml {
     $rows = $Items | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.value) } | ForEach-Object {
         $profiles = @($_.profiles) + @($_.linkedin_profiles)
         $profilesHtml = ConvertTo-ProfileLinksHtml $profiles
+        $sourceValue = [string]$_.source_url
+        if ([string]::IsNullOrWhiteSpace($sourceValue)) {
+            $sourceValue = [string]$_.url
+        }
+        $sourceHref = Get-SafeHref $sourceValue
+        $sourceHtml = ''
+        if (-not [string]::IsNullOrWhiteSpace($sourceHref)) {
+            $sourceHtml = "<p class=`"snapshot-source`"><a class=`"source-ref`" href=`"$(ConvertTo-HtmlEncoded $sourceHref)`" target=`"_blank`" rel=`"noreferrer noopener`">[link]</a></p>"
+        }
         @"
       <div class="$cardClass">
         <strong>$(ConvertTo-HtmlEncoded ([string]$_.label))</strong>
         $(ConvertTo-RichText ([string]$_.value))
 $profilesHtml
+$sourceHtml
       </div>
 "@
     }
@@ -1696,6 +1706,50 @@ $profilesHtml
 
     return @"
     <div class="$classAttribute">
+$($rows -join "`n")
+    </div>
+"@
+}
+
+function ConvertTo-PeopleGridHtml {
+    param(
+        [object[]]$People,
+        [string]$GridClass = 'snapshot-grid people-grid'
+    )
+
+    if (-not $People -or $People.Count -eq 0) {
+        return ''
+    }
+
+    $rows = $People | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.name) } | ForEach-Object {
+        $profiles = @($_.profiles) + @($_.linkedin_profiles)
+        $profilesHtml = ConvertTo-ProfileLinksHtml $profiles
+        $sourceValue = [string]$_.source_url
+        if ([string]::IsNullOrWhiteSpace($sourceValue)) {
+            $sourceValue = [string]$_.url
+        }
+        $sourceHref = Get-SafeHref $sourceValue
+        $sourceHtml = ''
+        if (-not [string]::IsNullOrWhiteSpace($sourceHref)) {
+            $sourceHtml = "<p class=`"snapshot-source`"><a class=`"source-ref`" href=`"$(ConvertTo-HtmlEncoded $sourceHref)`" target=`"_blank`" rel=`"noreferrer noopener`">[link]</a></p>"
+        }
+        @"
+      <div class="card snapshot-card person-card">
+        <strong>$(ConvertTo-HtmlEncoded ([string]$_.name))</strong>
+        <p class="person-role">$(ConvertTo-HtmlEncoded ([string]$_.role))</p>
+        $(ConvertTo-RichText ([string]$_.value))
+$profilesHtml
+$sourceHtml
+      </div>
+"@
+    }
+
+    if (-not $rows) {
+        return ''
+    }
+
+    return @"
+    <div class="card-grid $GridClass">
 $($rows -join "`n")
     </div>
 "@
@@ -1777,6 +1831,16 @@ $(ConvertTo-TocHtml $tocItems)
     $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Company Snapshot' -IconKey 'snapshot' -Id 'company-snapshot')
     $(ConvertTo-RichText ([string]$data.company_snapshot.summary))
 $(ConvertTo-LabelValueGridHtml -Items @($data.company_snapshot.items) -Compact -GridClass 'snapshot-grid')
+    $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Finance and Scale' -IconKey 'snapshot' -Class 'category-heading')
+$(ConvertTo-LabelValueGridHtml -Items @($data.company_snapshot.finance_stats) -Compact -GridClass 'snapshot-grid snapshot-grid--finance')
+    $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Leadership' -IconKey 'summary' -Class 'category-heading')
+$(ConvertTo-PeopleGridHtml -People @($data.company_snapshot.leadership))
+    $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Founders' -IconKey 'ideas' -Class 'category-heading')
+$(ConvertTo-PeopleGridHtml -People @($data.company_snapshot.founders))
+    $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Ownership and Funding' -IconKey 'opportunities' -Class 'category-heading')
+$(ConvertTo-LabelValueGridHtml -Items @($data.company_snapshot.ownership_funding) -Compact -GridClass 'snapshot-grid')
+    $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Snapshot Sources' -IconKey 'sources' -Class 'category-heading')
+$(ConvertTo-LabelValueGridHtml -Items @($data.company_snapshot.source_map) -Compact -GridClass 'snapshot-grid snapshot-grid--sources')
 $(ConvertTo-BackToContentsHtml)
 
     $(ConvertTo-HeadingHtml -Level 'h2' -Text 'Executive Summary' -IconKey 'summary' -Id 'executive-summary')

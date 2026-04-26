@@ -75,7 +75,7 @@ The visible workflow task list, `run-state.json.task_list`, `workflow-task-list.
    - Trust test: At least two SEO evidence points are available, with SEMrush status explicitly recorded as passed, partial, quota-limited, or blocked.
 5. Report structure and data contract
    - Primary gate: `gate_5_report_structure`
-   - Trust test: `report-data.json` passes schema validation and freshness is updated.
+   - Trust test: `report-data.json` passes schema validation and freshness is updated. The Company Snapshot must include the strategic overview plus finance/scale stats, current leadership with profile/social links where available, founders, ownership/funding, and a source map.
 6. Brand, competitor, and source logos
    - Primary gate: `gate_6_logos_and_assets`
    - Trust test: Brand, competitor, and news/source logos resolve without generic fallbacks. Competitor logos must prefer real square marks, favicons, or app icons over wide wordmarks; if no real square mark exists, create a square badge by trimming and centring the real acquired wordmark rather than using a generic text card. A square asset is not enough on its own: the visible logo content must occupy enough of the badge to be legible in the competitor table. Wide wordmarks must be converted into square initial-letter marks, not rectangular table logo assets or tiny square-padded wordmarks.
@@ -92,6 +92,18 @@ The `agency_opportunity.department_opportunity_map` items are an external-facing
 - Use `opportunity_signal` as the card body. `rationale` may support downstream tables, but should still explain the concrete brand opportunity rather than internal agency rules.
 - Status fields such as `tone`, `opportunity`, `cost_multiplier`, and `lead_department` may remain in the data for scoring, ordering, and later workflow decisions, but must not be the visible lead content of the cards.
 - Do not render a separate `Department Opportunity Map` table. It duplicates the cards and tends to expose internal scoring/rubric language.
+
+## Company Snapshot
+
+The `company_snapshot` section is a factual briefing module, not just a positioning summary.
+
+- Keep the six strategic overview cards, but do not stop there.
+- Include `finance_stats` with at least three current finance, scale, operating, customer, employee, or market-status facts.
+- Include `leadership` with named current leaders, roles, concise relevance notes, and profile/social links where available. Official leadership pages can be used when individual social profiles cannot be verified.
+- Include `founders` with names, founding context, and whether founder involvement is still relevant.
+- Include `ownership_funding` with public listing, parent company, investor, funding, IPO, acquisition, or ownership context.
+- Include `source_map` so readers can verify finance, leadership, founder, and ownership facts.
+- The report-data validation gate must fail if this richer snapshot collapses back to generic cards only.
 8. HTML, portable HTML, and PPTX render
    - Primary gate: `gate_8_render_outputs`
    - Trust test: Rendered HTML, portable HTML, and PPTX exist and are current.

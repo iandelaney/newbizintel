@@ -129,7 +129,7 @@ TASK_DEFINITIONS = [
         "title": "Report structure and data contract",
         "gates": ["gate_5_report_structure"],
         "legacy_gates": ["gate_4_report_data"],
-        "trust_test": "report-data.json passes schema validation and freshness is updated.",
+        "trust_test": "report-data.json passes schema validation, freshness is updated, and the Company Snapshot includes finance, leadership/profile links, founders, ownership/funding, and source-map evidence.",
     },
     {
         "id": 6,
@@ -894,6 +894,68 @@ def validate_seo_charts(charts: Any, errors: list[str]) -> None:
                 )
 
 
+def validate_company_snapshot_contract(data: dict[str, Any], errors: list[str]) -> None:
+    snapshot = data.get("company_snapshot", {})
+    if not isinstance(snapshot, dict):
+        errors.append("company_snapshot must be an object.")
+        return
+
+    required_sections = {
+        "items": 6,
+        "finance_stats": 3,
+        "leadership": 2,
+        "founders": 1,
+        "ownership_funding": 2,
+        "source_map": 3,
+    }
+    for section, minimum in required_sections.items():
+        values = snapshot.get(section)
+        if not isinstance(values, list) or len([item for item in values if has_value(item)]) < minimum:
+            errors.append(f"company_snapshot.{section} must include at least {minimum} populated item(s).")
+
+    for section in ("items", "finance_stats", "ownership_funding", "source_map"):
+        for index, item in enumerate(snapshot.get(section, []) if isinstance(snapshot.get(section), list) else []):
+            if not isinstance(item, dict):
+                errors.append(f"company_snapshot.{section}[{index}] must be an object.")
+                continue
+            for key in ("label", "value"):
+                if not has_value(item.get(key)):
+                    errors.append(f"company_snapshot.{section}[{index}].{key} is required.")
+            if section in ("finance_stats", "ownership_funding", "source_map") and not has_value(
+                item.get("source_url") or item.get("url")
+            ):
+                errors.append(f"company_snapshot.{section}[{index}] must include a source_url or url.")
+
+    leadership_profiles = 0
+    for index, item in enumerate(snapshot.get("leadership", []) if isinstance(snapshot.get("leadership"), list) else []):
+        if not isinstance(item, dict):
+            errors.append(f"company_snapshot.leadership[{index}] must be an object.")
+            continue
+        for key in ("name", "role", "value"):
+            if not has_value(item.get(key)):
+                errors.append(f"company_snapshot.leadership[{index}].{key} is required.")
+        profiles = item.get("profiles") or item.get("linkedin_profiles") or []
+        if isinstance(profiles, list) and any(has_value(profile.get("url") if isinstance(profile, dict) else profile) for profile in profiles):
+            leadership_profiles += 1
+    if leadership_profiles < 2:
+        errors.append("company_snapshot.leadership must include profile/social links for at least 2 leaders.")
+
+    for index, item in enumerate(snapshot.get("founders", []) if isinstance(snapshot.get("founders"), list) else []):
+        if not isinstance(item, dict):
+            errors.append(f"company_snapshot.founders[{index}] must be an object.")
+            continue
+        for key in ("name", "value"):
+            if not has_value(item.get(key)):
+                errors.append(f"company_snapshot.founders[{index}].{key} is required.")
+
+
+def is_enriched_company_snapshot(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    required_sections = ("items", "finance_stats", "leadership", "founders", "ownership_funding", "source_map")
+    return all(isinstance(value.get(section), list) and len(value.get(section) or []) > 0 for section in required_sections)
+
+
 def validate_report_data(data_path: Path) -> dict[str, Any]:
     data = read_json(data_path)
     errors: list[str] = []
@@ -913,6 +975,13 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
         "report_meta.audience",
         "report_meta.distribution",
         "report_meta.purpose",
+        "company_snapshot.summary",
+        "company_snapshot.items",
+        "company_snapshot.finance_stats",
+        "company_snapshot.leadership",
+        "company_snapshot.founders",
+        "company_snapshot.ownership_funding",
+        "company_snapshot.source_map",
         "agency_opportunity.score",
         "agency_opportunity.summary",
         "agency_opportunity.lead_offering.name",
@@ -943,6 +1012,7 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     content_audit = audit_missing_content(data)
     if not content_audit["ok"]:
         errors.extend(f"missing_content_audit: {error}" for error in content_audit.get("errors", []))
+    validate_company_snapshot_contract(data, errors)
     usp = data.get("usp_ksp_review", {})
     if isinstance(usp, dict):
         usp_rows = usp.get("rows", [])
@@ -1277,7 +1347,14 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         f"Reputation findings use broad-first scored reduction from {len(summary.get('influence_ranking', {}).get('candidate_pool_summary', []) or [])} candidate stories.",
     ]
 
-    data["company_snapshot"] = {
+    summary_snapshot = summary.get("company_snapshot")
+    existing_snapshot = data.get("company_snapshot")
+    if is_enriched_company_snapshot(summary_snapshot):
+        data["company_snapshot"] = summary_snapshot
+    elif is_enriched_company_snapshot(existing_snapshot):
+        data["company_snapshot"] = existing_snapshot
+    else:
+        data["company_snapshot"] = {
         "summary": f"{brand} is treated in this report as a meal-kit and prepared-food subscription brand with UK customer-acquisition, trust, and retention opportunities.",
         "items": [
             {"label": "Company status", "value": f"{brand} operates a consumer meal-planning and recipe-box service through {website}."},
@@ -1287,7 +1364,62 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             {"label": "Current reputation context", "value": sentence(top_news.get("why_it_matters"), "Reputation evidence points to trust and service reassurance as priority themes.")},
             {"label": "Evidence base", "value": f"Research summary uses {len(news)} ranked reputation stories, {len(competitors)} competitors, and {len(search_evidence)} search evidence points."},
         ],
-    }
+        "finance_stats": [
+            {
+                "label": "Finance and scale",
+                "value": "Public finance, scale, and operating metrics must be drawn from the latest annual report, investor update, Companies House filing, or credible financial database before outreach.",
+                "source_url": website,
+            },
+            {
+                "label": "Trading or funding status",
+                "value": "Record whether the company is public, privately funded, founder-owned, PE-backed, or part of a wider group, with the evidence source named.",
+                "source_url": website,
+            },
+            {
+                "label": "Commercial momentum",
+                "value": "Summarise the latest available revenue, growth, profitability, customer, employee, or geographic scale indicators rather than leaving the snapshot at proposition level.",
+                "source_url": website,
+            },
+        ],
+        "leadership": [
+            {
+                "name": "Leadership source pending",
+                "role": "Executive leadership",
+                "value": "Named current leaders, roles, and profile or social links should be collected from official leadership pages and verified public profiles before publication.",
+                "profiles": [{"name": "Company site", "platform": "Profile", "url": website}],
+            },
+            {
+                "name": "Commercial contact map",
+                "role": "Marketing, brand, content, growth, or communications lead",
+                "value": "Identify likely stakeholder groups and include profile links where public profiles are available.",
+                "profiles": [{"name": "Company site", "platform": "Profile", "url": website}],
+            },
+        ],
+        "founders": [
+            {
+                "name": "Founding story source pending",
+                "value": "Founders, founding year, origin story, and current founder involvement should be confirmed from public company or filings sources.",
+                "source_url": website,
+            }
+        ],
+        "ownership_funding": [
+            {
+                "label": "Ownership",
+                "value": "Record ownership structure, parent company, listing status, or controlling investors from public filings.",
+                "source_url": website,
+            },
+            {
+                "label": "Funding history",
+                "value": "Record known funding, IPO, acquisition, or backing history where publicly disclosed; otherwise state that it is not publicly disclosed in the checked sources.",
+                "source_url": website,
+            },
+        ],
+        "source_map": [
+            {"label": "Company website", "value": "Primary identity and proposition source.", "source_url": website},
+            {"label": "Investor or filings source", "value": "Required for finance, ownership, and governance facts.", "source_url": website},
+            {"label": "Leadership source", "value": "Required for current leadership and profile links.", "source_url": website},
+        ],
+        }
 
     data["executive_summary"] = {
         "cards": [
@@ -3618,8 +3750,36 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
     )
     snapshot_items = data.get("company_snapshot", {}).get("items", [])
     if snapshot_items:
-        rows = "".join(f"<tr><th>{html.escape(str(item.get('label', '')))}</th><td>{html.escape(str(item.get('value', '')))}</td></tr>" for item in snapshot_items)
-        sections.append(f"<section><h2>Company Snapshot</h2><table>{rows}</table></section>")
+        snapshot = data.get("company_snapshot", {})
+
+        def snapshot_rows(items: Any) -> str:
+            if not isinstance(items, list):
+                return ""
+            rows: list[str] = []
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                label = item.get("label") or item.get("name") or ""
+                role = item.get("role") or ""
+                value = item.get("value") or ""
+                source = item.get("source_url") or item.get("url") or ""
+                source_html = f' <a href="{html.escape(str(source))}">[link]</a>' if source else ""
+                label_html = html.escape(str(label))
+                if role:
+                    label_html += f"<br><small>{html.escape(str(role))}</small>"
+                rows.append(f"<tr><th>{label_html}</th><td>{html.escape(str(value))}{source_html}</td></tr>")
+            return "".join(rows)
+
+        snapshot_tables = [
+            ("Snapshot", snapshot_rows(snapshot_items)),
+            ("Finance and Scale", snapshot_rows(snapshot.get("finance_stats"))),
+            ("Leadership", snapshot_rows(snapshot.get("leadership"))),
+            ("Founders", snapshot_rows(snapshot.get("founders"))),
+            ("Ownership and Funding", snapshot_rows(snapshot.get("ownership_funding"))),
+            ("Sources", snapshot_rows(snapshot.get("source_map"))),
+        ]
+        body = "".join(f"<h3>{html.escape(title)}</h3><table>{rows}</table>" for title, rows in snapshot_tables if rows)
+        sections.append(f"<section><h2>Company Snapshot</h2>{body}</section>")
     exec_cards = data.get("executive_summary", {}).get("cards", [])
     if exec_cards:
         sections.append("<section><h2>Executive Summary</h2><div class='grid'>" + "".join(card_html(card.get("title"), card.get("body")) for card in exec_cards) + "</div></section>")
@@ -4163,7 +4323,9 @@ def module_render(args: argparse.Namespace) -> dict[str, Any]:
 def audit_task_list(data_path: Path) -> dict[str, Any]:
     brand_folder = data_path.parent
     state = load_state(brand_folder)
+    ensure_task_list(state)
     sync_task_status_from_gates(state)
+    save_state(brand_folder, state)
     tasks = sorted(state.get("task_list", []), key=lambda item: item["id"])
     errors = []
     if len(tasks) != 10:
