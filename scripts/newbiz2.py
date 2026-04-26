@@ -137,7 +137,7 @@ TASK_DEFINITIONS = [
         "title": "Brand, competitor, and source logos",
         "gates": ["gate_6_logos_and_assets"],
         "legacy_gates": ["gate_5_assets", "gate_5a_source_badges", "gate_5b_required_logos"],
-        "trust_test": "Brand, competitor, and news/source logos resolve without missing or generic HTML fallbacks; competitor badges prefer square marks/icons, with wide or unavailable candidates converted to checked square initial-letter marks.",
+        "trust_test": "Brand, competitor, and news/source logos resolve without missing or generic HTML fallbacks; the primary brand logo must come from a first-party or verified colour asset, not a monochrome Simple Icons proxy; competitor badges prefer square marks/icons, with wide or unavailable candidates converted to checked square initial-letter marks.",
     },
     {
         "id": 7,
@@ -2642,6 +2642,64 @@ def download(url: str, destination: Path, timeout: int = 25) -> bool:
         return False
 
 
+def absolute_url(base_url: str, value: str) -> str:
+    value = html.unescape((value or "").strip().strip("'\""))
+    if not value:
+        return ""
+    if value.startswith("//"):
+        parsed = urllib.parse.urlparse(normalize_url(base_url))
+        return f"{parsed.scheme}:{value}"
+    return urllib.parse.urljoin(normalize_url(base_url), value)
+
+
+def discover_site_logo_candidates(website: str) -> list[str]:
+    """Find first-party logo candidates from page metadata before using generic icon services."""
+    if not website:
+        return []
+    try:
+        url = normalize_url(website)
+        request = urllib.request.Request(url, headers={"User-Agent": "newbiz2-python-runner/1.0"})
+        with urllib.request.urlopen(request, timeout=25) as response:
+            text = response.read(1_500_000).decode("utf-8", errors="ignore")
+    except Exception:
+        return []
+    candidates: list[str] = []
+
+    def add(value: str) -> None:
+        candidate = absolute_url(website, value)
+        if candidate and candidate not in candidates and re.search(r"\.(?:png|jpe?g|webp|svg|ico)(?:[?#].*)?$", candidate, re.I):
+            candidates.append(candidate)
+
+    for match in re.finditer(r'<meta\b[^>]*(?:property|name)=["\'](?:og:image|twitter:image|thumbnail)["\'][^>]*content=["\']([^"\']+)["\']', text, re.I):
+        add(match.group(1))
+    for match in re.finditer(r'<meta\b[^>]*content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\'](?:og:image|twitter:image|thumbnail)["\']', text, re.I):
+        add(match.group(1))
+    for match in re.finditer(r'<link\b[^>]*rel=["\'][^"\']*(?:icon|apple-touch-icon|preload)[^"\']*["\'][^>]*(?:href|imagesrcset)=["\']([^"\']+)["\']', text, re.I):
+        values = [part.strip().split()[0] for part in match.group(1).split(",")]
+        for value in values:
+            add(value)
+    for match in re.finditer(r'"logo"\s*:\s*"([^"]+)"', text, re.I):
+        add(match.group(1))
+    for match in re.finditer(r'https?://[^"\'<>\s]+(?:logo|Logo|favicon|FavIcon)[^"\'<>\s]*\.(?:png|jpe?g|webp|svg|ico)', text):
+        add(match.group(0))
+    def score(candidate: str) -> tuple[int, int]:
+        lower = candidate.lower()
+        priority = 0
+        if "lockup" in lower:
+            priority -= 60
+        if "logo_square" in lower or "square" in lower:
+            priority -= 40
+        if "logo" in lower:
+            priority -= 20
+        if "favicon" in lower or "apple-touch" in lower:
+            priority += 10
+        if "og:image" in lower or "thumbnail" in lower:
+            priority += 20
+        return (priority, len(candidate))
+
+    return sorted(candidates, key=score)
+
+
 def icon_slug(name: str, website: str = "") -> str:
     clean = re.sub(r"[^a-z0-9 ]+", " ", (name or "").lower()).strip()
     if clean in SIMPLEICON_OVERRIDES:
@@ -2654,18 +2712,26 @@ def icon_slug(name: str, website: str = "") -> str:
     return slugify(clean or name)
 
 
-def acquire_logo(name: str, website: str, destination: Path, candidates: list[str] | None = None) -> tuple[bool, str]:
-    for sibling in [
-        destination.with_suffix(".png"),
-        destination.with_suffix(".jpg"),
-        destination.with_suffix(".jpeg"),
-        destination.with_suffix(".webp"),
-    ]:
-        if sibling.exists() and quality_ok(sibling):
-            return True, "local-raster"
-    if destination.exists() and destination.suffix.lower() != ".svg" and quality_ok(destination):
-        return True, "local"
+def acquire_logo(
+    name: str,
+    website: str,
+    destination: Path,
+    candidates: list[str] | None = None,
+    *,
+    allow_simpleicons: bool = True,
+) -> tuple[bool, str]:
     urls = list(candidates or [])
+    if not urls:
+        for sibling in [
+            destination.with_suffix(".png"),
+            destination.with_suffix(".jpg"),
+            destination.with_suffix(".jpeg"),
+            destination.with_suffix(".webp"),
+        ]:
+            if sibling.exists() and quality_ok(sibling):
+                return True, "local-raster"
+        if destination.exists() and destination.suffix.lower() != ".svg" and quality_ok(destination):
+            return True, "local"
     slug = icon_slug(name, website)
     if website:
         parsed = urllib.parse.urlparse(normalize_url(website))
@@ -2680,7 +2746,8 @@ def acquire_logo(name: str, website: str, destination: Path, candidates: list[st
                 f"https://www.google.com/s2/favicons?sz=256&domain_url={urllib.parse.quote(origin)}",
             ]
         )
-    urls.append(f"https://cdn.simpleicons.org/{urllib.parse.quote(slug)}/000000")
+    if allow_simpleicons:
+        urls.append(f"https://cdn.simpleicons.org/{urllib.parse.quote(slug)}/000000")
     for url in urls:
         suffix = ".svg" if "simpleicons.org" in url else Path(urllib.parse.urlparse(url).path).suffix.lower() or ".png"
         if suffix not in {".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"}:
@@ -3008,6 +3075,28 @@ def preferred_logo_asset(asset_dir: Path, stem: str, prefer_square: bool = False
     return matches[0] if matches else None
 
 
+def brand_logo_manifest_entry(name: str, asset: str, source: str, ok: bool, brand_folder: Path) -> dict[str, Any]:
+    entry: dict[str, Any] = {"name": name, "asset": asset, "ok": ok, "resolution_source": source}
+    asset_path = (brand_folder / asset).resolve() if asset and not Path(asset).is_absolute() else Path(asset)
+    quality = asset_quality(asset_path) if asset else {"exists": False, "valid_image": False, "width": 0, "height": 0, "bytes": 0, "format": "", "reason": "missing"}
+    entry["quality"] = quality
+    if source and "simpleicons.org" in source.lower():
+        entry["ok"] = False
+        entry["error"] = "Primary brand logo used Simple Icons monochrome proxy rather than a first-party brand asset."
+    elif source in {"local-svg", "local"} and asset_path.suffix.lower() == ".svg":
+        svg_text = asset_path.read_text(encoding="utf-8", errors="ignore") if asset_path.exists() else ""
+        if "simpleicons" in svg_text.lower() or re.search(r'fill=["\']#?000(?:000)?["\']', svg_text, re.I):
+            entry["ok"] = False
+            entry["error"] = "Primary brand logo appears to be a monochrome SVG proxy; use a first-party colour logo."
+    elif not quality.get("valid_image"):
+        entry["ok"] = False
+        entry["error"] = f"Primary brand logo asset is invalid: {quality.get('reason') or 'unknown quality failure'}."
+    elif quality.get("format") != "svg" and (quality.get("width", 0) < 96 or quality.get("height", 0) < 48):
+        entry["ok"] = False
+        entry["error"] = f"Primary brand logo raster is too small ({quality.get('width')}x{quality.get('height')})."
+    return entry
+
+
 def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     asset_dir = brand_folder / "slide-assets"
     asset_dir.mkdir(parents=True, exist_ok=True)
@@ -3018,7 +3107,8 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
     brand_slug = brand.get("slug") or slugify(brand_name)
     brand["slug"] = brand_slug
     brand_logo = asset_dir / f"{brand_slug}-logo.svg"
-    ok, source = acquire_logo(brand_name, brand.get("website", ""), brand_logo)
+    brand_candidates = discover_site_logo_candidates(str(brand.get("website", "")))
+    ok, source = acquire_logo(brand_name, brand.get("website", ""), brand_logo, candidates=brand_candidates, allow_simpleicons=False)
     if ok:
         brand_asset = preferred_logo_asset(asset_dir, f"{brand_slug}-logo")
         brand["logo_url"] = relative_to_brand(brand_asset, brand_folder) if brand_asset else ""
@@ -3026,7 +3116,10 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
     else:
         manifest["ok"] = False
         manifest["errors"].append(f"{brand_name} brand logo failed: {source}")
-    manifest["brand"] = {"name": brand_name, "asset": brand.get("logo_url", ""), "ok": ok, "resolution_source": source}
+    manifest["brand"] = brand_logo_manifest_entry(brand_name, brand.get("logo_url", ""), source, ok, brand_folder)
+    if not manifest["brand"].get("ok"):
+        manifest["ok"] = False
+        manifest["errors"].append(f"{brand_name} brand logo failed: {manifest['brand'].get('error') or source}")
 
     for index, row in enumerate(data.get("competitive_landscape", {}).get("table", [])):
         name = row.get("competitor") or row.get("name") or f"competitor-{index + 1}"
