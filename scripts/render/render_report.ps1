@@ -384,7 +384,50 @@ function ConvertTo-ListHtml {
     }
 
     $listItems = $Items | ForEach-Object {
-        '<li>{0}</li>' -f (ConvertTo-RichText ([string]$_))
+        $item = $_
+        if ($null -eq $item) {
+            return
+        }
+        if ($item -is [string]) {
+            '<li>{0}</li>' -f (ConvertTo-RichText ([string]$item))
+            return
+        }
+
+        $properties = $item.PSObject.Properties
+        $platform = [string]$item.platform
+        $tone = [string]$item.tone
+        $signal = [string]$item.signal
+        $implication = [string]$item.implication
+        if (
+            -not [string]::IsNullOrWhiteSpace($platform) -or
+            -not [string]::IsNullOrWhiteSpace($signal) -or
+            -not [string]::IsNullOrWhiteSpace($implication)
+        ) {
+            $toneHtml = ''
+            if (-not [string]::IsNullOrWhiteSpace($tone)) {
+                $toneHtml = ' <span class="pill">{0}</span>' -f (ConvertTo-HtmlEncoded $tone)
+            }
+            $signalHtml = ''
+            if (-not [string]::IsNullOrWhiteSpace($signal)) {
+                $signalHtml = '<p>{0}</p>' -f (ConvertTo-HtmlEncoded $signal)
+            }
+            $implicationHtml = ''
+            if (-not [string]::IsNullOrWhiteSpace($implication)) {
+                $implicationHtml = '<p><strong>Implication:</strong> {0}</p>' -f (ConvertTo-HtmlEncoded $implication)
+            }
+            '<li><strong>{0}</strong>{1}{2}{3}</li>' -f (ConvertTo-HtmlEncoded $platform), $toneHtml, $signalHtml, $implicationHtml
+            return
+        }
+
+        $visibleValues = $properties | Where-Object {
+            $_.Name -notin @('url', 'source_url', 'logo_url', 'publisher_logo_url') -and
+            -not [string]::IsNullOrWhiteSpace([string]$_.Value)
+        } | ForEach-Object {
+            '<strong>{0}:</strong> {1}' -f (ConvertTo-HtmlEncoded ([string]$_.Name)), (ConvertTo-HtmlEncoded ([string]$_.Value))
+        }
+        if ($visibleValues) {
+            '<li>{0}</li>' -f ($visibleValues -join '<br>')
+        }
     }
 
     return "<ul>`n{0}`n</ul>" -f ($listItems -join "`n")

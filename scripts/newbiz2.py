@@ -81,6 +81,9 @@ PLACEHOLDER_MARKERS = (
     ("Example Investor Source", "template news source"),
     ("Example Review Platform", "template news source"),
     ("Example Consumer Source", "template news source"),
+    ("John Doe", "placeholder person name"),
+    ("Jane Doe", "placeholder person name"),
+    ("TBC", "unfinished generated content"),
     ("https://example.com", "template URL"),
     ("http://example.com", "template URL"),
     ("www.example.com", "template URL"),
@@ -615,6 +618,17 @@ def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
             count = len(pattern.findall(html_text))
         if count:
             errors.append(f"Rendered HTML contains {count} {reason} marker(s): {marker}.")
+    leaked_object_patterns = {
+        "PowerShell object literal": r"@\{[^}]+}",
+        "PowerShell type name": r"System\.Management\.Automation\.(?:PSCustomObject|PSObject)",
+        "JavaScript object placeholder": r"\[object Object\]",
+    }
+    for label, pattern in leaked_object_patterns.items():
+        count = len(re.findall(pattern, html_text, flags=re.I | re.S))
+        if count:
+            errors.append(
+                f"Rendered HTML contains {count} leaked {label} string(s), usually caused by rendering structured data as raw text."
+            )
     heading_pattern = re.compile(
         r'<h(?P<level>[23])[^>]*class="[^"]*(?:category-heading|section-heading)[^"]*"[^>]*>.*?<span>(?P<title>[^<]+)</span></h[23]>(?P<body>.*?)(?=<h[23][^>]*class="[^"]*(?:category-heading|section-heading)|<div class="section-return"|</section>|</main>)',
         re.I | re.S,
