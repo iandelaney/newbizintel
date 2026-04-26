@@ -1423,19 +1423,29 @@ function ConvertTo-CreativeCampaignIdeasHtml {
             }
 
             $parts = @()
-            if (-not [string]::IsNullOrWhiteSpace([string]$item.primary_goal)) {
-                $parts += '<p class="idea-activation-plan__goal">{0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.primary_goal))
+            if (-not [string]::IsNullOrWhiteSpace([string]$item.creates)) {
+                $parts += '<p><strong>What the brand creates</strong> {0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.creates))
             }
 
-            if (-not [string]::IsNullOrWhiteSpace([string]$item.narrative)) {
-                $parts += '<p>{0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.narrative))
+            if (-not [string]::IsNullOrWhiteSpace([string]$item.looks_like)) {
+                $parts += '<p><strong>What it looks like</strong> {0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.looks_like))
             }
 
-            $inputSummary = ''
-            $inputsNeeded = @($item.inputs_needed | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Select-Object -First 3)
-            if ($inputsNeeded.Count -gt 0) {
-                $inputSummary = ($inputsNeeded | ForEach-Object { [string]$_ }) -join '; '
-                $parts += '<p class="idea-activation-plan__inputs"><span>Inputs to line up:</span> {0}</p>' -f (ConvertTo-HtmlEncoded $inputSummary)
+            if (-not [string]::IsNullOrWhiteSpace([string]$item.why_this_format)) {
+                $parts += '<p><strong>Why this shape</strong> {0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.why_this_format))
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace([string]$item.intended_result)) {
+                $parts += '<p class="idea-activation-plan__result"><strong>Intended result</strong> {0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.intended_result))
+            }
+
+            if ($parts.Count -eq 0) {
+                if (-not [string]::IsNullOrWhiteSpace([string]$item.primary_goal)) {
+                    $parts += '<p class="idea-activation-plan__goal">{0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.primary_goal))
+                }
+                if (-not [string]::IsNullOrWhiteSpace([string]$item.narrative)) {
+                    $parts += '<p>{0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.narrative))
+                }
             }
 
             if ($parts.Count -eq 0) {
@@ -1456,7 +1466,7 @@ function ConvertTo-CreativeCampaignIdeasHtml {
 
         return @"
 <div class="idea-activation-plan">
-  <p><strong>How the campaign takes shape</strong></p>
+  <p><strong>Activation expression</strong></p>
   <ol class="idea-activation-plan__list">
     $(($itemHtml -join "`n"))
   </ol>

@@ -145,7 +145,7 @@ TASK_DEFINITIONS = [
         "title": "Creative campaign ideas and artwork",
         "gates": ["gate_7_campaign_ideas_and_art"],
         "legacy_gates": ["gate_5b_campaign_art"],
-        "trust_test": "Campaign ideas have a developed driving idea, descriptive implementation story, narrative activation sequence, and final raster artwork, not scaffold or generic bullet-only plans.",
+        "trust_test": "Campaign ideas have a developed driving idea, descriptive implementation story, and at least one vivid activation expression explaining what the brand creates, what it looks like, why that shape is right, and the intended result, plus final raster artwork.",
     },
     {
         "id": 8,
@@ -1035,8 +1035,8 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
             text = str(idea.get(key) or "").strip()
             if len(text) < 120:
                 errors.append(f"creative_campaign_ideas.ideas[{idea_index}].{key} must be a developed campaign narrative, not a short label or bullet fragment.")
-        if not isinstance(items, list) or len(items) < 3:
-            errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence must include at least 3 detailed items.")
+        if not isinstance(items, list) or len(items) < 1:
+            errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence must include at least 1 vivid activation expression.")
             continue
         names = []
         for item_index, item in enumerate(items):
@@ -1045,16 +1045,15 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
                 continue
             name = str(item.get("name") or "").strip()
             names.append(name.lower())
-            for key in ("name", "primary_goal", "contains", "inputs_needed"):
+            for key in ("name", "creates", "looks_like", "why_this_format", "intended_result"):
                 if not has_value(item.get(key)):
                     errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].{key} is required.")
-            narrative = str(item.get("narrative") or "").strip()
-            if len(narrative) < 80:
-                errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].narrative must explain how this part of the campaign takes shape.")
-            for list_key in ("contains", "inputs_needed"):
-                value = item.get(list_key)
-                if not isinstance(value, list) or len([entry for entry in value if has_value(entry)]) < 2:
-                    errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].{list_key} must include at least 2 concrete items.")
+            for key, minimum in (("creates", 70), ("looks_like", 90), ("why_this_format", 70), ("intended_result", 55)):
+                text = str(item.get(key) or "").strip()
+                if len(text) < minimum:
+                    errors.append(
+                        f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].{key} must be descriptive enough for a reader to picture the activation."
+                    )
         if set(names).issubset(generic_activation_names):
             errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan is too generic; item names must be campaign-specific.")
         signature = "|".join(names)
@@ -1571,29 +1570,14 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             "activation": "The campaign opens as a guided kitchen of controls, then expands into CRM, paid social, help content, and conversion modules that show customers exactly how they can choose, pause, swap, recover, and resolve.",
             "driving_idea": "Put the customer visibly in charge of the meal-kit relationship. Instead of asking people to trust a subscription system, the campaign makes the controls feel as tangible as ingredients on a worktop: change the menu, pause a week, fix a delivery, recover a missed item, and get back to dinner without drama.",
             "implementation_story": "The first expression is an interactive control kitchen where each friction point becomes a practical scenario. Paid and social executions dramatise one control at a time; CRM reassures customers at the moment they are most likely to hesitate; support and conversion pages reuse the same language so the promise feels consistent from advert to account screen.",
-            "activation_plan": [
-                {
-                    "name": "Control Kitchen experience",
-                    "primary_goal": "Create the flagship proof experience before channel rollout.",
-                    "narrative": "Visitors enter through familiar dinner-planning anxieties and see the exact controls available to them. The experience should feel less like a help page and more like a guided demonstration of how the service behaves when life changes.",
-                    "contains": ["Plan-change, pause, cancel, refund, delivery, and recovery scenarios", "Plain-English proof of what the customer can control", "Clear next actions into plan choice or help content"],
-                    "inputs_needed": ["Product and service rules", "Customer-service issue taxonomy", "UX support for a simple proof journey"],
-                },
-                {
-                    "name": "Recovery routes people can see",
-                    "primary_goal": "Make the most sensitive service moments inspectable.",
-                    "narrative": "The next layer turns support policies into customer-facing reassurance. Each common issue is shown as a short path from problem to resolution, giving search, CRM, paid, and PR traffic one transparent place to land.",
-                    "contains": ["Scenario cards for common issues", "Approved recovery standards", "Links into account, support, or conversion paths"],
-                    "inputs_needed": ["Support-team input", "Approved claims language", "Analytics plan"],
-                },
-                {
-                    "name": "Control moments in market",
-                    "primary_goal": "Turn the flagship idea into repeatable acquisition and retention assets.",
-                    "narrative": "Once the proof system is built, the campaign breaks into sharp single-moment executions: a pause-week story, a refund story, a delivery-change story, and a rescue-dinner story. Each cut-down points back to the same control architecture.",
-                    "contains": ["Paid/social proof cards", "CRM modules", "Retargeting variants by concern"],
-                    "inputs_needed": ["Media plan", "Audience segments", "Creative production"],
-                },
-            ],
+            "activation_plan": [{
+                "name": "Control Kitchen experience",
+                "creates": f"{brand} creates a flagship interactive proof experience, supported by CRM and paid cut-downs, that lets prospects explore the most anxious subscription moments before they commit.",
+                "looks_like": "It looks like a calm, visual control room for dinner planning: choose a scenario such as pausing, swapping, changing delivery, reporting a missing item, or getting a refund, then see the route from concern to resolution in plain customer language.",
+                "why_this_format": "An interactive experience is right because the barrier is not awareness; it is uncertainty about what happens when life interrupts the meal plan. Showing the controls makes reassurance inspectable.",
+                "intended_result": "Reduce sign-up hesitation, increase trust in the subscription model, and give CRM, paid social, help content, and conversion pages one shared proof architecture.",
+                "inputs_needed": ["Product and service rules", "Customer-service issue taxonomy", "UX support for a simple proof journey"],
+            }],
         },
         {
             "title": "Dinner Without Doubt",
@@ -1602,29 +1586,14 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             "activation": "The idea comes to life as a first-order journey: recipe inspiration up front, practical reassurance beside it, and objection-specific follow-up for people who hesitate around value, freshness, delivery, or control.",
             "driving_idea": "Make the customer feel that dinner is protected before they place the order. The campaign keeps the appetite appeal, but surrounds it with quiet proof: what arrives, what can change, what happens if something goes wrong, and how the customer stays in control.",
             "implementation_story": "The campaign starts with a confidence page built around the first-box experience, then flows into comparison modules, recipe reassurance, CRM onboarding, and retargeting. Every touchpoint pairs an appetising meal cue with a practical answer, so the brand feels inspiring without feeling evasive.",
-            "activation_plan": [
-                {
-                    "name": "First-box confidence journey",
-                    "primary_goal": "Show that inspiration is backed by practical confidence.",
-                    "narrative": "The campaign centrepiece walks prospects through the first order from recipe choice to delivery and cooking. It answers the quiet questions customers may not ask aloud: what if plans change, what if something is missing, and how much control do I really have?",
-                    "contains": ["Recipe-choice guidance by customer need", "Freshness, delivery, and fallback proof modules", "First-order expectation setting"],
-                    "inputs_needed": ["Recipe performance data", "Freshness and delivery standards", "Landing-page messaging hierarchy"],
-                },
-                {
-                    "name": "Doubt-busting onboarding",
-                    "primary_goal": "Reduce hesitation for customers considering their first order.",
-                    "narrative": "Email and on-page content should continue the same reassurance after the first click. Instead of generic welcome copy, each message removes a specific doubt and shows how the service protects the dinner plan.",
-                    "contains": ["What arrives and what can be changed", "Billing and plan-control explanation", "Substitution, refund, and support reassurance"],
-                    "inputs_needed": ["Product and billing rules", "Customer-service FAQs", "Design support"],
-                },
-                {
-                    "name": "Objection-matched retargeting",
-                    "primary_goal": "Bring hesitant visitors back with proof matched to likely objections.",
-                    "narrative": "Retargeting becomes a series of small confidence scenes rather than repetitive offer ads. A value-led visitor sees proof of saved effort; a freshness-led visitor sees fulfilment reassurance; a control-led visitor sees pause and swap routes.",
-                    "contains": ["Variants for value, control, freshness, and delivery", "Short proof cards", "CRM and paid-social cut-downs"],
-                    "inputs_needed": ["Audience signals", "Media plan", "Approved proof library"],
-                },
-            ],
+            "activation_plan": [{
+                "name": "First-box confidence journey",
+                "creates": f"{brand} creates a first-order campaign journey that follows a customer from choosing recipes through box arrival, cooking, account control, and fallback support.",
+                "looks_like": "It looks like a warm, appetite-led landing page with practical proof woven beside the food: annotated first-box moments, short confidence cards, email follow-ups, and retargeting scenes that answer value, freshness, delivery, and flexibility concerns.",
+                "why_this_format": "This format keeps the emotional promise of enjoyable home cooking, but stops the campaign from relying on appetite alone. Each creative moment pairs desire with a practical answer.",
+                "intended_result": "Increase first-order confidence, reduce abandonment among hesitant prospects, and make onboarding feel reassuring rather than transactional.",
+                "inputs_needed": ["Recipe performance data", "Freshness and delivery standards", "Landing-page messaging hierarchy"],
+            }],
         },
         {
             "title": "The Freshness Receipts",
@@ -1633,29 +1602,14 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             "activation": "The campaign behaves like an evidence trail: from sourcing and packing through chilled delivery and customer response, each stage produces a simple proof moment that can live in video, CRM, landing pages, and service content.",
             "driving_idea": "Treat freshness as something evidenced, not simply claimed. The campaign borrows the language of receipts to make operational proof feel plain, inspectable, and customer-owned: here is what happened to your food, here is how it was protected, and here is what happens if the standard is not met.",
             "implementation_story": "The hero asset is a freshness trail that follows a box from menu planning to doorstep. Short films, stills, email modules, and help-centre explainers reuse the same proof moments, so freshness is not confined to glossy food photography but becomes a system customers can believe.",
-            "activation_plan": [
-                {
-                    "name": "Freshness receipt trail",
-                    "primary_goal": "Make freshness and fulfilment evidence tangible rather than assumed.",
-                    "narrative": "The lead experience should show the chain of custody in customer language, not operational jargon. Each stage acts like a receipt stamp, turning hidden fulfilment work into confidence-building proof.",
-                    "contains": ["Sourcing, packing, chilled-chain, and delivery proof", "Customer feedback loops", "Plain-language recovery routes"],
-                    "inputs_needed": ["Operations evidence", "Supplier or sourcing proof", "Customer-service data"],
-                },
-                {
-                    "name": "Box-to-table proof stories",
-                    "primary_goal": "Show the journey from operational promise to customer outcome.",
-                    "narrative": "A sequence of stories follows real meal moments from packed ingredient to cooked dinner. The treatment should make the system feel human and specific, with exception handling shown as part of the promise rather than hidden in small print.",
-                    "contains": ["Sourcing-to-table sequence", "Proof moments at each stage", "Exception and recovery route"],
-                    "inputs_needed": ["Logistics process detail", "Visual production brief", "Legal approval"],
-                },
-                {
-                    "name": "Proof at the point of choice",
-                    "primary_goal": "Create channel assets that dramatise proof without overclaiming.",
-                    "narrative": "The evidence trail then appears beside recipes, in CRM, and in social cut-downs. Customers should encounter freshness proof while choosing meals, not only after they search for reassurance.",
-                    "contains": ["Social proof cards", "CRM reassurance blocks", "On-page recipe-selection proof"],
-                    "inputs_needed": ["Approved visual claims", "Media and CRM specs", "Design production"],
-                },
-            ],
+            "activation_plan": [{
+                "name": "Freshness receipt trail",
+                "creates": f"{brand} creates a proof trail that follows freshness from recipe planning and sourcing through packing, chilled delivery, customer feedback, and recovery if something falls short.",
+                "looks_like": "It looks like a series of receipt-style proof moments across a hub, recipe pages, short films, CRM, and service content: each moment shows what was protected, what standard applies, and what the customer can do if the standard is missed.",
+                "why_this_format": "A receipt-style evidence trail is right because freshness claims can feel generic. Receipts make proof concrete, sequential, and customer-owned without making the brand sound defensive.",
+                "intended_result": "Shift freshness from a soft food promise into a tangible trust system that improves confidence at recipe choice, sign-up, and service-recovery moments.",
+                "inputs_needed": ["Operations evidence", "Supplier or sourcing proof", "Customer-service data"],
+            }],
         },
         {
             "title": "The Comparison Table",
@@ -1664,29 +1618,14 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             "activation": "The campaign turns comparison into a branded service: decision guides, alternative pages, search landing variants, and proof-led tables that help customers understand trade-offs without feeling pushed.",
             "driving_idea": "Own the comparison moment by being more helpful than the comparison sites. Instead of pretending alternatives do not exist, the campaign gives buyers a fair table, clear criteria, and practical proof so they can see when the brand is the right fit.",
             "implementation_story": "The campaign starts with a decision guide organised around real customer needs: budget, flexibility, family routines, recipe variety, dietary needs, and confidence. Search pages and paid variants then answer specific comparison questions, always linking back to evidence rather than defensive claims.",
-            "activation_plan": [
-                {
-                    "name": "Fair decision guide",
-                    "primary_goal": "Help buyers choose confidently instead of leaving comparison to third parties.",
-                    "narrative": "The flagship guide frames comparison as a service. It should help readers recognise their own buying context, understand the trade-offs, and move naturally toward the plan or reassurance content that fits them.",
-                    "contains": ["Decision criteria by customer need", "Transparent fit and trade-off guidance", "Links into plans, recipes, and proof"],
-                    "inputs_needed": ["Competitor review", "Pricing and proposition rules", "SEO query set"],
-                },
-                {
-                    "name": "Alternative-search landing system",
-                    "primary_goal": "Capture high-intent alternative searches with useful, fair content.",
-                    "narrative": "Each landing page should answer a real comparison query without sounding like a takedown. The tone is confident, practical, and evidence-led: here is where we fit, here is where another option may fit, and here is what to check next.",
-                    "contains": ["Competitor and alternative modules", "Proof-led comparison tables", "FAQs around control, delivery, and service"],
-                    "inputs_needed": ["Legal and brand guardrails", "Search-priority keywords", "Current competitor claims"],
-                },
-                {
-                    "name": "Choice-confidence follow-up",
-                    "primary_goal": "Match visitors to the comparison question they arrived with.",
-                    "narrative": "Follow-up assets should feel like helpful prompts, not hard-sell reminders. A visitor who compared on price sees value proof; one who compared on flexibility sees control proof; one who compared on food quality sees freshness evidence.",
-                    "contains": ["Alternative, value, family, and flexibility variants", "Proof blocks by intent", "CTA into plan choice or confidence content"],
-                    "inputs_needed": ["SEO and paid-search clusters", "Analytics plan", "A/B test design"],
-                },
-            ],
+            "activation_plan": [{
+                "name": "Fair decision guide",
+                "creates": f"{brand} creates a comparison campaign that treats choice as a helpful customer service, not a defensive competitor page.",
+                "looks_like": "It looks like a generous decision guide with search landing variants: customer need states, transparent trade-offs, proof-led comparison tables, and follow-up content for value, family, flexibility, diet, and recipe-variety queries.",
+                "why_this_format": "This shape works because comparison demand already exists. A fair guide lets the brand enter that moment with confidence and utility rather than leaving prospects to third-party pages.",
+                "intended_result": "Capture high-intent comparison searches, improve trust in the brand's recommendation, and move prospects from uncertainty into the plan or proof content that best fits them.",
+                "inputs_needed": ["Competitor review", "Pricing and proposition rules", "SEO query set"],
+            }],
         },
     ]
     data["creative_campaign_ideas"] = {
@@ -3740,9 +3679,21 @@ def render_html(data_path: Path, output_path: Path | None = None) -> Path:
                 if not isinstance(plan, dict):
                     continue
                 name = html.escape(str(plan.get("name", "")))
-                narrative = html.escape(str(plan.get("narrative") or plan.get("primary_goal", "")))
-                if name and narrative:
-                    shape_items.append(f"<li><strong>{name}</strong>: {narrative}</li>")
+                creates = html.escape(str(plan.get("creates") or plan.get("primary_goal", "")))
+                looks_like = html.escape(str(plan.get("looks_like") or plan.get("narrative", "")))
+                why = html.escape(str(plan.get("why_this_format", "")))
+                result = html.escape(str(plan.get("intended_result", "")))
+                detail_parts = []
+                if creates:
+                    detail_parts.append(f"<p><strong>What the brand creates:</strong> {creates}</p>")
+                if looks_like:
+                    detail_parts.append(f"<p><strong>What it looks like:</strong> {looks_like}</p>")
+                if why:
+                    detail_parts.append(f"<p><strong>Why this shape:</strong> {why}</p>")
+                if result:
+                    detail_parts.append(f"<p><strong>Intended result:</strong> {result}</p>")
+                if name and detail_parts:
+                    shape_items.append(f"<li><strong>{name}</strong>{''.join(detail_parts)}</li>")
             blocks.append(
                 f"<article class='campaign'>{f'<img src={html.escape(json.dumps(image))} alt=\"\">' if image else ''}<div><p class='eyebrow'>Creative campaign idea</p><h3>{html.escape(str(idea.get('title', '')))}</h3>"
                 f"<p><strong>Driving idea:</strong> {html.escape(str(driving_idea))}</p><p><strong>Implementation:</strong> {html.escape(str(implementation_story))}</p>"
