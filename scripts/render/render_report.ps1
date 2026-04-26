@@ -1870,10 +1870,18 @@ $(ConvertTo-BackToContentsHtml)
     <div class="source-list">
       $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Sources Reviewed' -IconKey 'sources' -Class 'category-heading')
 $(ConvertTo-SourceListHtml @($appendixSources))
-      $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Missing Data' -IconKey 'missing' -Class 'category-heading')
-$(ConvertTo-ListHtml @($data.appendix.missing_data))
-      $(ConvertTo-HeadingHtml -Level 'h3' -Text 'Assumptions and Confidence Notes' -IconKey 'notes' -Class 'category-heading')
-$(ConvertTo-ListHtml @($data.appendix.assumptions_and_confidence_notes))
+$(
+    $missingDataHtml = ConvertTo-ListHtml @($data.appendix.missing_data)
+    if (-not [string]::IsNullOrWhiteSpace($missingDataHtml)) {
+        (ConvertTo-HeadingHtml -Level 'h3' -Text 'Missing Data' -IconKey 'missing' -Class 'category-heading') + [Environment]::NewLine + $missingDataHtml
+    }
+)
+$(
+    $confidenceNotesHtml = ConvertTo-ListHtml @($data.appendix.assumptions_and_confidence_notes)
+    if (-not [string]::IsNullOrWhiteSpace($confidenceNotesHtml)) {
+        (ConvertTo-HeadingHtml -Level 'h3' -Text 'Assumptions and Confidence Notes' -IconKey 'notes' -Class 'category-heading') + [Environment]::NewLine + $confidenceNotesHtml
+    }
+)
     </div>
 $(ConvertTo-BackToContentsHtml)
 

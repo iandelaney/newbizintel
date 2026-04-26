@@ -615,6 +615,52 @@ def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
             count = len(pattern.findall(html_text))
         if count:
             errors.append(f"Rendered HTML contains {count} {reason} marker(s): {marker}.")
+    heading_pattern = re.compile(
+        r'<h(?P<level>[23])[^>]*class="[^"]*(?:category-heading|section-heading)[^"]*"[^>]*>.*?<span>(?P<title>[^<]+)</span></h[23]>(?P<body>.*?)(?=<h[23][^>]*class="[^"]*(?:category-heading|section-heading)|<div class="section-return"|</section>|</main>)',
+        re.I | re.S,
+    )
+    substantive_pattern = re.compile(
+        r'<(?:p|ul|ol|table|div|article)[^>]*>(?!\s*</(?:p|ul|ol|table|div|article)>).*?[A-Za-z0-9]',
+        re.I | re.S,
+    )
+    required_heading_word_counts = {
+        "Why Each Competitor Matters": 25,
+        "Messaging Patterns Across the Market": 18,
+        "Content Patterns Across the Market": 18,
+        "Areas Where the Brand Is Behind, Matched, or Ahead": 18,
+    }
+    for match in heading_pattern.finditer(html_text):
+        level = match.group("level")
+        title = re.sub(r"\s+", " ", match.group("title")).strip()
+        body = match.group("body") or ""
+        body_without_whitespace = re.sub(r"\s+", "", body)
+        if level == "2":
+            parent_tail = html_text[match.end():]
+            parent_end_candidates = [
+                pos for pos in (
+                    parent_tail.lower().find('<h2'),
+                    parent_tail.lower().find('<div class="section-return"'),
+                    parent_tail.lower().find('</main>'),
+                )
+                if pos >= 0
+            ]
+            parent_end = min(parent_end_candidates) if parent_end_candidates else len(parent_tail)
+            parent_body = parent_tail[:parent_end]
+            if substantive_pattern.search(parent_body):
+                continue
+        if not body_without_whitespace or not substantive_pattern.search(body):
+            errors.append(f"Rendered heading has no substantive body content: {title}.")
+            continue
+        min_words = required_heading_word_counts.get(title)
+        if min_words:
+            visible_text = re.sub(r"<[^>]+>", " ", body)
+            visible_text = html.unescape(re.sub(r"\s+", " ", visible_text)).strip()
+            word_count = len(re.findall(r"\b[\w'-]+\b", visible_text))
+            if word_count < min_words:
+                errors.append(
+                    f"Rendered heading has too little substantive content: {title} "
+                    f"({word_count} words, expected at least {min_words})."
+                )
     return {"ok": not errors, "errors": errors}
 
 
@@ -884,6 +930,10 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
         "seo_audit.cards",
         "seo_audit.priority_issues",
         "brand_reputation.influential_news",
+        "competitive_landscape.why_each_competitor_matters",
+        "competitive_landscape.messaging_patterns",
+        "competitive_landscape.content_patterns",
+        "competitive_landscape.status_summary",
         "opportunities.marketing_strategy.strategy",
         "opportunities.marketing_strategy.why_it_matters",
         "opportunities.marketing_strategy.evidence_threads",
@@ -905,6 +955,12 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
             for key in ("claim_type", "claim_summary", "proof_points", "proof_feedback"):
                 if not has_value(row.get(key)):
                     errors.append(f"usp_ksp_review.rows[{index}].{key} is required.")
+    landscape = data.get("competitive_landscape", {})
+    if isinstance(landscape, dict):
+        for key in ("messaging_patterns", "content_patterns", "status_summary"):
+            value = landscape.get(key)
+            if not isinstance(value, list) or len([item for item in value if has_value(item)]) < 3:
+                errors.append(f"competitive_landscape.{key} must include at least 3 populated items.")
     seo = data.get("seo_audit", {})
     semrush = seo.get("semrush_evidence", []) if isinstance(seo, dict) else []
     similarweb = seo.get("similarweb_evidence", []) if isinstance(seo, dict) else []
@@ -4039,14 +4095,16 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
     brand_folder = brand_folder_from_data(data_path)
     state = load_state(brand_folder)
     set_status(state, "qa", "in_progress")
-    set_status(state, "deploy", "pending")
+    if state.get("statuses", {}).get("deploy") != "passed":
+        set_status(state, "deploy", "pending")
     set_gate(state, "gate_6a_editorial_quality", "in_progress")
-    set_gate(state, "gate_7_delivery", "pending")
+    if state.get("gates", {}).get("gate_10_delivery_handoff") != "passed" and state.get("gates", {}).get("gate_7_delivery") != "passed":
+        set_gate(state, "gate_10_delivery_handoff", "pending")
+        set_gate(state, "gate_7_delivery", "pending")
     add_event(state, "fanout", "qa.initial_audits", jobs=["report-data", "task-list", "hybrid", "logos", "campaign-art", "outputs"])
     save_state(brand_folder, state)
     checks = {
         "report_data": validate_report_data(data_path),
-        "task_list": audit_task_list(data_path),
         "hybrid": audit_hybrid(state),
         "campaign_art": audit_campaign_art(data_path),
         "required_logos": read_json(brand_folder / "required-logo-manifest.json") if (brand_folder / "required-logo-manifest.json").exists() else {"ok": False, "errors": ["required-logo-manifest.json missing"]},
@@ -4067,6 +4125,7 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
         set_status(state, "qa", "failed")
         set_gate(state, "gate_6a_editorial_quality", "failed")
         save_state(brand_folder, state)
+        checks["task_list"] = audit_task_list(data_path)
         write_json(brand_folder / "qa-results.json", checks)
         raise SystemExit("QA failed: " + "; ".join(errors))
     add_event(state, "reducer", "qa.bundle_reducer", outputs=[str(brand_folder / "qa-results.json")])
@@ -4160,17 +4219,20 @@ def module_deploy(args: argparse.Namespace) -> dict[str, Any]:
     brand_folder = brand_folder_from_data(data_path)
     state = load_state(brand_folder)
     set_status(state, "deploy", "in_progress")
+    set_gate(state, "gate_10_delivery_handoff", "in_progress")
     set_gate(state, "gate_7_delivery", "in_progress")
     save_state(brand_folder, state)
     html_path = brand_folder / "newbizintel-report.html"
     if not html_path.exists():
         set_status(state, "deploy", "failed")
+        set_gate(state, "gate_10_delivery_handoff", "failed")
         set_gate(state, "gate_7_delivery", "failed")
         save_state(brand_folder, state)
         raise SystemExit("Cannot refresh delivery handoff because newbizintel-report.html is missing.")
     assert_deployable_report_html(html_path)
     shutil.copy2(html_path, brand_folder / "index.html")
     set_status(state, "deploy", "passed")
+    set_gate(state, "gate_10_delivery_handoff", "passed")
     set_gate(state, "gate_7_delivery", "passed")
     save_state(brand_folder, state)
     index_path = brand_folder / "index.html"
