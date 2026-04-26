@@ -1424,23 +1424,18 @@ function ConvertTo-CreativeCampaignIdeasHtml {
 
             $parts = @()
             if (-not [string]::IsNullOrWhiteSpace([string]$item.primary_goal)) {
-                $parts += '<p><strong>Why first</strong> {0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.primary_goal))
+                $parts += '<p class="idea-activation-plan__goal">{0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.primary_goal))
             }
 
-            $contains = @($item.contains | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
-            if ($contains.Count -gt 0) {
-                $containsHtml = foreach ($entry in $contains) {
-                    '<li>{0}</li>' -f (ConvertTo-HtmlEncoded ([string]$entry))
-                }
-                $parts += '<p><strong>Should contain</strong></p><ul>{0}</ul>' -f ($containsHtml -join '')
+            if (-not [string]::IsNullOrWhiteSpace([string]$item.narrative)) {
+                $parts += '<p>{0}</p>' -f (ConvertTo-HtmlEncoded ([string]$item.narrative))
             }
 
-            $inputsNeeded = @($item.inputs_needed | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+            $inputSummary = ''
+            $inputsNeeded = @($item.inputs_needed | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Select-Object -First 3)
             if ($inputsNeeded.Count -gt 0) {
-                $inputHtml = foreach ($entry in $inputsNeeded) {
-                    '<li>{0}</li>' -f (ConvertTo-HtmlEncoded ([string]$entry))
-                }
-                $parts += '<p><strong>Needs as input</strong></p><ul>{0}</ul>' -f ($inputHtml -join '')
+                $inputSummary = ($inputsNeeded | ForEach-Object { [string]$_ }) -join '; '
+                $parts += '<p class="idea-activation-plan__inputs"><span>Inputs to line up:</span> {0}</p>' -f (ConvertTo-HtmlEncoded $inputSummary)
             }
 
             if ($parts.Count -eq 0) {
@@ -1461,7 +1456,7 @@ function ConvertTo-CreativeCampaignIdeasHtml {
 
         return @"
 <div class="idea-activation-plan">
-  <p><strong>Activation sequence</strong></p>
+  <p><strong>How the campaign takes shape</strong></p>
   <ol class="idea-activation-plan__list">
     $(($itemHtml -join "`n"))
   </ol>
@@ -1498,11 +1493,15 @@ function ConvertTo-CreativeCampaignIdeasHtml {
         }
 
         $bodyParts = @()
-        if (-not [string]::IsNullOrWhiteSpace([string]$idea.concept)) {
-            $bodyParts += '<p><strong>Concept</strong> {0}</p>' -f (ConvertTo-HtmlEncoded ([string]$idea.concept))
+        $drivingIdea = if (-not [string]::IsNullOrWhiteSpace([string]$idea.driving_idea)) { [string]$idea.driving_idea } else { [string]$idea.concept }
+        if (-not [string]::IsNullOrWhiteSpace($drivingIdea)) {
+            $bodyParts += '<p class="idea-card__lead"><strong>Driving idea</strong> {0}</p>' -f (ConvertTo-HtmlEncoded $drivingIdea)
         }
-        if (-not [string]::IsNullOrWhiteSpace([string]$idea.activation)) {
-            $bodyParts += '<p><strong>Activation</strong> {0}</p>' -f (ConvertTo-HtmlEncoded ([string]$idea.activation))
+        if (-not [string]::IsNullOrWhiteSpace([string]$idea.implementation_story)) {
+            $bodyParts += '<p><strong>Implementation</strong> {0}</p>' -f (ConvertTo-HtmlEncoded ([string]$idea.implementation_story))
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace([string]$idea.activation)) {
+            $bodyParts += '<p><strong>Implementation</strong> {0}</p>' -f (ConvertTo-HtmlEncoded ([string]$idea.activation))
         }
         if (-not [string]::IsNullOrWhiteSpace([string]$idea.addresses)) {
             $bodyParts += '<p><strong>Addresses</strong> {0}</p>' -f (ConvertTo-HtmlEncoded ([string]$idea.addresses))
