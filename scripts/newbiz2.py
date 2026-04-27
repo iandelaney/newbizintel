@@ -827,6 +827,9 @@ def validate_reputation_ranking_contract(
         for field in ("date", "headline", "source", "url", "why_it_matters", "source_type", "sentiment", "rank_reason"):
             if not str(item.get(field, "")).strip():
                 errors.append(f"{item_prefix}.{field} is required.")
+        story_why = str(item.get("why_it_matters") or "").strip().lower()
+        if story_why.startswith(("raises ", "creates ", "signals ", "shows ", "suggests ", "points to ", "could affect ", "may affect ", "risks ", "needs ", "highlights ", "contributes ", "underscores ")):
+            errors.append(f"{item_prefix}.why_it_matters must be a complete sentence, not a subjectless note fragment.")
         if not re.match(r"^\d{1,2}\s+[A-Z][a-z]+\s+\d{4}$", str(item.get("date", ""))):
             errors.append(f"{item_prefix}.date must use an exact date like '19 November 2025'.")
         if not str(item.get("url", "")).startswith(("http://", "https://")):
@@ -972,6 +975,20 @@ def validate_executive_summary_tone(data: dict[str, Any], errors: list[str]) -> 
         "treat this as",
         "not data from",
         "provider:",
+        "ranked story set",
+        "led by accc takes",
+    )
+    subjectless_starts = (
+        "raises ",
+        "creates ",
+        "signals ",
+        "shows ",
+        "suggests ",
+        "points to ",
+        "could affect ",
+        "may affect ",
+        "risks ",
+        "needs ",
     )
     cards = data.get("executive_summary", {}).get("cards", [])
     for index, card in enumerate(cards if isinstance(cards, list) else []):
@@ -979,12 +996,15 @@ def validate_executive_summary_tone(data: dict[str, Any], errors: list[str]) -> 
             errors.append(f"executive_summary.cards[{index}] must be an object.")
             continue
         body = str(card.get("body") or "")
+        stripped_body = body.strip()
         lower_body = body.lower()
         for term in banned_terms:
             if term in lower_body:
                 errors.append(
                     f"executive_summary.cards[{index}].body contains operational evidence-gathering language unsuitable for an executive summary: {term}"
                 )
+        if any(stripped_body.lower().startswith(start) for start in subjectless_starts):
+            errors.append(f"executive_summary.cards[{index}].body appears to be a sentence fragment or note-style field.")
         if len(body) > 420:
             errors.append(f"executive_summary.cards[{index}].body is too long for an executive summary card.")
 
@@ -1282,6 +1302,31 @@ def executive_seo_opportunity_summary(
         f"{brand} should make search a reassurance channel."
         f"{evidence_clause}{comparison_clause}"
     )
+
+
+def executive_commercial_risk_summary(brand: str, top_news: dict[str, Any]) -> str:
+    raw = sentence(
+        top_news.get("why_it_matters"),
+        "Trust concerns could weaken conversion and retention even when the category proposition is clear.",
+    )
+    lower_raw = raw.lower()
+    if lower_raw.startswith("raises "):
+        return f"The commercial risk is that public scrutiny around {brand} {raw[0].lower()}{raw[1:]}"
+    if lower_raw.startswith(("creates ", "signals ", "shows ", "suggests ", "points to ", "could affect ", "may affect ", "risks ", "needs ")):
+        return f"The commercial risk is that {brand} faces a trust and conversion challenge: {raw[0].lower()}{raw[1:]}"
+    if not re.search(r"\b(is|are|has|have|faces|risks|could|may|should|needs|must|will)\b", lower_raw):
+        return f"The commercial risk is that {raw[0].lower()}{raw[1:]}"
+    return raw
+
+
+def executive_reputation_insight_summary(brand: str, top_news: dict[str, Any]) -> str:
+    headline = sentence(top_news.get("headline"), "high-authority reputation coverage")
+    lower_headline = headline.lower()
+    if "subscription trap" in lower_headline or "subscription traps" in lower_headline:
+        return f"Public scrutiny of subscription practices makes control, cancellation clarity, and service recovery central to {brand}'s trust story."
+    if "regulator" in lower_headline or "court" in lower_headline:
+        return f"Regulatory or legal scrutiny means {brand} needs visible proof that customers can understand, control, and recover from service issues."
+    return f"The leading reputation signal is {headline[0].lower()}{headline[1:]}; the response should turn reassurance into visible proof, not just brand tone."
 
 
 def first_dicts(value: Any, limit: int = 3) -> list[dict[str, Any]]:
@@ -1720,9 +1765,9 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
     data["executive_summary"] = {
         "cards": [
             {"title": "What stands out most", "body": f"{brand} has a simple customer promise, but the reputation evidence means that proof, transparency, and service confidence need to be made more visible."},
-            {"title": "Biggest commercial risk", "body": sentence(top_news.get("why_it_matters"), "The biggest risk is that trust concerns weaken conversion and retention even when the category proposition is clear.")},
+            {"title": "Biggest commercial risk", "body": executive_commercial_risk_summary(brand, top_news)},
             {"title": "Biggest messaging opportunity", "body": "Lead with useful household outcomes, then back the promise with plain-English proof around choice, freshness, delivery reliability, cancellation, and service recovery."},
-            {"title": "Biggest reputation insight", "body": f"The ranked story set is led by {sentence(top_news.get('headline'), 'high-authority reputation evidence')}, so reassurance must be more than brand tone."},
+            {"title": "Biggest reputation insight", "body": executive_reputation_insight_summary(brand, top_news)},
             {"title": "Biggest SEO opportunity", "body": executive_seo_opportunity_summary(brand, competitor_names, search_evidence)},
             {"title": "Biggest content strategy opportunity", "body": "Turn customer anxieties into helpful proof content: how plans work, how choices are controlled, how service issues are resolved, and how the offer compares."},
         ],

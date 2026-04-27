@@ -115,6 +115,14 @@ The `competitive_landscape.table` section must explain strategic difference, not
 - Competitor rows must be differentiated from one another. If several rows could be swapped between competitors without changing meaning, the gate must fail.
 - Generic phrases such as "current market-discovery search", "alternative or category comparator", or "use this comparator to sharpen positioning" are fail conditions in production report data.
 
+## Executive Summary
+
+The Executive Summary must read like board-ready synthesis, not research notes.
+
+- Do not render process language such as "ranked story set", "source gathering", "Tavily", "public-web source", or "provider".
+- Do not render subjectless fragments lifted from research fields. Executive-summary card bodies must stand as complete sentences with a clear subject and commercial implication.
+- Reputation cards should translate source findings into the strategic implication for trust, conversion, proof, or risk. They should not describe how the story was ranked.
+
 8. HTML, portable HTML, and PPTX render
    - Primary gate: `gate_8_render_outputs`
    - Trust test: Rendered HTML, portable HTML, and PPTX exist and are current.
