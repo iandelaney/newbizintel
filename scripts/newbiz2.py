@@ -1483,18 +1483,18 @@ def messaging_reputation_read_across(top_news: dict[str, Any]) -> str:
     lower = f"{headline} {why}".lower()
     if "subscription" in lower or "cancel" in lower or "trap" in lower:
         return (
-            f"Before readers reach the reputation chapter, the key point is this: {source} coverage has raised questions about whether customers "
-            "can easily understand, control, pause, cancel, or recover from subscription issues. That makes the mission and values platform work "
-            "harder: it needs visible proof around transparency, control, service recovery, and cancellation confidence."
+            f"{source} coverage has raised questions about whether customers can easily understand, control, pause, cancel, or recover from "
+            "subscription issues. That makes the mission and values platform work harder: it needs visible proof around transparency, control, "
+            "service recovery, and cancellation confidence."
         )
     if why:
         return (
-            f"Before readers reach the reputation chapter, the key point is this: {source} coverage highlights {why[0].lower() + why[1:]}. "
+            f"{source} coverage highlights {why[0].lower() + why[1:]}. "
             "That means the published promise needs practical proof, not just confident brand language."
         )
     return (
-        "Before readers reach the reputation chapter, the key point is this: public coverage creates a trust test for the published promise. "
-        "The messaging therefore needs visible proof that the customer experience lives up to the mission and values."
+        "Public coverage creates a trust test for the published promise. The messaging therefore needs visible proof that the customer experience "
+        "lives up to the mission and values."
     )
 
 
