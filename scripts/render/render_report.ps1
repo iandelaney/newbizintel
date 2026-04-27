@@ -489,13 +489,28 @@ function ConvertTo-RecommendationCardsHtml {
     $index = 0
     $cardHtml = foreach ($item in $Items) {
         $index += 1
-        $text = [string]$item
-        $action = $text
+        $title = ''
+        $body = ''
         $why = ''
-        $match = [regex]::Match($text, '(?is)^(?<action>.*?)(?:\s+Why:\s+)(?<why>.+)$')
-        if ($match.Success) {
-            $action = $match.Groups['action'].Value.Trim()
-            $why = $match.Groups['why'].Value.Trim()
+        if ($item -is [pscustomobject] -or $item -is [hashtable]) {
+            $title = [string]$item.title
+            $body = [string]$item.body
+            $why = [string]$item.why
+            if ([string]::IsNullOrWhiteSpace($why)) { $why = [string]$item.rationale }
+            if ([string]::IsNullOrWhiteSpace($why)) { $why = [string]$item.evidence }
+        }
+        else {
+            $text = [string]$item
+            $body = $text
+            $match = [regex]::Match($text, '(?is)^(?<action>.*?)(?:\s+Why:\s+)(?<why>.+)$')
+            if ($match.Success) {
+                $body = $match.Groups['action'].Value.Trim()
+                $why = $match.Groups['why'].Value.Trim()
+            }
+        }
+        $titleHtml = ''
+        if (-not [string]::IsNullOrWhiteSpace($title)) {
+            $titleHtml = '<h4>{0}</h4>' -f (ConvertTo-HtmlEncoded $title)
         }
         $whyHtml = ''
         if (-not [string]::IsNullOrWhiteSpace($why)) {
@@ -506,7 +521,8 @@ function ConvertTo-RecommendationCardsHtml {
       <article class="recommendation-card recommendation-card--$Tone">
         <div class="recommendation-card__number">$(ConvertTo-HtmlEncoded ([string]$index))</div>
         <div class="recommendation-card__body">
-          <div class="recommendation-card__action">$(ConvertTo-RichText $action)</div>
+          $titleHtml
+          <div class="recommendation-card__action">$(ConvertTo-RichText $body)</div>
           $whyHtml
         </div>
       </article>

@@ -1181,6 +1181,7 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     published_statements = messaging_assessment.get("published_statements", [])
     if len(published_statements) < 2:
         errors.append("storybrand.existing_messaging_assessment.published_statements must include at least 2 mission, purpose, promise, or proposition statements.")
+    high_order_count = 0
     for index, item in enumerate(published_statements):
         if not has_value(item.get("label")):
             errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].label is required.")
@@ -1190,15 +1191,31 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
             errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].source is required.")
         if not has_value(item.get("source_url")):
             errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].source_url is required so readers can verify the published messaging.")
+        combined = f"{item.get('label', '')} {item.get('statement', '')} {item.get('source', '')} {item.get('source_url', '')}".lower()
+        if any(term in combined for term in HIGH_ORDER_MESSAGING_TERMS):
+            high_order_count += 1
+        for snippet in WEAK_PUBLISHED_MESSAGING_SNIPPETS:
+            if snippet in combined:
+                errors.append(
+                    f"storybrand.existing_messaging_assessment.published_statements[{index}] uses weak blog/product-copy language rather than mission, purpose, promise, or values evidence."
+                )
+    if high_order_count < 1:
+        errors.append("storybrand.existing_messaging_assessment.published_statements must include at least one high-order mission, purpose, promise, values, or brand-platform statement.")
     for field in ("messaging_fixes", "content_implications"):
         items = storybrand.get(field, [])
         if len(items) < 2:
             errors.append(f"storybrand.{field} must include at least 2 rationale-led recommendations.")
         for index, item in enumerate(items):
-            text = str(item or "")
-            if "why:" not in text.lower() and "because" not in text.lower():
+            if isinstance(item, dict):
+                text = " ".join(str(item.get(key, "")) for key in ("title", "body", "why", "rationale", "evidence"))
+                has_why_field = has_value(item.get("why")) or has_value(item.get("rationale")) or has_value(item.get("evidence"))
+            else:
+                text = str(item or "")
+                has_why_field = False
+            lower_text = text.lower()
+            if not has_why_field and not any(marker in lower_text for marker in ("why", "because", "evidence", "findings")):
                 errors.append(f"storybrand.{field}[{index}] must explain the WHY behind the recommendation.")
-            if not any(token in text.lower() for token in ("reputation", "trust", "review", "service", "growth", "proof", "technology", "customer")):
+            if not any(token in lower_text for token in ("reputation", "trust", "review", "service", "growth", "proof", "technology", "customer")):
                 errors.append(f"storybrand.{field}[{index}] must show read-across from reputation findings or customer evidence.")
     if errors:
         return {"ok": False, "data": str(data_path), "errors": errors, "warnings": warnings, "anti_placeholder_audit": placeholder_audit}
@@ -1293,7 +1310,10 @@ def read_owned_workpack_results(brand_folder: Path, domain: str) -> list[dict[st
         if not isinstance(item, dict):
             continue
         url = str(item.get("url") or "")
-        if domain and domain not in brand_domain_from_website(url):
+        result_domain = brand_domain_from_website(url)
+        domain_stem = domain.split(".")[0].replace("-", "") if domain else ""
+        result_stem = result_domain.replace("-", "")
+        if domain and domain not in result_domain and domain_stem and domain_stem not in result_stem:
             continue
         if item.get("content"):
             owned.append(item)
@@ -1329,37 +1349,131 @@ def extract_statement_from_content(content: str, keywords: tuple[str, ...], fall
     return fallback
 
 
+HIGH_ORDER_MESSAGING_TERMS = (
+    "mission",
+    "purpose",
+    "values",
+    "promise",
+    "change the way",
+    "customer-centric",
+    "sustainability",
+    "sustainable",
+    "business model",
+    "budget",
+    "freshness",
+    "taste",
+)
+
+
+WEAK_PUBLISHED_MESSAGING_SNIPPETS = (
+    "recipe box delivery service and this is how we work",
+    "pictured above",
+    "newsletter",
+    "sign up",
+    "special deals",
+)
+
+
+def messaging_source_score(item: dict[str, Any]) -> int:
+    url = str(item.get("url") or "").lower()
+    title = str(item.get("title") or "").lower()
+    content = str(item.get("content") or "").lower()
+    haystack = f"{url} {title} {content}"
+    score = 0
+    if "hellofreshgroup" in url or "group" in title:
+        score += 12
+    if any(part in url for part in ("/about", "/en/", "/esg", "/sustainability", "/company")):
+        score += 8
+    if "blog." in url:
+        score -= 8
+    for term in HIGH_ORDER_MESSAGING_TERMS:
+        if term in haystack:
+            score += 3
+    for snippet in WEAK_PUBLISHED_MESSAGING_SNIPPETS:
+        if snippet in haystack:
+            score -= 6
+    return score
+
+
+def select_published_messaging_sources(owned_results: list[dict[str, Any]], website: str) -> list[dict[str, Any]]:
+    scored = [(messaging_source_score(item), item) for item in owned_results if isinstance(item, dict)]
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    selected: list[dict[str, Any]] = []
+    seen_urls: set[str] = set()
+    for score, item in scored:
+        url = str(item.get("url") or "")
+        if not url or url in seen_urls:
+            continue
+        if score < 3 and selected:
+            continue
+        selected.append(item)
+        seen_urls.add(url)
+        if len(selected) >= 3:
+            break
+    if selected:
+        return selected
+    return [{"title": "Company website", "url": website, "content": ""}]
+
+
 def build_published_statements(data: dict[str, Any], summary: dict[str, Any], brand_folder: Path) -> list[dict[str, str]]:
     brand = str(data.get("brand", {}).get("name") or summary.get("brand_name") or "the brand")
     website = str(data.get("brand", {}).get("website") or summary.get("brand_website") or "")
     domain = brand_domain_from_website(website)
     owned_results = read_owned_workpack_results(brand_folder, domain)
-    first_owned = owned_results[0] if owned_results else {}
-    second_owned = owned_results[1] if len(owned_results) > 1 else first_owned
+    selected_sources = select_published_messaging_sources(owned_results, website)
+    first_owned = selected_sources[0] if selected_sources else {}
+    second_owned = selected_sources[1] if len(selected_sources) > 1 else first_owned
+    third_owned = selected_sources[2] if len(selected_sources) > 2 else first_owned
     mission_statement = extract_statement_from_content(
         str(first_owned.get("content") or ""),
-        ("easy", "home cooking", "recipe", "meal", "fresh", "deliver"),
+        ("mission", "purpose", "change", "forever", "people", "eat"),
         f"{brand} presents its published offer around convenient meal planning, recipe choice, and delivery to the customer's door.",
     )
     promise_statement = extract_statement_from_content(
         str(second_owned.get("content") or first_owned.get("content") or ""),
-        ("choice", "weekly", "fresh", "easy", "customer", "meal"),
+        ("budget", "freshness", "taste", "sustainability", "customer", "promise"),
         f"{brand} promises to make regular meal decisions easier through flexible recipe choice and a repeatable delivery experience.",
     )
-    return [
+    business_model_statement = extract_statement_from_content(
+        str(third_owned.get("content") or first_owned.get("content") or ""),
+        ("customer-centric", "data-driven", "business model", "sustainability", "direct-to-consumer", "control"),
+        f"{brand} frames its model around direct customer relationships, repeatable convenience, and operational control.",
+    )
+    statements = [
         {
-            "label": "Published offer",
+            "label": "Mission",
             "statement": mission_statement,
             "source": str(first_owned.get("title") or f"{brand} website"),
             "source_url": str(first_owned.get("url") or website),
         },
         {
-            "label": "Customer promise",
+            "label": "Promise and values",
             "statement": promise_statement,
             "source": str(second_owned.get("title") or f"{brand} website"),
             "source_url": str(second_owned.get("url") or website),
         },
+        {
+            "label": "Business model promise",
+            "statement": business_model_statement,
+            "source": str(third_owned.get("title") or f"{brand} website"),
+            "source_url": str(third_owned.get("url") or website),
+        },
     ]
+    return [item for item in statements if has_value(item.get("statement"))]
+
+
+def summarize_existing_messaging(brand: str, published_statements: list[dict[str, str]]) -> str:
+    combined = " ".join(str(item.get("statement") or "") for item in published_statements).lower()
+    if any(term in combined for term in ("mission", "purpose", "values", "change the way", "sustainability")):
+        return (
+            f"{brand}'s strongest published platform is broader than convenience: it presents a mission-led promise around how people eat, "
+            "supported by values such as affordability, freshness, taste, and lower waste. That changes the messaging task from selling a box "
+            "to proving that the operating model consistently delivers those values."
+        )
+    return (
+        f"{brand}'s published messaging presents easy home cooking, recipe choice, and convenience. Reputation evidence changes the task: "
+        "readers need reassurance that the subscription and service experience is as controlled as the meals are convenient."
+    )
 
 
 def clean_placeholder_text(value: str, brand: str) -> str:
@@ -1552,10 +1666,10 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         "score": "6.8 / 10",
         "score_summary": "The basic customer story is intuitive, but the proof around trust, control, and service recovery needs to be made more explicit.",
         "existing_messaging_assessment": {
-            "summary": f"{brand}'s published messaging presents easy home cooking, recipe choice, and convenience. Reputation evidence changes the task: readers need reassurance that the subscription and service experience is as controlled as the meals are convenient.",
+            "summary": summarize_existing_messaging(brand, published_statements),
             "published_statements": published_statements,
-            "reputation_read_across": f"Reputation coverage led by {sentence(top_news.get('headline'), 'trust-sensitive public stories')} means convenience claims should be backed with proof around transparency, control, customer service, and recovery.",
-            "implication": "The messaging should move from promise-first to proof-backed: useful household outcomes first, then evidence that the customer remains in control.",
+            "reputation_read_across": f"Reputation coverage led by {sentence(top_news.get('headline'), 'trust-sensitive public stories')} means the mission and values platform needs visible proof around transparency, control, customer service, and recovery.",
+            "implication": "The messaging should move from broad mission language to proof-backed delivery: show how the model makes eating better, easier, fresher, better value, and less wasteful while keeping the customer in control.",
         },
         "cards": [
             {"title": "Hero", "body": "The customer is a busy household trying to make dinner feel easier, fresher, and less repetitive without losing control of cost or choice."},
@@ -2058,7 +2172,14 @@ def live_research_query_plan(data: dict[str, Any]) -> list[dict[str, str]]:
         },
         {
             "role": "source_gathering",
-            "query": f"site:{domain} {primary} mission purpose promise about newsroom" if domain else f"{primary} mission purpose promise about newsroom",
+            "query": f"{primary} mission purpose promise values about company official group",
+            "topic": "general",
+            "time_range": "",
+            "max_results": "10",
+        },
+        {
+            "role": "source_gathering",
+            "query": f"{primary} group mission values sustainability business model official",
             "topic": "general",
             "time_range": "",
             "max_results": "10",
