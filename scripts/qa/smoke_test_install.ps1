@@ -53,9 +53,11 @@ $firstRun = & $installScript -DestinationRoot $skillsRoot -CodexRoot $codexRoot 
 Assert-True ($firstRun.installed -eq $true) 'First install run did not report success.'
 Assert-True (Test-Path -LiteralPath $mainSkillRoot) "Main skill root was not created at $mainSkillRoot."
 Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'SKILL.md')) 'Installed main skill is missing SKILL.md.'
+Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'assets')) 'Installed main skill is missing assets.'
 Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'scripts')) 'Installed main skill is missing scripts.'
 Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'package.json')) 'Installed main skill is missing package.json for native PPTX export.'
 Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'node_modules\pptxgenjs')) 'Installed main skill is missing the local pptxgenjs dependency.'
+Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'vendor\pptx_runtime\.newbiz2-runtime.json')) 'Installed main skill is missing the Python runtime marker.'
 Assert-True (Test-Path -LiteralPath $configPath) "Config file was not created at $configPath."
 Assert-True (Test-Path -LiteralPath $snippetPath) "Config snippet was not created at $snippetPath."
 
@@ -84,6 +86,7 @@ Assert-True ($markerCount -le 1) 'Config contains duplicate newbiz2 managed bloc
 
 $prereq = & $prereqScript -CodexRoot $codexRoot | ConvertFrom-Json
 Assert-True ($prereq.ok -eq $true) 'Prerequisite checker did not pass against the repo-local smoke-test Codex root.'
+Assert-True (@($prereq.checks | Where-Object { $_.key -eq 'python_runtime_modules' -and $_.ok }).Count -eq 1) 'Prerequisite checker did not verify Python runtime modules.'
 
 [pscustomobject]@{
     ok = $true
@@ -103,6 +106,8 @@ Assert-True ($prereq.ok -eq $true) 'Prerequisite checker did not pass against th
     checks = @(
         'repo-local install completed',
         'main skill files copied',
+        'assets copied',
+        'Python runtime modules verified',
         'native PPTX package installed',
         'companion skills copied',
         'config and snippet written',

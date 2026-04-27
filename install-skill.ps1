@@ -29,8 +29,11 @@ $items = @(
     'SKILL.md',
     'agents',
     'assets',
+    'bootstrap-runtime.ps1',
+    'bootstrap-runtime.sh',
     'package.json',
     'package-lock.json',
+    'README.md',
     'references',
     'scripts',
     'templates',
@@ -68,9 +71,25 @@ if (Test-Path -LiteralPath (Join-Path $destination 'package.json')) {
     }
 }
 
+$runtimeBootstrapped = $false
+$runtimeCheck = Join-Path $destination 'scripts\qa\check_python_runtime.py'
+$runtimeBootstrap = Join-Path $destination 'scripts\bootstrap_vendor_runtime.py'
+if (Test-Path -LiteralPath $runtimeCheck) {
+    $python = & (Join-Path $sourceRoot 'scripts\common\resolve_python.ps1')
+    & $python $runtimeCheck --repo-root $destination --runtime-only --quiet
+    if ($LASTEXITCODE -ne 0) {
+        & $python $runtimeBootstrap --repo-root $destination | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Python runtime bootstrap failed with exit code $LASTEXITCODE."
+        }
+        $runtimeBootstrapped = $true
+    }
+}
+
 [pscustomobject]@{
     source = $sourceRoot
     destination = $destination
     installed_items = $installedItems
     skipped_missing_items = $skippedItems
+    python_runtime_bootstrapped = $runtimeBootstrapped
 } | ConvertTo-Json -Compress

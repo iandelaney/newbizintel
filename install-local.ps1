@@ -94,6 +94,7 @@ $configResult = Update-CodexConfig -RepoRoot $repoRoot
     installed = $true
     source = $repoRoot
     main_skill_destination = $mainResult.destination
+    python_runtime_bootstrapped = $mainResult.python_runtime_bootstrapped
     companion_destination_root = $companionResult.destination_root
     installed_companion_skills = $companionResult.installed_skills
     skipped_existing_companion_skills = $companionResult.skipped_existing_skills

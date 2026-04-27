@@ -18,8 +18,13 @@ PY
 }
 
 python_ok=false
-if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
+python_bin=""
+if command -v python3 >/dev/null 2>&1; then
   python_ok=true
+  python_bin="python3"
+elif command -v python >/dev/null 2>&1; then
+  python_ok=true
+  python_bin="python"
 fi
 
 node_ok=false
@@ -35,6 +40,32 @@ fi
 config_ok=false
 if [[ -f "$CONFIG_EXAMPLE" ]]; then
   config_ok=true
+fi
+
+assets_ok=false
+if [[ -d "$REPO_ROOT/assets" ]]; then
+  assets_ok=true
+fi
+
+package_ok=false
+if [[ -f "$REPO_ROOT/package.json" && -f "$REPO_ROOT/package-lock.json" ]]; then
+  package_ok=true
+fi
+
+python_runtime_ok=false
+python_runtime_detail="Python runtime check was skipped because no Python interpreter was found."
+if [[ "$python_ok" == true && -f "$REPO_ROOT/scripts/qa/check_python_runtime.py" ]]; then
+  if runtime_json="$("$python_bin" "$REPO_ROOT/scripts/qa/check_python_runtime.py" --repo-root "$REPO_ROOT" 2>/dev/null)"; then
+    python_runtime_ok=true
+    python_runtime_detail="$runtime_json"
+  else
+    python_runtime_detail="$runtime_json"
+  fi
+fi
+
+rich_renderer_ok=false
+if command -v pwsh >/dev/null 2>&1 || command -v powershell >/dev/null 2>&1; then
+  rich_renderer_ok=true
 fi
 
 writable=true
@@ -54,24 +85,27 @@ if [[ "$writable" != true ]]; then
 fi
 
 ok=true
-for value in "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$writable"; do
+for value in "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$assets_ok" "$package_ok" "$python_runtime_ok" "$rich_renderer_ok" "$writable"; do
   if [[ "$value" != true ]]; then
     ok=false
     break
   fi
 done
 
-python_bin="python3"
-if ! command -v "$python_bin" >/dev/null 2>&1; then
-  python_bin="python"
-fi
-
 "$python_bin" - <<'PY' \
   "$ok" "$REPO_ROOT" "$CODEX_ROOT" \
-  "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$writable" \
-  "$COMPANION_ROOT" "$CONFIG_EXAMPLE" "$write_detail"
+  "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$assets_ok" "$package_ok" "$python_runtime_ok" "$rich_renderer_ok" "$writable" \
+  "$COMPANION_ROOT" "$CONFIG_EXAMPLE" "$write_detail" "$python_runtime_detail"
 import json
 import sys
+
+try:
+    runtime_payload = json.loads(sys.argv[16])
+    runtime_detail = "; ".join(
+        check.get("detail", "") for check in runtime_payload.get("checks", []) if not check.get("ok")
+    ) or "Python runtime dependencies are importable."
+except Exception:
+    runtime_detail = sys.argv[16]
 
 print(json.dumps({
     "ok": sys.argv[1].lower() == "true",
@@ -91,17 +125,37 @@ print(json.dumps({
         {
             "key": "companion_skills",
             "ok": sys.argv[6].lower() == "true",
-            "detail": f"Expected companion-skills folder at {sys.argv[9]}.",
+            "detail": f"Expected companion-skills folder at {sys.argv[13]}.",
         },
         {
             "key": "config_example",
             "ok": sys.argv[7].lower() == "true",
-            "detail": f"Expected config example at {sys.argv[10]}.",
+            "detail": f"Expected config example at {sys.argv[14]}.",
+        },
+        {
+            "key": "assets",
+            "ok": sys.argv[8].lower() == "true",
+            "detail": "Expected repo assets folder for icons, logo helpers, and report presentation assets.",
+        },
+        {
+            "key": "node_package_manifest",
+            "ok": sys.argv[9].lower() == "true",
+            "detail": "Expected package.json and package-lock.json so npm can install pinned Node dependencies.",
+        },
+        {
+            "key": "python_runtime_modules",
+            "ok": sys.argv[10].lower() == "true",
+            "detail": runtime_detail,
+        },
+        {
+            "key": "rich_html_renderer",
+            "ok": sys.argv[11].lower() == "true",
+            "detail": "Current production rich HTML render path still requires pwsh or powershell; remove this once the Python renderer fully replaces render_report.ps1.",
         },
         {
             "key": "codex_root_writable",
-            "ok": sys.argv[8].lower() == "true",
-            "detail": sys.argv[11],
+            "ok": sys.argv[12].lower() == "true",
+            "detail": sys.argv[15],
         },
     ],
 }, separators=(",", ":")))

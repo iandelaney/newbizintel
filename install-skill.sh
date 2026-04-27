@@ -26,8 +26,12 @@ mkdir -p "$destination"
 items=(
   "SKILL.md"
   "agents"
+  "assets"
+  "bootstrap-runtime.ps1"
+  "bootstrap-runtime.sh"
   "package.json"
   "package-lock.json"
+  "README.md"
   "references"
   "scripts"
   "templates"
@@ -58,14 +62,33 @@ if [[ -f "$destination/package.json" ]]; then
   )
 fi
 
-python3 - <<'PY' "$SOURCE_ROOT" "$destination" "${installed[@]}" --skipped "${skipped[@]}"
+python_bin="python3"
+if ! command -v "$python_bin" >/dev/null 2>&1; then
+  python_bin="python"
+fi
+
+if ! command -v "$python_bin" >/dev/null 2>&1; then
+  echo "Python 3 is required to verify or refresh the NewBiz2 runtime." >&2
+  exit 1
+fi
+
+runtime_bootstrapped=false
+if [[ -f "$destination/scripts/qa/check_python_runtime.py" ]]; then
+  if ! "$python_bin" "$destination/scripts/qa/check_python_runtime.py" --repo-root "$destination" --runtime-only --quiet; then
+    "$python_bin" "$destination/scripts/bootstrap_vendor_runtime.py" --repo-root "$destination" >/dev/null
+    runtime_bootstrapped=true
+  fi
+fi
+
+"$python_bin" - <<'PY' "$SOURCE_ROOT" "$destination" "$runtime_bootstrapped" "${installed[@]}" --skipped "${skipped[@]}"
 import json
 import sys
 
 separator = sys.argv.index("--skipped")
 source = sys.argv[1]
 destination = sys.argv[2]
-items = sys.argv[3:separator]
+runtime_bootstrapped = sys.argv[3].lower() == "true"
+items = sys.argv[4:separator]
 skipped = sys.argv[separator + 1:]
 
 print(json.dumps({
@@ -73,5 +96,6 @@ print(json.dumps({
     "destination": destination,
     "installed_items": items,
     "skipped_missing_items": skipped,
+    "python_runtime_bootstrapped": runtime_bootstrapped,
 }, separators=(",", ":")))
 PY

@@ -30,7 +30,7 @@ $checks = @()
 $checks += [pscustomobject]@{
     key = 'powershell'
     ok = (Test-CommandExists -Name 'pwsh') -or (Test-CommandExists -Name 'powershell')
-    detail = 'Requires PowerShell or pwsh to run the repo scripts.'
+    detail = 'Current production rich HTML render path still requires PowerShell or pwsh until render_report.ps1 is replaced by the Python renderer.'
 }
 
 $checks += [pscustomobject]@{
@@ -55,6 +55,53 @@ $checks += [pscustomobject]@{
     key = 'config_example'
     ok = (Test-Path -LiteralPath $configExample)
     detail = "Expected config example at $configExample."
+}
+
+$checks += [pscustomobject]@{
+    key = 'assets'
+    ok = (Test-Path -LiteralPath (Join-Path $repoRoot 'assets'))
+    detail = "Expected assets folder at $(Join-Path $repoRoot 'assets') for icons, logo helpers, and report presentation assets."
+}
+
+$checks += [pscustomobject]@{
+    key = 'node_package_manifest'
+    ok = (Test-Path -LiteralPath (Join-Path $repoRoot 'package.json')) -and (Test-Path -LiteralPath (Join-Path $repoRoot 'package-lock.json'))
+    detail = 'Expected package.json and package-lock.json so npm can install pinned Node dependencies.'
+}
+
+$runtimeCheck = Join-Path $repoRoot 'scripts\qa\check_python_runtime.py'
+if (Test-Path -LiteralPath $runtimeCheck) {
+    try {
+        $python = & (Join-Path $repoRoot 'scripts\common\resolve_python.ps1')
+        $runtimeRaw = & $python $runtimeCheck --repo-root $repoRoot
+        $runtime = $runtimeRaw | ConvertFrom-Json
+        $failedRuntimeChecks = @($runtime.checks | Where-Object { -not $_.ok })
+        $runtimeDetail = if ($failedRuntimeChecks.Count) {
+            ($failedRuntimeChecks | ForEach-Object { $_.detail }) -join '; '
+        }
+        else {
+            'Python runtime dependencies are importable.'
+        }
+        $checks += [pscustomobject]@{
+            key = 'python_runtime_modules'
+            ok = [bool]$runtime.ok
+            detail = $runtimeDetail
+        }
+    }
+    catch {
+        $checks += [pscustomobject]@{
+            key = 'python_runtime_modules'
+            ok = $false
+            detail = "Could not verify Python runtime modules: $($_.Exception.Message)"
+        }
+    }
+}
+else {
+    $checks += [pscustomobject]@{
+        key = 'python_runtime_modules'
+        ok = $false
+        detail = "Missing Python runtime checker at $runtimeCheck."
+    }
 }
 
 $writable = $true

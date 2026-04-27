@@ -19,6 +19,15 @@ python scripts/newbiz2.py run --mode full --brand-name "Brand" --website "https:
 
 PowerShell is now a Windows legacy/compatibility path only. Do not require Mac colleagues to install `pwsh`.
 
+Current implementation dependency audit: the production rich HTML renderer still calls `scripts/render/render_report.ps1`. Treat that as a known portability gap, not as the desired end state. Installation and prerequisite checks must surface it clearly until the rich renderer is fully ported to Python.
+
+The installable runtime must account for:
+
+- Python 3.10+
+- platform-native `Pillow`, `python-pptx`, `lxml`, `typing_extensions`, and `XlsxWriter` through `vendor/pptx_runtime`
+- Node.js and npm for the PptxGenJS render path
+- optional but documented service dependencies: Tavily for live research, SEMrush API/Composio for search data, Playwright for visual QA, and Vercel CLI/deploy skill for optional deployment
+
 The Python runner must support the full modular workflow:
 
 - intake

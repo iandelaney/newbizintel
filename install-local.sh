@@ -6,6 +6,11 @@ DESTINATION_ROOT="${1:-}"
 CODEX_ROOT_OVERRIDE="${CODEX_ROOT_OVERRIDE:-}"
 FORCE_COMPANIONS="${FORCE_COMPANIONS:-false}"
 
+PYTHON_BIN="python3"
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  PYTHON_BIN="python"
+fi
+
 get_codex_root() {
   if [[ -n "$CODEX_ROOT_OVERRIDE" ]]; then
     printf '%s\n' "$CODEX_ROOT_OVERRIDE"
@@ -91,7 +96,7 @@ rest="${config_result#*|}"
 config_path="${rest%%|*}"
 snippet_path="${rest#*|}"
 
-python3 - <<'PY' "$SCRIPT_DIR" "$main_result" "$companion_result" "$config_status" "$config_path" "$snippet_path" "$FORCE_COMPANIONS"
+"$PYTHON_BIN" - <<'PY' "$SCRIPT_DIR" "$main_result" "$companion_result" "$config_status" "$config_path" "$snippet_path" "$FORCE_COMPANIONS"
 import json
 import sys
 
@@ -103,6 +108,7 @@ print(json.dumps({
     "installed": True,
     "source": source,
     "main_skill_destination": main_result["destination"],
+    "python_runtime_bootstrapped": main_result.get("python_runtime_bootstrapped", False),
     "companion_destination_root": companion_result["destination_root"],
     "installed_companion_skills": companion_result["installed_skills"],
     "skipped_existing_companion_skills": companion_result["skipped_existing_skills"],

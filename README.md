@@ -101,8 +101,20 @@ The Python runner now applies the prompt manifest, imports the final imagegen ra
 
 Prerequisites:
 
-- Windows: Python, Node.js, and npm available; PowerShell is only required for legacy `.ps1` compatibility checks
-- macOS: `python3`, `node`, and `npm` available on `PATH`; `pwsh` is not required for the default runner
+- Windows: Python 3.10+, Node.js, npm, and PowerShell or `pwsh` available.
+- macOS: `python3`, `node`, and `npm` available on `PATH`.
+
+Current production-render caveat: the runner is Python-first, but the rich HTML renderer still calls `scripts/render/render_report.ps1`. That means a full production render currently needs PowerShell or `pwsh`; removing this is the remaining dependency gap before macOS is truly no-PowerShell end to end.
+
+The Python runtime also needs platform-native packages for image/logo QA and PPTX generation:
+
+- `Pillow`
+- `python-pptx`
+- `lxml`
+- `typing_extensions`
+- `XlsxWriter`
+
+The installer copies the vendored runtime and refreshes it automatically when the bundled runtime does not match the current platform or Python version. You can run the refresh manually with `./bootstrap-runtime.sh` on macOS/Linux or `.\bootstrap-runtime.ps1` on Windows.
 
 Windows PowerShell:
 
@@ -116,7 +128,7 @@ macOS or other Unix-like shells:
 ./install-local.sh
 ```
 
-The install path also runs `npm install --omit=dev` inside the installed `newbiz2` skill so the native PptxGenJS deck exporter is ready for PPTX generation.
+The install path also runs `npm install --omit=dev` inside the installed `newbiz2` skill so the native PptxGenJS deck exporter is ready for PPTX generation. It also verifies the Python runtime modules and rebuilds `vendor/pptx_runtime` when the checked-in runtime is for a different OS or Python version.
 
 If you only want to install the skill files without updating Codex config:
 
@@ -168,10 +180,25 @@ macOS or other Unix-like shells:
 
 This should report:
 
-- a usable Python runtime
+- Python 3.10+ and importable runtime modules: `Pillow`, `python-pptx`, and `lxml`
 - a usable Node/npm runtime
+- the required package manifests, `assets`, companion skills, and config example
+- the current rich HTML renderer dependency on PowerShell or `pwsh`
 - a writable Codex root
-- the expected companion skill and config files
+
+If the Python runtime check fails, run:
+
+Windows PowerShell:
+
+```powershell
+.\bootstrap-runtime.ps1
+```
+
+macOS or other Unix-like shells:
+
+```bash
+./bootstrap-runtime.sh
+```
 
 ### 3. Install the skill
 
