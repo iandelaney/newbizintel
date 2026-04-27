@@ -46,6 +46,17 @@ Agentic workers should return structured outputs only. They should not mutate th
 canonical report files directly unless a bounded worker owns that file and no
 other worker is writing to it.
 
+## Model Routing
+
+When a step is model-backed, use a simple quality-first split:
+
+- `gpt-5.5` for orchestration, synthesis, final report writing, and QA-sensitive judgement
+- `gpt-5.4-mini` for low-risk repeatable tasks, extraction, normalisation, and helper work
+
+The important rule is not the label itself but the boundary: keep the strongest
+model where judgement and final wording matter, and let the smaller model handle
+routine, bounded work that can be checked deterministically afterward.
+
 ## Gate Pattern
 
 1. Fan out workers or jobs into isolated work files.

@@ -65,6 +65,7 @@ What works today:
 - HTML, portable HTML, native PPTX, and deploy handoff outputs are produced from the copied stable `newbizintel` machinery plus a PptxGenJS deck path aligned to the `slides` skill
 - the full modular chain is proven on the real Univers brand folder through `research -> structure -> assets -> campaign-art -> render -> qa -> deploy-handoff`
 - premium Creative Campaign art now defaults to prompt-driven image-generated raster artwork, with local scaffold placeholders allowed only when a report explicitly opts into scaffold mode
+- model routing is split by risk: use `gpt-5.5` for orchestration, synthesis, final report writing, and QA-sensitive judgement; use `gpt-5.4-mini` for low-risk repeatable tasks and deterministic helpers
 
 ## Premium campaign art
 

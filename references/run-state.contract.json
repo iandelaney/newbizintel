@@ -1,6 +1,15 @@
 {
   "brand_folder": "C:/codex projects/output/example-brand",
   "execution_model": "hybrid",
+  "model_routing": {
+    "default": "gpt-5.5",
+    "orchestration": "gpt-5.5",
+    "synthesis": "gpt-5.5",
+    "final_report_writing": "gpt-5.5",
+    "qa_sensitive_judgement": "gpt-5.5",
+    "low_risk_tasks": "gpt-5.4-mini",
+    "deterministic_helpers": "gpt-5.4-mini"
+  },
   "hybrid_execution": {
     "required_fanouts": [
       "research.evidence_collection",

@@ -28,6 +28,11 @@ The installable runtime must account for:
 - Node.js and npm for the PptxGenJS render path
 - optional but documented service dependencies: Tavily for live research, SEMrush API/Composio for search data, Playwright for visual QA, and Vercel CLI/deploy skill for optional deployment
 
+Model routing is split by risk:
+
+- `gpt-5.5` for orchestration, synthesis, final report writing, and QA-sensitive judgement
+- `gpt-5.4-mini` for low-risk repeatable tasks and deterministic helpers
+
 The Python runner must support the full modular workflow:
 
 - intake

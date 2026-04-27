@@ -92,6 +92,16 @@ PLACEHOLDER_MARKERS = (
     ("competitor-c.com", "template competitor URL"),
 )
 
+DEFAULT_MODEL_ROUTING = {
+    "default": "gpt-5.5",
+    "orchestration": "gpt-5.5",
+    "synthesis": "gpt-5.5",
+    "final_report_writing": "gpt-5.5",
+    "qa_sensitive_judgement": "gpt-5.5",
+    "low_risk_tasks": "gpt-5.4-mini",
+    "deterministic_helpers": "gpt-5.4-mini",
+}
+
 
 TASK_DEFINITIONS = [
     {
@@ -265,6 +275,7 @@ def default_state(brand_folder: Path) -> dict[str, Any]:
         state = {}
     state["brand_folder"] = str(brand_folder)
     state.setdefault("execution_model", "hybrid")
+    state.setdefault("model_routing", copy.deepcopy(DEFAULT_MODEL_ROUTING))
     state.setdefault("hybrid_execution", {"required_fanouts": [], "required_reducers": [], "events": []})
     state.setdefault("status", {})
     for name in ("intake", "research", "structure", "assets", "campaign_art", "render", "qa", "deploy"):
