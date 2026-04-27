@@ -963,6 +963,32 @@ def validate_company_snapshot_contract(data: dict[str, Any], errors: list[str]) 
                 errors.append(f"company_snapshot.founders[{index}].{key} is required.")
 
 
+def validate_executive_summary_tone(data: dict[str, Any], errors: list[str]) -> None:
+    banned_terms = (
+        "tavily",
+        "source gathering",
+        "public-web source",
+        "found search/visibility sources",
+        "treat this as",
+        "not data from",
+        "provider:",
+    )
+    cards = data.get("executive_summary", {}).get("cards", [])
+    for index, card in enumerate(cards if isinstance(cards, list) else []):
+        if not isinstance(card, dict):
+            errors.append(f"executive_summary.cards[{index}] must be an object.")
+            continue
+        body = str(card.get("body") or "")
+        lower_body = body.lower()
+        for term in banned_terms:
+            if term in lower_body:
+                errors.append(
+                    f"executive_summary.cards[{index}].body contains operational evidence-gathering language unsuitable for an executive summary: {term}"
+                )
+        if len(body) > 420:
+            errors.append(f"executive_summary.cards[{index}].body is too long for an executive summary card.")
+
+
 def is_enriched_company_snapshot(value: Any) -> bool:
     if not isinstance(value, dict):
         return False
@@ -1027,6 +1053,7 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     if not content_audit["ok"]:
         errors.extend(f"missing_content_audit: {error}" for error in content_audit.get("errors", []))
     validate_company_snapshot_contract(data, errors)
+    validate_executive_summary_tone(data, errors)
     usp = data.get("usp_ksp_review", {})
     if isinstance(usp, dict):
         usp_rows = usp.get("rows", [])
@@ -1187,6 +1214,32 @@ def first_items(value: Any, limit: int = 3) -> list[Any]:
 def sentence(value: Any, fallback: str = "") -> str:
     text = re.sub(r"\s+", " ", str(value or "").strip())
     return text or fallback
+
+
+def executive_seo_opportunity_summary(
+    brand: str,
+    competitors: list[str],
+    search_evidence: list[dict[str, Any]],
+) -> str:
+    competitor_text = ", ".join(competitors[:3])
+    comparison_clause = (
+        f" Buyers are comparing the brand with {competitor_text}, so the opportunity is to win those journeys with clearer proof and comparison content."
+        if competitor_text
+        else " The opportunity is to win comparison journeys with clearer proof, alternatives, and buyer-question content."
+    )
+    has_semrush = any(
+        "semrush" in f"{item.get('provider', '')} {item.get('source_label', '')} {item.get('title', '')}".lower()
+        for item in search_evidence
+    )
+    evidence_clause = (
+        " Search evidence points to visibility headroom around category, competitor, and trust-led queries."
+        if has_semrush
+        else " Public search evidence points to visibility headroom around category, competitor, and trust-led queries."
+    )
+    return (
+        f"{brand} should make search a reassurance channel."
+        f"{evidence_clause}{comparison_clause}"
+    )
 
 
 def first_dicts(value: Any, limit: int = 3) -> list[dict[str, Any]]:
@@ -1441,7 +1494,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             {"title": "Biggest commercial risk", "body": sentence(top_news.get("why_it_matters"), "The biggest risk is that trust concerns weaken conversion and retention even when the category proposition is clear.")},
             {"title": "Biggest messaging opportunity", "body": "Lead with useful household outcomes, then back the promise with plain-English proof around choice, freshness, delivery reliability, cancellation, and service recovery."},
             {"title": "Biggest reputation insight", "body": f"The ranked story set is led by {sentence(top_news.get('headline'), 'high-authority reputation evidence')}, so reassurance must be more than brand tone."},
-            {"title": "Biggest SEO opportunity", "body": sentence(primary_search_source.get("body"), "Use search evidence to build stronger comparison, alternative, and buyer-question content.")},
+            {"title": "Biggest SEO opportunity", "body": executive_seo_opportunity_summary(brand, competitor_names, search_evidence)},
             {"title": "Biggest content strategy opportunity", "body": "Turn customer anxieties into helpful proof content: how plans work, how choices are controlled, how service issues are resolved, and how the offer compares."},
         ],
         "overall_recommendation": f"Position {brand} around confident, flexible home cooking, supported by proof-led content that answers trust, subscription, and comparison questions before they become objections.",
