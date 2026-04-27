@@ -470,7 +470,7 @@ function ConvertTo-PublishedMessagingAssessmentHtml {
       <span class="eyebrow">Published Messaging Assessment</span>
       $(ConvertTo-RichText ([string]$Assessment.summary))
       $statementHtml
-      <p><span class="eyebrow">Reputation read-across</span> $(ConvertTo-HtmlEncoded ([string]$Assessment.reputation_read_across))</p>
+      <p><span class="eyebrow">What reputation evidence changes</span> $(ConvertTo-HtmlEncoded ([string]$Assessment.reputation_read_across))</p>
       <p><span class="eyebrow">Messaging implication</span> $(ConvertTo-HtmlEncoded ([string]$Assessment.implication))</p>
     </div>
 "@

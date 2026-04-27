@@ -1476,6 +1476,28 @@ def summarize_existing_messaging(brand: str, published_statements: list[dict[str
     )
 
 
+def messaging_reputation_read_across(top_news: dict[str, Any]) -> str:
+    headline = sentence(top_news.get("headline"), "trust-sensitive public stories")
+    source = sentence(top_news.get("source"), "public coverage")
+    why = sentence(top_news.get("why_it_matters"), "")
+    lower = f"{headline} {why}".lower()
+    if "subscription" in lower or "cancel" in lower or "trap" in lower:
+        return (
+            f"Before readers reach the reputation chapter, the key point is this: {source} coverage has raised questions about whether customers "
+            "can easily understand, control, pause, cancel, or recover from subscription issues. That makes the mission and values platform work "
+            "harder: it needs visible proof around transparency, control, service recovery, and cancellation confidence."
+        )
+    if why:
+        return (
+            f"Before readers reach the reputation chapter, the key point is this: {source} coverage highlights {why[0].lower() + why[1:]}. "
+            "That means the published promise needs practical proof, not just confident brand language."
+        )
+    return (
+        "Before readers reach the reputation chapter, the key point is this: public coverage creates a trust test for the published promise. "
+        "The messaging therefore needs visible proof that the customer experience lives up to the mission and values."
+    )
+
+
 def clean_placeholder_text(value: str, brand: str) -> str:
     if any(placeholder_marker_matches(value, marker) for marker, _reason in PLACEHOLDER_MARKERS):
         return f"{brand} evidence requires a fresh synthesis before this section can be published."
@@ -1668,7 +1690,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         "existing_messaging_assessment": {
             "summary": summarize_existing_messaging(brand, published_statements),
             "published_statements": published_statements,
-            "reputation_read_across": f"Reputation coverage led by {sentence(top_news.get('headline'), 'trust-sensitive public stories')} means the mission and values platform needs visible proof around transparency, control, customer service, and recovery.",
+            "reputation_read_across": messaging_reputation_read_across(top_news),
             "implication": "The messaging should move from broad mission language to proof-backed delivery: show how the model makes eating better, easier, fresher, better value, and less wasteful while keeping the customer in control.",
         },
         "cards": [
