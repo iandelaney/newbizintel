@@ -63,9 +63,9 @@ if [[ "$python_ok" == true && -f "$REPO_ROOT/scripts/qa/check_python_runtime.py"
   fi
 fi
 
-rich_renderer_ok=false
+legacy_powershell_ok=false
 if command -v pwsh >/dev/null 2>&1 || command -v powershell >/dev/null 2>&1; then
-  rich_renderer_ok=true
+  legacy_powershell_ok=true
 fi
 
 writable=true
@@ -85,7 +85,7 @@ if [[ "$writable" != true ]]; then
 fi
 
 ok=true
-for value in "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$assets_ok" "$package_ok" "$python_runtime_ok" "$rich_renderer_ok" "$writable"; do
+for value in "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$assets_ok" "$package_ok" "$python_runtime_ok" "$writable"; do
   if [[ "$value" != true ]]; then
     ok=false
     break
@@ -94,7 +94,7 @@ done
 
 "$python_bin" - <<'PY' \
   "$ok" "$REPO_ROOT" "$CODEX_ROOT" \
-  "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$assets_ok" "$package_ok" "$python_runtime_ok" "$rich_renderer_ok" "$writable" \
+  "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$assets_ok" "$package_ok" "$python_runtime_ok" "$legacy_powershell_ok" "$writable" \
   "$COMPANION_ROOT" "$CONFIG_EXAMPLE" "$write_detail" "$python_runtime_detail"
 import json
 import sys
@@ -148,9 +148,9 @@ print(json.dumps({
             "detail": runtime_detail,
         },
         {
-            "key": "rich_html_renderer",
-            "ok": sys.argv[11].lower() == "true",
-            "detail": "Current production rich HTML render path still requires pwsh or powershell; remove this once the Python renderer fully replaces render_report.ps1.",
+            "key": "legacy_powershell_renderer",
+            "ok": True,
+            "detail": "Legacy PowerShell renderer is available." if sys.argv[11].lower() == "true" else "Legacy PowerShell renderer is not available; this is acceptable because Python render_report.py is the default production renderer.",
         },
         {
             "key": "codex_root_writable",

@@ -101,10 +101,10 @@ The Python runner now applies the prompt manifest, imports the final imagegen ra
 
 Prerequisites:
 
-- Windows: Python 3.10+, Node.js, npm, and PowerShell or `pwsh` available.
+- Windows: Python 3.10+, Node.js, and npm available.
 - macOS: `python3`, `node`, and `npm` available on `PATH`.
 
-Current production-render caveat: the runner is Python-first, but the rich HTML renderer still calls `scripts/render/render_report.ps1`. That means a full production render currently needs PowerShell or `pwsh`; removing this is the remaining dependency gap before macOS is truly no-PowerShell end to end.
+PowerShell or `pwsh` is no longer required for the default production path. The legacy PowerShell renderer remains in the repo as an opt-in fallback only.
 
 The Python runtime also needs platform-native packages for image/logo QA and PPTX generation:
 
@@ -183,7 +183,7 @@ This should report:
 - Python 3.10+ and importable runtime modules: `Pillow`, `python-pptx`, and `lxml`
 - a usable Node/npm runtime
 - the required package manifests, `assets`, companion skills, and config example
-- the current rich HTML renderer dependency on PowerShell or `pwsh`
+- optional legacy PowerShell renderer availability, reported as information rather than a fail condition
 - a writable Codex root
 
 If the Python runtime check fails, run:

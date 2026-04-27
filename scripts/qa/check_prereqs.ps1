@@ -27,10 +27,11 @@ $snippetProbe = Join-Path $snippetProbeDir 'write-test.tmp'
 
 $checks = @()
 
+$legacyPowerShellAvailable = (Test-CommandExists -Name 'pwsh') -or (Test-CommandExists -Name 'powershell')
 $checks += [pscustomobject]@{
-    key = 'powershell'
-    ok = (Test-CommandExists -Name 'pwsh') -or (Test-CommandExists -Name 'powershell')
-    detail = 'Current production rich HTML render path still requires PowerShell or pwsh until render_report.ps1 is replaced by the Python renderer.'
+    key = 'legacy_powershell_renderer'
+    ok = $true
+    detail = $(if ($legacyPowerShellAvailable) { 'Legacy PowerShell renderer is available.' } else { 'Legacy PowerShell renderer is not available; this is acceptable because Python render_report.py is the default production renderer.' })
 }
 
 $checks += [pscustomobject]@{

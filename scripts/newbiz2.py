@@ -4625,6 +4625,20 @@ def render_rich_html_with_powershell(data_path: Path, output_path: Path) -> Path
     return rendered
 
 
+def render_rich_html_with_python(data_path: Path, output_path: Path) -> Path:
+    script = SCRIPT_ROOT / "render" / "render_report.py"
+    if not script.exists():
+        raise RuntimeError(f"Python rich HTML renderer script is missing: {script}")
+    result = run_python_script(
+        script,
+        ["--data", str(data_path), "--output", str(output_path), "--skip-validation"],
+    )
+    rendered = Path(result.get("html") or output_path)
+    if not rendered.exists():
+        raise RuntimeError(f"Python rich HTML renderer did not create output: {rendered}")
+    return rendered
+
+
 def module_render(args: argparse.Namespace) -> dict[str, Any]:
     data_path = data_path_from_args(args)
     brand_folder = brand_folder_from_data(data_path)
@@ -4640,19 +4654,22 @@ def module_render(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("Render blocked by report-data validation: " + "; ".join(validation["errors"]))
     html_path = brand_folder / "newbizintel-report.html"
     try:
-        html_path = render_rich_html_with_powershell(data_path, html_path)
+        html_path = render_rich_html_with_python(data_path, html_path)
     except Exception as exc:
-        if os.environ.get("NEWBIZ2_ALLOW_SKELETAL_RENDER") == "1":
+        if os.environ.get("NEWBIZ2_ALLOW_POWERSHELL_RENDER_FALLBACK") == "1":
+            html_path = render_rich_html_with_powershell(data_path, html_path)
+        elif os.environ.get("NEWBIZ2_ALLOW_SKELETAL_RENDER") == "1":
             html_path = render_html(data_path, html_path)
         else:
             set_status(state, "render", "failed")
             set_gate(state, "gate_6_render_outputs", "failed")
             save_state(brand_folder, state)
             raise SystemExit(
-                "Render blocked because the rich presentation renderer did not run. "
-                "Refusing to produce the skeletal fallback report. "
+                "Render blocked because the Python rich presentation renderer did not run. "
+                "Refusing to use the legacy PowerShell renderer unless NEWBIZ2_ALLOW_POWERSHELL_RENDER_FALLBACK=1. "
                 f"Root cause: {exc}"
             )
+    inject_task_list_into_html(html_path, brand_folder)
     archive_dir = brand_folder / "archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
     portable_html = archive_dir / "newbizintel-report-portable.html"
