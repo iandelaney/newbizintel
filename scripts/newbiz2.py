@@ -1309,6 +1309,13 @@ def executive_commercial_risk_summary(brand: str, top_news: dict[str, Any]) -> s
         top_news.get("why_it_matters"),
         "Trust concerns could weaken conversion and retention even when the category proposition is clear.",
     )
+    headline = sentence(top_news.get("headline"), "")
+    combined = f"{headline} {raw}".lower()
+    if "subscription trap" in combined or "subscription" in combined and ("cancel" in combined or "billing" in combined or "regulatory" in combined):
+        return (
+            f"The biggest commercial risk is subscription trust: customers may hesitate if they are not confident "
+            f"that {brand} is easy to understand, control, pause, cancel, and resolve when something goes wrong."
+        )
     lower_raw = raw.lower()
     if lower_raw.startswith("raises "):
         return f"The commercial risk is that public scrutiny around {brand} {raw[0].lower()}{raw[1:]}"
