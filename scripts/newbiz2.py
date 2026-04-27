@@ -1068,6 +1068,31 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
                     errors.append(f"usp_ksp_review.rows[{index}].{key} is required.")
     landscape = data.get("competitive_landscape", {})
     if isinstance(landscape, dict):
+        rows = landscape.get("table", [])
+        if not isinstance(rows, list) or not rows:
+            errors.append("competitive_landscape.table must include competitor rows.")
+        else:
+            why_values: list[str] = []
+            pattern_values: list[str] = []
+            for index, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    errors.append(f"competitive_landscape.table[{index}] must be an object.")
+                    continue
+                for field in ("why_it_matters", "positioning_pattern", "implication"):
+                    value = str(row.get(field) or "").strip()
+                    if len(value) < 80:
+                        errors.append(f"competitive_landscape.table[{index}].{field} must be specific, not a short generic note.")
+                    lower_value = value.lower()
+                    if any(snippet in lower_value for snippet in GENERIC_COMPETITOR_ANALYSIS_SNIPPETS):
+                        errors.append(f"competitive_landscape.table[{index}].{field} contains generic discovery-language.")
+                why_values.append(str(row.get("why_it_matters") or "").strip().lower())
+                pattern_values.append(str(row.get("positioning_pattern") or "").strip().lower())
+            populated_count = len([value for value in pattern_values if value])
+            if populated_count >= 3 and len(set(pattern_values)) < min(3, populated_count):
+                errors.append("competitive_landscape.table positioning_pattern values must differentiate competitors from each other.")
+            populated_why = len([value for value in why_values if value])
+            if populated_why >= 3 and len(set(why_values)) < min(3, populated_why):
+                errors.append("competitive_landscape.table why_it_matters values must differentiate competitors from each other.")
         for key in ("messaging_patterns", "content_patterns", "status_summary"):
             value = landscape.get(key)
             if not isinstance(value, list) or len([item for item in value if has_value(item)]) < 3:
@@ -1372,6 +1397,74 @@ WEAK_PUBLISHED_MESSAGING_SNIPPETS = (
     "sign up",
     "special deals",
 )
+
+
+GENERIC_COMPETITOR_ANALYSIS_SNIPPETS = (
+    "current market-discovery search identified this brand",
+    "identified from current market alternatives coverage",
+    "use this comparator to sharpen positioning",
+    "alternative or category comparator",
+)
+
+
+def competitor_role_analysis(brand: str, row: dict[str, Any]) -> dict[str, str]:
+    name = str(row.get("competitor") or row.get("name") or "").strip()
+    key = re.sub(r"[^a-z0-9]+", "", name.lower())
+    known: dict[str, dict[str, str]] = {
+        "gousto": {
+            "why_it_matters": f"Gousto is the closest UK recipe-box comparator because it competes on choice breadth, flexibility, reviews, and value. Its 175+ weekly recipe claim makes {brand}'s menu range and decision support directly comparable.",
+            "positioning_pattern": "Choice-maximiser recipe box: very large menu, quick/easy variants, family and dietary filters, strong review proof, and explicit skip/cancel reassurance.",
+            "implication": f"{brand} should not answer Gousto with generic convenience. It needs clearer proof on menu breadth, freshness, value per portion, and plan control, plus sharper help choosing the right meals.",
+        },
+        "simplycook": {
+            "why_it_matters": f"SimplyCook is not a like-for-like box; it is a lower-friction alternative for customers who want flavour inspiration without paying for full ingredients. It can intercept shoppers who like cooking but resist a larger subscription commitment.",
+            "positioning_pattern": "Flavour-kit shortcut: compact ingredient pots, cupboard/fridge add-ins, low delivery weight, low price point, and a lighter subscription promise.",
+            "implication": f"{brand} should show why a full meal kit is worth the extra commitment: less shopping, fresher ingredients, clearer portioning, and more complete dinner confidence than flavour help alone.",
+        },
+        "mindfulchef": {
+            "why_it_matters": f"Mindful Chef pressures {brand} at the premium trust end of the market. It leads with health, ingredient standards, high ratings, ethical proof, and social impact rather than discount-led convenience.",
+            "positioning_pattern": "Premium healthy recipe box: balanced wholefoods, no refined carbs, responsible sourcing, B Corp proof, donation mechanic, and Trustpilot-led reassurance.",
+            "implication": f"{brand} needs a stronger values-to-proof story around freshness, nutrition, waste reduction, and service reliability so its mission does not feel weaker than Mindful Chef's visible quality cues.",
+        },
+        "blueapron": {
+            "why_it_matters": f"Blue Apron is mainly a category-evolution benchmark rather than a direct UK threat. It shows where meal kits are moving: optional subscription, chef-designed kits, prepared meals, and more flexible shopping formats.",
+            "positioning_pattern": "Format-flexible meal platform: chef-designed kits, prepared or ready-to-heat meals, wellness tags, premium options, and less dependence on one subscription model.",
+            "implication": f"{brand} should watch Blue Apron as a warning that flexibility is becoming the category norm. Content should explain not only recipes, but the range of use cases and controls around them.",
+        },
+        "homecooks": {
+            "why_it_matters": f"HomeCooks competes for the same busy-weeknight problem but removes cooking altogether. Its independent-chef marketplace and high-protein prepared meals make it a substitute for customers who want health and variety without prep.",
+            "positioning_pattern": "Prepared-meal marketplace: independent chefs, small-batch cooking, high-protein ready meals, global variety, retail expansion, and heat-and-eat convenience.",
+            "implication": f"{brand} should be clear about the emotional and practical value of cooking, not just convenience. It must defend the role of recipe boxes against ready-made meals with proof of freshness, enjoyment, and control.",
+        },
+    }
+    analysis = known.get(key)
+    if analysis:
+        return analysis
+    return {
+        "why_it_matters": f"{name or 'This competitor'} matters because it gives customers another way to solve the same meal-planning problem. The analysis should compare the specific promise, friction removed, proof offered, and trade-off versus {brand}.",
+        "positioning_pattern": "Comparator requiring manual synthesis: identify whether it wins on price, health, convenience, cuisine, trust, format flexibility, or audience focus.",
+        "implication": f"{brand} should use this competitor to clarify what it does better, where it asks more of the customer, and which proof is needed to make that trade-off feel worthwhile.",
+    }
+
+
+def is_generic_competitor_field(value: Any) -> bool:
+    text = str(value or "").strip()
+    if len(text) < 80:
+        return True
+    lower_text = text.lower()
+    return any(snippet in lower_text for snippet in GENERIC_COMPETITOR_ANALYSIS_SNIPPETS)
+
+
+def enrich_competitor_table(brand: str, competitors: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched = []
+    for row in competitors:
+        item = dict(row)
+        analysis = competitor_role_analysis(brand, item)
+        for key, value in analysis.items():
+            if is_generic_competitor_field(item.get(key)):
+                item[key] = value
+        enriched.append(item)
+    return enriched
 
 
 def messaging_source_score(item: dict[str, Any]) -> int:
@@ -1716,7 +1809,8 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         ],
     }
 
-    data["competitive_landscape"] = {"table": competitors}
+    enriched_competitors = enrich_competitor_table(brand, competitors)
+    data["competitive_landscape"] = {"table": enriched_competitors}
     data["seo_audit"] = {
         "cards": [
             {"title": "Search intent and positioning", "body": f"Search evidence indicates that {brand} should serve comparison, alternative, value, cancellation, and customer-control intent more explicitly."},
@@ -2777,7 +2871,8 @@ def module_research(args: argparse.Namespace) -> dict[str, Any]:
 
 def merge_research_into_data(data: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any]:
     if summary.get("competitors"):
-        data.setdefault("competitive_landscape", {})["table"] = summary["competitors"]
+        brand = str(data.get("brand", {}).get("name") or summary.get("brand_name") or "the brand")
+        data.setdefault("competitive_landscape", {})["table"] = enrich_competitor_table(brand, summary["competitors"])
         names = [row.get("competitor") or row.get("name") for row in summary["competitors"] if isinstance(row, dict)]
         if names:
             data.setdefault("cover", {})["competitors"] = names

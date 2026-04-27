@@ -104,6 +104,17 @@ The `company_snapshot` section is a factual briefing module, not just a position
 - Include `ownership_funding` with public listing, parent company, investor, funding, IPO, acquisition, or ownership context.
 - Include `source_map` so readers can verify finance, leadership, founder, and ownership facts.
 - The report-data validation gate must fail if this richer snapshot collapses back to generic cards only.
+
+## Competitive Landscape
+
+The `competitive_landscape.table` section must explain strategic difference, not discovery status.
+
+- `why_it_matters` must say why this specific competitor changes the target brand's marketing problem: which buyer need, category expectation, proof standard, price/value frame, trust cue, or format substitute it represents.
+- `positioning_pattern` must describe the competitor's actual model and message pattern, not the fact that it appeared in market-discovery search.
+- `implication` must explain what the target brand should do differently because of that competitor.
+- Competitor rows must be differentiated from one another. If several rows could be swapped between competitors without changing meaning, the gate must fail.
+- Generic phrases such as "current market-discovery search", "alternative or category comparator", or "use this comparator to sharpen positioning" are fail conditions in production report data.
+
 8. HTML, portable HTML, and PPTX render
    - Primary gate: `gate_8_render_outputs`
    - Trust test: Rendered HTML, portable HTML, and PPTX exist and are current.
