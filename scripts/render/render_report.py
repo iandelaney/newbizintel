@@ -84,14 +84,46 @@ def rich(value: Any) -> str:
 def list_html(items: Any) -> str:
     if not isinstance(items, list):
         return ""
-    rows = [f"<li>{rich(item) if isinstance(item, str) and '<' in item else esc(item)}</li>" for item in items if has_value(item)]
+    rows: list[str] = []
+    for item in items:
+        if not has_value(item):
+            continue
+        if isinstance(item, dict):
+            title = item.get("title") or item.get("label") or item.get("name") or item.get("platform") or ""
+            body = item.get("body") or item.get("value") or item.get("summary") or item.get("signal") or ""
+            detail_parts = []
+            for label, key in [("Tone", "tone"), ("Signal", "signal"), ("Implication", "implication")]:
+                value = item.get(key)
+                if has_value(value) and value != body:
+                    detail_parts.append(f"<strong>{esc(label)}</strong> {esc(value)}")
+            detail = "; ".join(detail_parts)
+            if has_value(title) and (has_value(body) or has_value(detail)):
+                separator = ": " if has_value(body) else " "
+                extra = f" {detail}" if detail else ""
+                rows.append(f"<li><strong>{esc(title)}</strong>{separator}{rich(body) if has_value(body) else ''}{extra}</li>")
+            elif has_value(title) or has_value(body):
+                rows.append(f"<li>{rich(body or title)}</li>")
+        else:
+            rows.append(f"<li>{rich(item) if isinstance(item, str) and '<' in item else esc(item)}</li>")
     return f"<ul>{''.join(rows)}</ul>" if rows else ""
 
 
 def pill_html(items: Any) -> str:
     if not isinstance(items, list):
         return ""
-    return "".join(f'<span class="pill">{esc(item)}</span>' for item in items if has_value(item))
+    rows: list[str] = []
+    for item in items:
+        if not has_value(item):
+            continue
+        if isinstance(item, dict):
+            label = item.get("label") or item.get("title") or item.get("name") or item.get("value") or ""
+            tone = text(item.get("tone") or "")
+            tone_class = f" pill--{esc(tone)}" if tone else ""
+            if has_value(label):
+                rows.append(f'<span class="pill{tone_class}">{esc(label)}</span>')
+        else:
+            rows.append(f'<span class="pill">{esc(item)}</span>')
+    return "".join(rows)
 
 
 def section_heading(level: str, title: str, section_id: str = "", css_class: str = "section-heading") -> str:
@@ -592,7 +624,7 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
         table_html(competitor_rows, [("Competitor", "competitor_cell", True), ("Why it matters", "why_it_matters", False), ("Positioning pattern", "positioning_pattern", False), ("Implication for the brand", "implication", False)], "competitive-table"),
         simple_charts(landscape.get("charts")),
         section_heading("h3", "Why Each Competitor Matters", css_class="category-heading"),
-        rich(landscape.get("why_each_competitor_matters")),
+        card_grid(landscape.get("why_each_competitor_matters")),
         section_heading("h3", "Messaging Patterns Across the Market", css_class="category-heading"),
         list_html(landscape.get("messaging_patterns")),
         section_heading("h3", "Content Patterns Across the Market", css_class="category-heading"),

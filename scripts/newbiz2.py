@@ -633,6 +633,7 @@ def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
         "PowerShell object literal": r"@\{[^}]+}",
         "PowerShell type name": r"System\.Management\.Automation\.(?:PSCustomObject|PSObject)",
         "JavaScript object placeholder": r"\[object Object\]",
+        "Python dict/list literal": r"(?:\[\s*)?\{(?:&#x27;|&quot;|'|\")\w+(?:&#x27;|&quot;|'|\")\s*:",
     }
     for label, pattern in leaked_object_patterns.items():
         count = len(re.findall(pattern, html_text, flags=re.I | re.S))
