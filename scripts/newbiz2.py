@@ -4329,6 +4329,12 @@ def assert_deployable_report_html(html_path: Path) -> None:
     if not html_path.exists():
         raise SystemExit(f"Report HTML does not exist: {html_path}")
     text = html_path.read_text(encoding="utf-8", errors="replace")
+    completeness_audit = audit_rendered_html_completeness(text)
+    if not completeness_audit["ok"]:
+        raise SystemExit(
+            "Refusing deployment handoff because rendered HTML failed presentation completeness checks. "
+            f"Path: {html_path}; errors: {'; '.join(completeness_audit.get('errors', []))}"
+        )
     lowered = text.lower()
     required_markers = (
         "<html",
@@ -4682,10 +4688,26 @@ def module_render(args: argparse.Namespace) -> dict[str, Any]:
                 f"Root cause: {exc}"
             )
     inject_task_list_into_html(html_path, brand_folder)
+    try:
+        assert_deployable_report_html(html_path)
+    except SystemExit:
+        set_status(state, "render", "failed")
+        set_gate(state, "gate_6_render_outputs", "failed")
+        set_gate(state, "gate_8_render_outputs", "failed")
+        save_state(brand_folder, state)
+        raise
     archive_dir = brand_folder / "archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
     portable_html = archive_dir / "newbizintel-report-portable.html"
     make_self_contained(html_path, data_path, portable_html)
+    try:
+        assert_deployable_report_html(portable_html)
+    except SystemExit:
+        set_status(state, "render", "failed")
+        set_gate(state, "gate_6_render_outputs", "failed")
+        set_gate(state, "gate_8_render_outputs", "failed")
+        save_state(brand_folder, state)
+        raise
     pptx_path = brand_folder / "newbizintel-report.pptx"
     pptx_warning = ""
     try:
