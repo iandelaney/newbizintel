@@ -1653,6 +1653,14 @@ function Get-ProfilePlatformMeta {
     $normalizedPlatform = ([string]$Platform).Trim().ToLowerInvariant()
     $normalizedUrl = ([string]$Url).Trim().ToLowerInvariant()
 
+    if ($normalizedPlatform -eq 'company' -or $normalizedPlatform -eq 'official' -or $normalizedPlatform -eq 'website') {
+        return [pscustomobject]@{
+            key = 'company'
+            label = 'Company'
+            icon = Get-LinkedInIconSvg
+        }
+    }
+
     if ($normalizedPlatform -eq 'linkedin' -or $normalizedUrl -match 'linkedin\.com') {
         return [pscustomobject]@{
             key = 'linkedin'
@@ -1827,11 +1835,15 @@ function ConvertTo-PeopleGridHtml {
     }
 
     $rows = $People | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.name) } | ForEach-Object {
-        $profiles = @($_.profiles) + @($_.linkedin_profiles)
+        $person = $_
+        $personName = [string]$person.name
+        $personRole = [string]$person.role
+        $personValue = [string]$person.value
+        $profiles = @($person.profiles) + @($person.linkedin_profiles)
         $profilesHtml = ConvertTo-ProfileLinksHtml $profiles
-        $sourceValue = [string]$_.source_url
+        $sourceValue = [string]$person.source_url
         if ([string]::IsNullOrWhiteSpace($sourceValue)) {
-            $sourceValue = [string]$_.url
+            $sourceValue = [string]$person.url
         }
         $sourceHref = Get-SafeHref $sourceValue
         $sourceHtml = ''
@@ -1840,9 +1852,9 @@ function ConvertTo-PeopleGridHtml {
         }
         @"
       <div class="card snapshot-card person-card">
-        <strong>$(ConvertTo-HtmlEncoded ([string]$_.name))</strong>
-        <p class="person-role">$(ConvertTo-HtmlEncoded ([string]$_.role))</p>
-        $(ConvertTo-RichText ([string]$_.value))
+        <strong>$(ConvertTo-HtmlEncoded $personName)</strong>
+        <p class="person-role">$(ConvertTo-HtmlEncoded $personRole)</p>
+        $(ConvertTo-RichText $personValue)
 $profilesHtml
 $sourceHtml
       </div>

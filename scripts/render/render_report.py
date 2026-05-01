@@ -202,6 +202,8 @@ def bluesky_icon_svg() -> str:
 def profile_platform_meta(platform: Any, url: Any) -> dict[str, str]:
     normalized_platform = text(platform).strip().lower()
     normalized_url = text(url).strip().lower()
+    if normalized_platform in {"company", "official", "website"}:
+        return {"key": "company", "label": "Company", "icon": linkedin_icon_svg()}
     if normalized_platform == "linkedin" or "linkedin.com" in normalized_url:
         return {"key": "linkedin", "label": "LinkedIn", "icon": linkedin_icon_svg()}
     if normalized_platform in {"x", "twitter"} or re.search(r"(^https?://)?(www\.)?(x\.com|twitter\.com)/", normalized_url):
@@ -327,7 +329,7 @@ def label_value_grid(items: Any, css_class: str = "snapshot-grid") -> str:
     for item in items:
         if not isinstance(item, dict):
             continue
-        label = item.get("label") or item.get("name") or item.get("title") or ""
+        card_label = item.get("label") or item.get("name") or item.get("title") or ""
         role = item.get("role") or ""
         value = item.get("value") or item.get("body") or item.get("note") or item.get("summary") or ""
         url = item.get("source_url") or item.get("url")
@@ -338,22 +340,22 @@ def label_value_grid(items: Any, css_class: str = "snapshot-grid") -> str:
             for profile in profiles:
                 if isinstance(profile, dict) and safe_href(profile.get("url")):
                     meta = profile_platform_meta(profile.get("platform"), profile.get("url"))
-                    label = text(profile.get("name") or profile.get("platform") or meta.get("label") or "Profile")
-                    generic = is_generic_profile_label(label, meta)
+                    profile_label = text(profile.get("name") or profile.get("platform") or meta.get("label") or "Profile")
+                    generic = is_generic_profile_label(profile_label, meta)
                     link_class = f'profile-link {esc(meta["key"])}-link'
-                    visible_label = f'<span class="sr-only">{esc(meta["label"])} profile</span>' if generic else f'<span class="profile-link-label">{esc(label)}</span>'
+                    visible_label = f'<span class="sr-only">{esc(meta["label"])} profile</span>' if generic else f'<span class="profile-link-label">{esc(profile_label)}</span>'
                     if generic:
                         link_class += " profile-link--badge"
                     links.append(
-                        f'<a class="{link_class}" href="{esc(profile.get("url"))}" target="_blank" rel="noreferrer noopener" aria-label="{esc((meta["label"] + " profile") if generic else label)}" title="{esc((meta["label"] + " profile") if generic else label)}">'
+                        f'<a class="{link_class}" href="{esc(profile.get("url"))}" target="_blank" rel="noreferrer noopener" aria-label="{esc((meta["label"] + " profile") if generic else profile_label)}" title="{esc((meta["label"] + " profile") if generic else profile_label)}">'
                         f'<span class="profile-link-icon">{meta["icon"]}</span>{visible_label}</a>'
                     )
             profile_links = f'<div class="profile-links">{"".join(links)}</div>' if links else ""
         source = f' <a class="source-ref" href="{esc(url)}" target="_blank" rel="noreferrer noopener">[link]</a>' if safe_href(url) else ""
-        if has_value(label) or has_value(value):
+        if has_value(card_label) or has_value(value):
             rows.append(
                 '<article class="card snapshot-card">'
-                f"<strong>{esc(label)}</strong>"
+                f"<strong>{esc(card_label)}</strong>"
                 f"{f'<p class=\"person-role\">{esc(role)}</p>' if role else ''}"
                 f"{rich(value)}{profile_links}{source}</article>"
             )

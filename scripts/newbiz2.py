@@ -3958,6 +3958,41 @@ def run_python_script(script: Path, args: list[str]) -> dict[str, Any]:
     return json.loads(output) if output else {}
 
 
+def render_outputs_current(data_path: Path, brand_folder: Path) -> dict[str, Any]:
+    html_path = brand_folder / "newbizintel-report.html"
+    portable_html = brand_folder / "archive" / "newbizintel-report-portable.html"
+    pptx_path = brand_folder / "newbizintel-report.pptx"
+    outputs = [html_path, portable_html, pptx_path]
+    errors: list[str] = []
+    if not data_path.exists():
+        errors.append("report-data.json is missing.")
+    else:
+        data_mtime = data_path.stat().st_mtime
+        for path in outputs:
+            if not path.exists():
+                errors.append(f"{path.name} is missing.")
+                continue
+            if path.stat().st_mtime + 1e-6 < data_mtime:
+                errors.append(f"{path.name} is older than report-data.json.")
+    return {"ok": not errors, "errors": errors, "outputs": [str(path) for path in outputs]}
+
+
+def reconcile_render_gate_from_outputs(state: dict[str, Any], data_path: Path, brand_folder: Path) -> bool:
+    audit = render_outputs_current(data_path, brand_folder)
+    if not audit["ok"]:
+        return False
+    current_status = state.get("status", {}).get("render")
+    current_gate = state.get("gates", {}).get("gate_8_render_outputs")
+    current_legacy_gate = state.get("gates", {}).get("gate_6_render_outputs")
+    if current_status == "passed" and current_gate == "passed" and current_legacy_gate == "passed":
+        return False
+    set_status(state, "render", "passed")
+    set_gate(state, "gate_8_render_outputs", "passed")
+    set_gate(state, "gate_6_render_outputs", "passed")
+    add_event(state, "reducer", "render.output_reconciliation", outputs=audit["outputs"])
+    return True
+
+
 def campaign_section(data: dict[str, Any]) -> dict[str, Any]:
     return data.get("creative_campaign_ideas") or data.get("creative_campaigns") or {}
 
@@ -4899,6 +4934,7 @@ def module_render(args: argparse.Namespace) -> dict[str, Any]:
     validation = validate_report_data(data_path)
     if not validation["ok"]:
         set_status(state, "render", "failed")
+        set_gate(state, "gate_8_render_outputs", "failed")
         set_gate(state, "gate_6_render_outputs", "failed")
         save_state(brand_folder, state)
         raise SystemExit("Render blocked by report-data validation: " + "; ".join(validation["errors"]))
@@ -4912,6 +4948,7 @@ def module_render(args: argparse.Namespace) -> dict[str, Any]:
             html_path = render_html(data_path, html_path)
         else:
             set_status(state, "render", "failed")
+            set_gate(state, "gate_8_render_outputs", "failed")
             set_gate(state, "gate_6_render_outputs", "failed")
             save_state(brand_folder, state)
             raise SystemExit(
@@ -4965,6 +5002,8 @@ def module_render(args: argparse.Namespace) -> dict[str, Any]:
 def audit_task_list(data_path: Path) -> dict[str, Any]:
     brand_folder = data_path.parent
     state = load_state(brand_folder)
+    if reconcile_render_gate_from_outputs(state, data_path, brand_folder):
+        save_state(brand_folder, state)
     ensure_task_list(state)
     sync_task_status_from_gates(state)
     save_state(brand_folder, state)
@@ -5002,6 +5041,8 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
     data_path = data_path_from_args(args)
     brand_folder = brand_folder_from_data(data_path)
     state = load_state(brand_folder)
+    if reconcile_render_gate_from_outputs(state, data_path, brand_folder):
+        save_state(brand_folder, state)
     set_status(state, "qa", "in_progress")
     if state.get("status", {}).get("deploy") != "passed":
         set_status(state, "deploy", "pending")
