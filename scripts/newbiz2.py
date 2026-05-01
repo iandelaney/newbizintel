@@ -92,6 +92,44 @@ PLACEHOLDER_MARKERS = (
     ("competitor-c.com", "template competitor URL"),
 )
 
+FOOD_CONTEXT_TERMS = (
+    "meal kit",
+    "meal-kit",
+    "recipe",
+    "grocery",
+    "grocer",
+    "ingredients",
+    "cooking",
+    "food",
+    "chef",
+    "freshness",
+    "hello fresh",
+    "hellofresh",
+    "gousto",
+    "mindful chef",
+    "simplycook",
+)
+
+FOOD_LEAKAGE_TERMS = (
+    "easy home cooking",
+    "home cooking",
+    "recipe choice",
+    "recipe ratings",
+    "meal planning",
+    "meal-kit",
+    "meal kit",
+    "recipe-box",
+    "recipe box",
+    "receive the box",
+    "box arrival",
+    "supermarket planning friction",
+    "dinner drift",
+    "household usefulness",
+    "freshness",
+    "view this week's recipes",
+    "choose meals",
+)
+
 DEFAULT_MODEL_ROUTING = {
     "default": "gpt-5.5",
     "orchestration": "gpt-5.5",
@@ -621,6 +659,30 @@ def audit_missing_content(payload: Any, *, root_label: str = "report_data") -> d
     return {"ok": not errors, "errors": errors[:50]}
 
 
+def has_food_context(payload: Any) -> bool:
+    haystack = json.dumps(payload, ensure_ascii=False).lower()
+    matches = {term for term in FOOD_CONTEXT_TERMS if term in haystack}
+    return len(matches) >= 2
+
+
+def audit_cross_client_leakage(payload: Any, *, root_label: str = "report_data") -> dict[str, Any]:
+    if has_food_context(payload):
+        return {"ok": True, "errors": [], "matches": []}
+    haystack = json.dumps(payload, ensure_ascii=False).lower()
+    matches = [term for term in FOOD_LEAKAGE_TERMS if term in haystack]
+    errors = [
+        f"{root_label} contains carry-over language from another sector or client context: {term}"
+        for term in matches[:25]
+    ]
+    if len(matches) > 25:
+        errors.append(f"{len(matches) - 25} additional cross-client leakage markers found.")
+    return {"ok": not errors, "errors": errors, "matches": matches}
+
+
+def is_cross_client_safe(payload: Any) -> bool:
+    return audit_cross_client_leakage(payload, root_label="payload").get("ok", False)
+
+
 def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
     errors: list[str] = []
     patterns = {
@@ -1120,6 +1182,9 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     content_audit = audit_missing_content(data)
     if not content_audit["ok"]:
         errors.extend(f"missing_content_audit: {error}" for error in content_audit.get("errors", []))
+    leakage_audit = audit_cross_client_leakage(data, root_label="report_data")
+    if not leakage_audit["ok"]:
+        errors.extend(f"cross_client_leakage: {error}" for error in leakage_audit.get("errors", []))
     validate_company_snapshot_contract(data, errors)
     validate_executive_summary_tone(data, errors)
     usp = data.get("usp_ksp_review", {})
@@ -1462,11 +1527,11 @@ def extract_statement_from_content(content: str, keywords: tuple[str, ...], fall
             score = 0
             if " is " in lower or " are " in lower:
                 score += 3
-            if "make home cooking easy" in lower or "recipe box delivery service" in lower:
+            if any(term in lower for term in ("mission", "purpose", "promise", "values", "vision", "strategy")):
                 score += 4
-            if "deliver" in lower or "weekly" in lower or "customer" in lower:
+            if any(term in lower for term in ("customer", "buyer", "client", "people", "organisations", "outcomes")):
                 score += 2
-            if "feedback and ratings" in lower:
+            if any(term in lower for term in ("secure", "protect", "enable", "trust", "confidence", "innovation", "transformation")):
                 score += 4
             candidates.append((score, clean))
     if candidates:
@@ -1480,14 +1545,20 @@ HIGH_ORDER_MESSAGING_TERMS = (
     "purpose",
     "values",
     "promise",
+    "vision",
+    "belief",
     "change the way",
     "customer-centric",
+    "customer centric",
+    "customer",
+    "buyer",
+    "trust",
+    "security",
+    "protect",
+    "innovation",
     "sustainability",
     "sustainable",
     "business model",
-    "budget",
-    "freshness",
-    "taste",
 )
 
 
@@ -1574,10 +1645,12 @@ def messaging_source_score(item: dict[str, Any]) -> int:
     content = str(item.get("content") or "").lower()
     haystack = f"{url} {title} {content}"
     score = 0
-    if "hellofreshgroup" in url or "group" in title:
+    if any(part in url for part in ("/about", "/company", "/mission", "/purpose", "/values", "/culture", "/strategy", "/vision")):
         score += 12
-    if any(part in url for part in ("/about", "/en/", "/esg", "/sustainability", "/company")):
+    if any(part in url for part in ("/about", "/esg", "/sustainability", "/company", "/culture", "/leadership")):
         score += 8
+    if any(term in title for term in ("about", "mission", "purpose", "values", "culture", "leadership", "strategy")):
+        score += 6
     if "blog." in url:
         score -= 8
     for term in HIGH_ORDER_MESSAGING_TERMS:
@@ -1620,18 +1693,18 @@ def build_published_statements(data: dict[str, Any], summary: dict[str, Any], br
     third_owned = selected_sources[2] if len(selected_sources) > 2 else first_owned
     mission_statement = extract_statement_from_content(
         str(first_owned.get("content") or ""),
-        ("mission", "purpose", "change", "forever", "people", "eat"),
-        f"{brand} presents its published offer around convenient meal planning, recipe choice, and delivery to the customer's door.",
+        ("mission", "purpose", "vision", "change", "protect", "enable", "customer", "future"),
+        f"{brand} presents its published offer around a clear customer outcome and a broader company purpose.",
     )
     promise_statement = extract_statement_from_content(
         str(second_owned.get("content") or first_owned.get("content") or ""),
-        ("budget", "freshness", "taste", "sustainability", "customer", "promise"),
-        f"{brand} promises to make regular meal decisions easier through flexible recipe choice and a repeatable delivery experience.",
+        ("promise", "values", "customer", "trust", "innovation", "service", "experience", "platform"),
+        f"{brand} frames its promise around customer value, trust, and a repeatable delivery standard.",
     )
     business_model_statement = extract_statement_from_content(
         str(third_owned.get("content") or first_owned.get("content") or ""),
-        ("customer-centric", "data-driven", "business model", "sustainability", "direct-to-consumer", "control"),
-        f"{brand} frames its model around direct customer relationships, repeatable convenience, and operational control.",
+        ("business model", "platform", "operating model", "customer-centric", "customer centric", "innovation", "security", "control"),
+        f"{brand} describes how its operating model turns the central promise into repeatable customer outcomes.",
     )
     statements = [
         {
@@ -1658,15 +1731,15 @@ def build_published_statements(data: dict[str, Any], summary: dict[str, Any], br
 
 def summarize_existing_messaging(brand: str, published_statements: list[dict[str, str]]) -> str:
     combined = " ".join(str(item.get("statement") or "") for item in published_statements).lower()
-    if any(term in combined for term in ("mission", "purpose", "values", "change the way", "sustainability")):
+    if any(term in combined for term in ("mission", "purpose", "values", "change the way", "vision", "trust", "security", "innovation")):
         return (
-            f"{brand}'s strongest published platform is broader than convenience: it presents a mission-led promise around how people eat, "
-            "supported by values such as affordability, freshness, taste, and lower waste. That changes the messaging task from selling a box "
-            "to proving that the operating model consistently delivers those values."
+            f"{brand}'s strongest published platform is broader than product description alone: it presents a mission-led promise supported by "
+            "higher-order values or strategic beliefs. That changes the messaging task from simply stating the offer to proving that the "
+            "operating model consistently delivers those claims."
         )
     return (
-        f"{brand}'s published messaging presents easy home cooking, recipe choice, and convenience. Reputation evidence changes the task: "
-        "readers need reassurance that the subscription and service experience is as controlled as the meals are convenient."
+        f"{brand}'s published messaging explains the offer clearly, but reputation and market evidence raise the bar for proof. "
+        "Readers need visible reassurance that the lived customer or buyer experience matches the confidence of the published promise."
     )
 
 
@@ -1733,8 +1806,8 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         data.setdefault("brand", {})["website"] = website
     data.setdefault("cover", {})
     data["cover"]["summary"] = (
-        f"{brand} has strong category awareness and a clear convenience proposition, but the current evidence points to a need for "
-        "more visible trust, subscription transparency, customer proof, and search-led category comparison content."
+        f"{brand} has visibility and a recognisable market promise, but the current evidence points to a need for more visible trust, "
+        "clearer proof, stronger differentiation, and better search-led decision support."
     )
     data["cover"]["scope"] = "Live public research, competitor discovery, reputation scoring, search evidence, messaging review, and content strategy planning."
     data["cover"]["competitors"] = competitor_names
@@ -1746,17 +1819,19 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
 
     summary_snapshot = summary.get("company_snapshot")
     existing_snapshot = data.get("company_snapshot")
-    if is_enriched_company_snapshot(summary_snapshot):
-        data["company_snapshot"] = summary_snapshot
-    elif is_enriched_company_snapshot(existing_snapshot):
-        data["company_snapshot"] = existing_snapshot
+    safe_existing_snapshot = existing_snapshot if is_cross_client_safe({"company_snapshot": existing_snapshot}) else {}
+    safe_summary_snapshot = summary_snapshot if is_cross_client_safe({"company_snapshot": summary_snapshot}) else {}
+    if is_enriched_company_snapshot(safe_summary_snapshot):
+        data["company_snapshot"] = safe_summary_snapshot
+    elif is_enriched_company_snapshot(safe_existing_snapshot):
+        data["company_snapshot"] = safe_existing_snapshot
     else:
         data["company_snapshot"] = {
-        "summary": f"{brand} is treated in this report as a meal-kit and prepared-food subscription brand with UK customer-acquisition, trust, and retention opportunities.",
+        "summary": f"{brand} is treated in this report as a brand with acquisition, trust, differentiation, and retention opportunities that should be tested against current public evidence.",
         "items": [
-            {"label": "Company status", "value": f"{brand} operates a consumer meal-planning and recipe-box service through {website}."},
-            {"label": "Sector", "value": "Meal kits, grocery delivery, subscription commerce, and home cooking convenience."},
-            {"label": "Core proposition", "value": "Help households choose recipes, receive pre-portioned ingredients, and make home cooking easier."},
+            {"label": "Company status", "value": f"{brand} operates through {website} and should be framed using the latest verified public company and market evidence."},
+            {"label": "Sector", "value": "Sector and market position should be confirmed from public company materials, analyst coverage, and competitor context."},
+            {"label": "Core proposition", "value": "Clarify the central buyer promise in plain language, then support it with visible proof of delivery."},
             {"label": "Market context", "value": f"Live competitor discovery places {brand} alongside {competitor_text}."},
             {"label": "Current reputation context", "value": sentence(top_news.get("why_it_matters"), "Reputation evidence points to trust and service reassurance as priority themes.")},
             {"label": "Evidence base", "value": f"Research summary uses {len(news)} ranked reputation stories, {len(competitors)} competitors, and {len(search_evidence)} search evidence points."},
@@ -1822,18 +1897,18 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         "cards": [
             {"title": "What stands out most", "body": f"{brand} has a simple customer promise, but the reputation evidence means that proof, transparency, and service confidence need to be made more visible."},
             {"title": "Biggest commercial risk", "body": executive_commercial_risk_summary(brand, top_news)},
-            {"title": "Biggest messaging opportunity", "body": "Lead with useful household outcomes, then back the promise with plain-English proof around choice, freshness, delivery reliability, cancellation, and service recovery."},
+            {"title": "Biggest messaging opportunity", "body": "Lead with the buyer outcome that matters most, then back the promise with plain-English proof around delivery, control, reliability, and response when problems arise."},
             {"title": "Biggest reputation insight", "body": executive_reputation_insight_summary(brand, top_news)},
             {"title": "Biggest SEO opportunity", "body": executive_seo_opportunity_summary(brand, competitor_names, search_evidence)},
-            {"title": "Biggest content strategy opportunity", "body": "Turn customer anxieties into helpful proof content: how plans work, how choices are controlled, how service issues are resolved, and how the offer compares."},
+            {"title": "Biggest content strategy opportunity", "body": "Turn buyer anxieties into helpful proof content: how the offer works, how decisions are controlled, how issues are resolved, and how the proposition compares."},
         ],
-        "overall_recommendation": f"Position {brand} around confident, flexible home cooking, supported by proof-led content that answers trust, subscription, and comparison questions before they become objections.",
+        "overall_recommendation": f"Position {brand} around a clear buyer outcome, supported by proof-led content that answers trust, control, differentiation, and comparison questions before they become objections.",
     }
 
     data["agency_opportunity"] = {
         "score": "7.4 / 10",
         "score_summary": f"{brand} is a strong fit for content, search, reputation, and proof work because the category is familiar but buyer trust and differentiation need sharper evidence.",
-        "summary": f"The clearest opportunity is to rebuild confidence around the customer journey: choice, value, subscription control, delivery quality, and service recovery.",
+        "summary": f"The clearest opportunity is to rebuild confidence around the buyer journey: proposition clarity, proof, control, delivery quality, and service recovery.",
         "lead_offering": {
             "name": "Proof-led content and search strategy",
             "lead_department": "Content",
@@ -1850,7 +1925,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             "best_buyer": "Growth, brand, content, CRM, or customer experience leaders responsible for acquisition quality and retention.",
             "expected_outcomes": [
                 "Higher confidence at comparison and conversion points.",
-                "A clearer proof system for customer service, subscription control, value, and recipe choice.",
+                "A clearer proof system for customer service, buyer control, value, and offer differentiation.",
             ],
         },
         "cards": [
@@ -1860,20 +1935,20 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             {"title": "Retention path", "body": "Move from proof modules into CRM journeys, service recovery content, and campaign ideas that make the customer relationship feel controlled and useful."},
         ],
         "priority_workstreams": [
-            "Customer-trust and subscription-transparency proof layer.",
+            "Customer-trust and buyer-control proof layer.",
             "Search-led comparison and category education content.",
-            "CRM and retention content around flexibility, value, service recovery, and recipe confidence.",
+            "CRM and retention content around flexibility, value, service recovery, and ongoing confidence.",
         ],
         "archetype_advantages": [
             "Strong fit with evidence-led content planning.",
             "Clear scope for collaboration across content, search, insights, PR, and creative.",
         ],
         "department_opportunity_map": [
-            {"department": "PR & Comms", "tone": "good", "opportunity": "Green", "cost_multiplier": "1.1", "opportunity_signal": f"Turn {brand}'s positive recipe, partnership, and household-usefulness stories into credible proof, while preparing clear lines on customer and regulatory trust themes.", "rationale": "PR has useful amplification potential once proof and service-recovery messages are tightened."},
-            {"department": "Content", "tone": "good", "opportunity": "Green", "cost_multiplier": "1", "opportunity_signal": f"Build the owned proof layer for {brand}: how the service works, what customers control, how quality is protected, and how issues are fixed.", "rationale": "Content is the strongest immediate fit because the evidence points to explanation, proof, and journey confidence."},
+            {"department": "PR & Comms", "tone": "good", "opportunity": "Green", "cost_multiplier": "1.1", "opportunity_signal": f"Turn {brand}'s strongest proof, partnership, and momentum stories into credible public evidence, while preparing clear lines on trust and scrutiny themes.", "rationale": "PR has useful amplification potential once proof and service-recovery messages are tightened."},
+            {"department": "Content", "tone": "good", "opportunity": "Green", "cost_multiplier": "1", "opportunity_signal": f"Build the owned proof layer for {brand}: how the offer works, what customers control, how quality is protected, and how issues are fixed.", "rationale": "Content is the strongest immediate fit because the evidence points to explanation, proof, and journey confidence."},
             {"department": "Digital Marketing", "tone": "good", "opportunity": "Green", "cost_multiplier": "1", "opportunity_signal": f"Use search and CRM to capture comparison demand around {competitor_text}, then route users into clearer proof and conversion journeys.", "rationale": "Digital can turn the message hierarchy into measurable acquisition and retention tests."},
-            {"department": "Brands", "tone": "good", "opportunity": "Green", "cost_multiplier": "2", "opportunity_signal": f"Sharpen {brand}'s promise around confident home cooking rather than relying only on convenience and discounts.", "rationale": "Brand work can help, but the immediate need is proof and customer confidence around the existing proposition."},
-            {"department": "Creative Services", "tone": "warn", "opportunity": "Amber", "cost_multiplier": "1.5", "opportunity_signal": f"Create campaign assets that make trust, control, and recipe confidence feel vivid rather than abstract.", "rationale": "Creative should express the proof strategy once the content architecture is set."},
+            {"department": "Brands", "tone": "good", "opportunity": "Green", "cost_multiplier": "2", "opportunity_signal": f"Sharpen {brand}'s promise around confident outcomes and visible proof rather than relying on broad category language alone.", "rationale": "Brand work can help, but the immediate need is proof and customer confidence around the existing proposition."},
+            {"department": "Creative Services", "tone": "warn", "opportunity": "Amber", "cost_multiplier": "1.5", "opportunity_signal": f"Create campaign assets that make trust, control, and proof feel vivid rather than abstract.", "rationale": "Creative should express the proof strategy once the content architecture is set."},
             {"department": "Insights & Intelligence", "tone": "good", "opportunity": "Green", "cost_multiplier": "1.5", "opportunity_signal": f"Validate the customer objections behind {risk_headlines or 'the reputation findings'} and test which proof claims improve conversion confidence.", "rationale": "Insights can de-risk the strategy by turning reputation themes into tested buyer language."},
         ],
     }
@@ -1885,27 +1960,27 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             "summary": summarize_existing_messaging(brand, published_statements),
             "published_statements": published_statements,
             "reputation_read_across": messaging_reputation_read_across(top_news),
-            "implication": "The messaging should move from broad mission language to proof-backed delivery: show how the model makes eating better, easier, fresher, better value, and less wasteful while keeping the customer in control.",
+            "implication": "The messaging should move from broad mission language to proof-backed delivery: show how the operating model creates dependable buyer outcomes while keeping the customer in control.",
         },
         "cards": [
-            {"title": "Hero", "body": "The customer is a busy household trying to make dinner feel easier, fresher, and less repetitive without losing control of cost or choice."},
-            {"title": "Primary desire", "body": "Feel organised, inspired, and reassured that dinner can be solved without supermarket planning friction."},
-            {"title": "Problems", "body": "<p><strong>External:</strong> deciding what to cook, buying ingredients, and avoiding waste.</p><p><strong>Internal:</strong> anxiety about value, subscription control, quality, and delivery reliability.</p><p><strong>Philosophical:</strong> convenient food should still feel transparent, fair, and under the customer's control.</p>"},
-            {"title": "Villain", "body": "Dinner drift: the repeated weekly friction of planning, shopping, choosing, wasting food, and worrying that a subscription will be harder to control than expected."},
-            {"title": "Guide signals", "body": "Recipe choice, clear plan controls, customer feedback loops, service recovery proof, and practical evidence that customers can trust the experience."},
-            {"title": "Plan", "body": "Choose meals, receive the box, cook with confidence, and know exactly how to pause, change, or resolve problems."},
-            {"title": "Call to action review", "body": "<p><strong>Direct call to action:</strong> choose a plan or view this week's recipes.</p><p><strong>Supporting call to action:</strong> compare options, understand flexibility, and see how service issues are handled.</p>"},
-            {"title": "Failure and success", "body": "<p><strong>Failure stakes:</strong> customers fear unwanted charges, poor substitutions, weak freshness, or hard-to-resolve issues.</p><p><strong>Success outcome:</strong> dinner feels simpler, more varied, and more controlled.</p>"},
+            {"title": "Hero", "body": "The buyer or customer wants a simpler, more confident path to the outcome the brand promises, without losing control over cost, risk, or implementation."},
+            {"title": "Primary desire", "body": "Feel reassured that the promise is credible, the route is clear, and the experience will stand up under scrutiny."},
+            {"title": "Problems", "body": "<p><strong>External:</strong> choosing between alternatives, understanding trade-offs, and judging whether the promise will hold up in practice.</p><p><strong>Internal:</strong> anxiety about value, control, reliability, and what happens if something goes wrong.</p><p><strong>Philosophical:</strong> a strong promise should also be transparent, fair, and easy to trust.</p>"},
+            {"title": "Villain", "body": "Confidence drift: the repeated friction of comparison, unclear proof, and uncertainty about whether the experience will match the claim."},
+            {"title": "Guide signals", "body": "Clear proof points, visible controls, customer feedback loops, service-recovery evidence, and practical guidance that makes the promise believable."},
+            {"title": "Plan", "body": "Understand the offer, compare the options fairly, see the proof, and know exactly how the relationship works when conditions change."},
+            {"title": "Call to action review", "body": "<p><strong>Direct call to action:</strong> take the next high-intent step with confidence.</p><p><strong>Supporting call to action:</strong> compare options, understand controls, and see how issues are handled.</p>"},
+            {"title": "Failure and success", "body": "<p><strong>Failure stakes:</strong> customers fear overclaiming, weak support, hidden trade-offs, or hard-to-resolve issues.</p><p><strong>Success outcome:</strong> the brand feels easier to trust, easier to choose, and easier to stay with.</p>"},
         ],
-        "one_liner": f"{brand} helps busy households make dinner easier with flexible recipe boxes, clearer choices, and proof that customers stay in control.",
+        "one_liner": f"{brand} helps customers achieve the promised outcome with clearer choices, stronger proof, and visible control throughout the journey.",
         "messaging_fixes": [
-            "Lead with control as well as convenience. Why: reputation and customer-trust evidence shows subscription confidence is as important as recipe appeal.",
-            "Turn freshness, delivery, cancellation, and service recovery into visible proof modules. Why: trust and service concerns need evidence at the moment customers compare or hesitate.",
-            "Separate category inspiration from compliance reassurance. Why: growth content can attract customers, but proof content protects conversion and retention.",
+            "Lead with control as well as promise. Why: reputation and customer-trust evidence shows confidence is as important as the headline claim.",
+            "Turn delivery standards, reliability, escalation, and service recovery into visible proof modules. Why: trust and service concerns need evidence at the moment customers compare or hesitate.",
+            "Separate inspiration from reassurance. Why: growth content can attract customers, but proof content protects conversion and retention.",
         ],
         "content_implications": [
-            "Create plain-English pages and modules explaining plan control, cancellation, substitutions, refunds, and delivery recovery. Why: reputation findings show trust depends on customers understanding what happens when something goes wrong.",
-            "Build comparison and alternative content that is useful rather than defensive. Why: search and competitor evidence shows buyers are actively comparing meal-kit options and need customer-centred proof.",
+            "Create plain-English pages and modules explaining customer control, escalation, refunds or remedies, and delivery recovery. Why: reputation findings show trust depends on customers understanding what happens when something goes wrong.",
+            "Build comparison and alternative content that is useful rather than defensive. Why: search and competitor evidence shows buyers are actively comparing options and need customer-centred proof.",
             "Use customer feedback loops as proof content. Why: review and service evidence should become visible reassurance rather than hidden operational detail.",
         ],
     }
@@ -1944,22 +2019,23 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             },
             {
                 "title": "Pattern across the market",
-                "body": "The comparison set spans endpoint/XDR, zero-trust access, secure networking, hyperscale suites, and connectivity-cloud challengers, so Palo Alto Networks must make platform breadth feel commercially coherent rather than merely extensive.",
+                "body": f"The comparison set spans multiple adjacent approaches and buyer frames, so {brand} must make breadth feel commercially coherent rather than merely extensive.",
             },
             {
-                "title": "Implication for Palo Alto Networks",
-                "body": "The strongest response is not generic platform language but sharper proof of why one operating model improves prevention, response, identity, cloud, and AI-security outcomes together.",
+                "title": f"Implication for {brand}",
+                "body": f"The strongest response for {brand} is not generic platform language but sharper proof of why one operating model improves the outcomes buyers care about together.",
             },
         ] if enriched_competitors else [],
     }
     seo_summary = summary.get("seo") if isinstance(summary.get("seo"), dict) else {}
     reputation_summary = summary.get("reputation") if isinstance(summary.get("reputation"), dict) else {}
+    safe_reputation_summary = reputation_summary if is_cross_client_safe({"reputation": reputation_summary}) else {}
     data["seo_audit"] = {
         "cards": [
             {"title": "Search intent and positioning", "body": f"Search evidence indicates that {brand} should serve comparison, alternative, value, cancellation, and customer-control intent more explicitly."},
             {"title": "On-page findings", "body": "Priority pages should pair offer claims with proof modules that answer trust and service questions near conversion points."},
             {"title": "Technical findings", "body": "No live crawl gate has passed yet, so technical SEO should remain caveated until a dedicated crawl validates indexability, metadata, and internal linking."},
-            {"title": "Content and architecture findings", "body": f"Competitor discovery around {competitor_text} suggests stronger category-comparison architecture would help capture shoppers before they choose a provider."},
+            {"title": "Content and architecture findings", "body": f"Competitor discovery around {competitor_text} suggests stronger comparison architecture would help capture high-intent buyers before they choose a provider."},
         ],
         "semrush_evidence": semrush,
         "similarweb_evidence": similarweb,
@@ -1981,11 +2057,11 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                 "issue": "Trust and service questions need search-ready proof",
                 "evidence": f"Reputation research led by {sentence(top_news.get('headline'), 'trust-sensitive public stories')} shows that confidence depends on visible proof, not only proposition clarity.",
                 "why_it_matters": "Searches around cancellation, refunds, delivery reliability, freshness, or service recovery often happen close to conversion or churn.",
-                "recommended_fix": "Build proof-led pages and on-page modules for customer control, delivery standards, freshness, refunds, substitutions, and escalation routes.",
+                "recommended_fix": "Build proof-led pages and on-page modules for customer control, delivery standards, reliability, refunds or remedies, and escalation routes.",
             },
         ],
         "content_implications": seo_summary.get("content_implications") if isinstance(seo_summary.get("content_implications"), list) and seo_summary.get("content_implications") else [
-            "Create search-led proof pages for subscription control, delivery reliability, freshness, refunds, and comparisons.",
+            "Create search-led proof pages for customer control, delivery reliability, trust signals, refunds or remedies, and comparisons.",
             "Add structured competitor and alternative content that gives buyers fair, useful decision support.",
         ],
         "charts": [
@@ -2045,7 +2121,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                         "value": 86 if semrush else 78,
                         "display_value": f"{86 if semrush else 78} indexed",
                         "note": (
-                            "SEMrush-backed overlap and direct comparison evidence shows buyers actively compare Palo Alto Networks with named cyber rivals."
+                            f"SEMrush-backed overlap and direct comparison evidence shows buyers actively compare {brand} with named competitors."
                             if semrush
                             else "SimilarWeb-backed competitor visibility patterns suggest strong alternatives and comparison demand."
                         ),
@@ -2094,13 +2170,13 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         {
             "influential_news": news,
             "influence_ranking": summary.get("influence_ranking", {}),
-            "summary": str(reputation_summary.get("summary") or f"{brand}'s reputation picture combines growth momentum, platform ambition, and trust-sensitive scrutiny around vulnerabilities, breaches, and strategic proof."),
-            "pills": reputation_summary.get("pills") if isinstance(reputation_summary.get("pills"), list) and reputation_summary.get("pills") else [
+            "summary": str(safe_reputation_summary.get("summary") or f"{brand}'s reputation picture combines growth momentum, platform ambition, and trust-sensitive scrutiny around vulnerabilities, breaches, and strategic proof."),
+            "pills": safe_reputation_summary.get("pills") if isinstance(safe_reputation_summary.get("pills"), list) and safe_reputation_summary.get("pills") else [
                 {"tone": "good", "label": "Momentum: growth, platform and AI proof"},
                 {"tone": "warn", "label": "Risk: trust and vulnerability scrutiny"},
                 {"tone": "good", "label": "Confidence: broad-first ranked sources"},
             ],
-            "cards": reputation_summary.get("cards") if isinstance(reputation_summary.get("cards"), list) and reputation_summary.get("cards") else [
+            "cards": safe_reputation_summary.get("cards") if isinstance(safe_reputation_summary.get("cards"), list) and safe_reputation_summary.get("cards") else [
                 {
                     "title": "Monitoring method and coverage notes",
                     "body": "This readout combines broad-first news discovery, ranked influential-story scoring, public search evidence, and source-map review. Direct platform listening should be added before treating this as a full social sentiment monitor.",
@@ -2118,7 +2194,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                     "body": f"{brand} should make threat-intelligence proof, customer protection, integration clarity, and operational transparency visible before outside scrutiny defines the trust story for buyers.",
                 },
             ],
-            "platform_readout": reputation_summary.get("platform_readout") if isinstance(reputation_summary.get("platform_readout"), list) and reputation_summary.get("platform_readout") else [
+            "platform_readout": safe_reputation_summary.get("platform_readout") if isinstance(safe_reputation_summary.get("platform_readout"), list) and safe_reputation_summary.get("platform_readout") else [
                 {
                     "platform": "News and business media",
                     "tone": "mixed",
@@ -2134,19 +2210,19 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                 {
                     "platform": "Customer trust touchpoints",
                     "tone": "amber",
-                    "signal": "Reputation themes point to anxiety around control, service recovery, freshness, delivery reliability, and refunds.",
+                    "signal": "Reputation themes point to anxiety around control, service recovery, delivery reliability, accountability, and remedies when something goes wrong.",
                     "implication": "Treat help, CRM, and conversion pages as reputation infrastructure, not just operational support.",
                 },
             ],
-            "recommended_actions": reputation_summary.get("recommended_actions") if isinstance(reputation_summary.get("recommended_actions"), list) and reputation_summary.get("recommended_actions") else [
+            "recommended_actions": safe_reputation_summary.get("recommended_actions") if isinstance(safe_reputation_summary.get("recommended_actions"), list) and safe_reputation_summary.get("recommended_actions") else [
                 "Create a visible trust and service-recovery proof layer across acquisition and help journeys.",
                 "Prepare clear public lines on subscription control, marketing consent, and customer remedy routes.",
-                "Use positive recipe, partnership, and household usefulness stories only when anchored in independent proof.",
+                "Use positive momentum, partnership, or product-strength stories only when anchored in independent proof.",
                 "Track reputation themes monthly and connect them to content, CRM, UX, and customer-service improvements.",
             ],
-            "content_implications": reputation_summary.get("content_implications") if isinstance(reputation_summary.get("content_implications"), list) and reputation_summary.get("content_implications") else [
-                "Build an owned proof hub for subscription control, delivery quality, freshness, refunds, and service recovery.",
-                "Turn customer feedback and recipe ratings into visible evidence of improvement.",
+            "content_implications": safe_reputation_summary.get("content_implications") if isinstance(safe_reputation_summary.get("content_implications"), list) and safe_reputation_summary.get("content_implications") else [
+                "Build an owned proof hub for customer control, delivery quality, remedies, and service recovery.",
+                "Turn customer feedback and service evidence into visible proof of improvement.",
                 "Create comparison content that directly acknowledges common buyer anxieties rather than relying on offer-led acquisition.",
             ],
         }
@@ -2160,15 +2236,15 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             {
                 "claim_type": "Core USP",
                 "icon_key": "summary",
-                "claim_summary": "The brand makes the category promise easy to understand and puts a useful household outcome at the centre.",
-                "proof_points": "Published proposition and product evidence show the main convenience, choice, and category benefit.",
+                "claim_summary": "The brand makes the category promise easy to understand and puts a clear buyer outcome at the centre.",
+                "proof_points": "Published proposition and product evidence show the main benefit, value logic, and category relevance.",
                 "proof_feedback": "Clear, but not distinctive enough on its own because close competitors can make similar category claims.",
             },
             {
                 "claim_type": "Key selling point: choice",
                 "icon_key": "content",
-                "claim_summary": "Choice, flexibility, and reduced planning friction are the most immediate customer benefits.",
-                "proof_points": "Website messaging, competitor discovery, and category content show that choice and ease drive consideration.",
+                "claim_summary": "Choice, flexibility, and reduced decision friction are among the most immediate customer benefits.",
+                "proof_points": "Website messaging, competitor discovery, and category content show that clarity and ease drive consideration.",
                 "proof_feedback": "Strong as a buyer benefit, but it should be supported with decision guidance so choice feels manageable and relevant.",
             },
             {
@@ -2443,9 +2519,9 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                 "activation_plan": {"order_of_precedence": idea["activation_plan"]},
                 "why_it_fits": "It responds directly to the reputation and search evidence: customers understand the category, but need more proof and control before committing.",
                 "channels": ["Landing page", "CRM", "Paid social", "Search", "PR"],
-                "press_angle": "Frame the brand as making meal-kit subscriptions more transparent, useful, and customer-controlled.",
-                "why_it_will_work": "It turns trust and comparison anxieties into visible, practical assets rather than leaving them to reviews or help-centre fragments.",
-                "intended_effect": "Improve confidence at sign-up, reduce avoidable objections, and create stronger proof for acquisition and retention.",
+                "press_angle": "Frame the brand as making a complex decision or service relationship more transparent, useful, and customer-controlled.",
+                "why_it_will_work": "It turns trust and comparison anxieties into visible, practical assets rather than leaving them to third-party interpretation or fragmented support pages.",
+                "intended_effect": "Improve confidence at conversion, reduce avoidable objections, and create stronger proof for acquisition and retention.",
             }
             for idea in campaign_base
         ],
@@ -2610,7 +2686,7 @@ def live_research_query_plan(data: dict[str, Any]) -> list[dict[str, str]]:
         },
         {
             "role": "recent_news",
-            "query": f"{primary} OR {compact} trade press market share category meal kits grocery delivery 2026 2025",
+            "query": f"{primary} OR {compact} trade press market category positioning demand 2026 2025",
             "topic": "general",
             "time_range": "year",
             "max_results": "20",
@@ -2624,7 +2700,7 @@ def live_research_query_plan(data: dict[str, Any]) -> list[dict[str, str]]:
         },
         {
             "role": "reputation_public_web",
-            "query": f"{primary} OR {compact} complaints unsubscribe refund delivery ingredients quality 2026 2025",
+            "query": f"{primary} OR {compact} complaints trust service issues reliability refunds security quality 2026 2025",
             "topic": "general",
             "time_range": "year",
             "max_results": "20",
@@ -4315,6 +4391,9 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
         errors.append("Department Opportunity Signals cards must describe target-brand opportunities, not value labels or lead/status chips.")
 
     data = read_json(data_path)
+    leakage_audit = audit_cross_client_leakage({"report_data": data, "rendered_html": text}, root_label="presentation_html")
+    if not leakage_audit["ok"]:
+        errors.extend(leakage_audit.get("errors", []))
     appendix = data.get("appendix", {})
     if isinstance(appendix, dict):
         appendix_sources = appendix.get("source_map") or appendix.get("sources_reviewed") or []
@@ -5195,6 +5274,7 @@ def module_render(args: argparse.Namespace) -> dict[str, Any]:
         set_gate(state, "gate_6_render_outputs", "failed")
         save_state(brand_folder, state)
         raise SystemExit("PPTX output was not created. " + pptx_warning)
+    shutil.copy2(html_path, brand_folder / "index.html")
     shutil.copy2(pptx_path, archive_dir / pptx_path.name)
     set_status(state, "render", "passed")
     set_gate(state, "gate_8_render_outputs", "passed")
