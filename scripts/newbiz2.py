@@ -641,6 +641,14 @@ def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
             errors.append(
                 f"Rendered HTML contains {count} leaked {label} string(s), usually caused by rendering structured data as raw text."
             )
+    malformed_patterns = {
+        "idea activation example list missing list-item close before next item": r'<div class="idea-activation-plan__examples">.*?</div>\s*<li\b',
+        "idea activation example list missing list-item close before list end": r'<div class="idea-activation-plan__examples">.*?</div>\s*</ul>',
+    }
+    for label, pattern in malformed_patterns.items():
+        count = len(re.findall(pattern, html_text, flags=re.I | re.S))
+        if count:
+            errors.append(f"Rendered HTML contains {count} malformed {label} pattern(s).")
     heading_pattern = re.compile(
         r'<h(?P<level>[23])[^>]*class="[^"]*(?:category-heading|section-heading)[^"]*"[^>]*>.*?<span>(?P<title>[^<]+)</span></h[23]>(?P<body>.*?)(?=<h[23][^>]*class="[^"]*(?:category-heading|section-heading)|<div class="section-return"|</section>|</main>)',
         re.I | re.S,

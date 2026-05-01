@@ -118,7 +118,7 @@ def pill_html(items: Any) -> str:
         if isinstance(item, dict):
             label = item.get("label") or item.get("title") or item.get("name") or item.get("value") or ""
             tone = text(item.get("tone") or "")
-            tone_class = f" pill--{esc(tone)}" if tone else ""
+            tone_class = f" {esc(tone)}" if tone else ""
             if has_value(label):
                 rows.append(f'<span class="pill{tone_class}">{esc(label)}</span>')
         else:
@@ -126,11 +126,58 @@ def pill_html(items: Any) -> str:
     return "".join(rows)
 
 
+SECTION_ICONS = {
+    "Company Snapshot": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M9 20V9"></path><path d="M15 20V13"></path><path d="M4 10H20"></path></svg>',
+    "Executive Summary": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L13.9 8.1L19 10L13.9 11.9L12 17L10.1 11.9L5 10L10.1 8.1Z"></path><path d="M19 3V7"></path><path d="M21 5H17"></path></svg>',
+    "Archetype Opportunity Assessment": '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="3"></circle><path d="M12 2V5"></path><path d="M12 19V22"></path><path d="M2 12H5"></path><path d="M19 12H22"></path></svg>',
+    "Messaging Assessment": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19H19"></path><path d="M7 16C10 16 12.5 13.5 12.5 10.5C12.5 8.3 11 6.5 9 5.8"></path><path d="M14 5L18 9"></path><path d="M18 5L14 9"></path></svg>',
+    "USP and KSP Review": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L14.7 8.5L20.8 9.3L16.4 13.5L17.5 19.5L12 16.5L6.5 19.5L7.6 13.5L3.2 9.3L9.3 8.5Z"></path></svg>',
+    "Competitive Landscape": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18H17"></path><path d="M8 18V8L12 5L16 8V18"></path><path d="M9 8H15"></path></svg>',
+    "SEO Audit": '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="M20 20L15.5 15.5"></path></svg>',
+    "Brand Reputation Snapshot": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 12L10 15L17 8"></path><circle cx="12" cy="12" r="9"></circle></svg>',
+    "Opportunities": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11L12 5L18 11"></path><path d="M5 19H19"></path></svg>',
+    "Creative Campaign Ideas": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18H15"></path><path d="M10 22H14"></path><path d="M12 2C8.7 2 6 4.7 6 8C6 10.1 7 11.9 8.5 13.1C9.5 13.9 10 15 10 16H14C14 15 14.5 13.9 15.5 13.1C17 11.9 18 10.1 18 8C18 4.7 15.3 2 12 2Z"></path></svg>',
+    "Content Strategy Recommendations": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4H17"></path><path d="M7 9H17"></path><path d="M7 14H13"></path><rect x="5" y="2" width="14" height="20" rx="2"></rect></svg>',
+    "Appendix": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7H16"></path><path d="M8 11H16"></path><path d="M8 15H13"></path><rect x="6" y="3" width="12" height="18" rx="2"></rect></svg>',
+    "Finance and Scale": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19H20"></path><path d="M7 16V10"></path><path d="M12 16V6"></path><path d="M17 16V12"></path></svg>',
+    "Leadership": '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="9" r="3"></circle><circle cx="17" cy="10" r="2.5"></circle><path d="M4.5 19C5.3 16.4 7.3 15 9.8 15C12.3 15 14.3 16.4 15.1 19"></path><path d="M15.5 18C16.1 16.4 17.4 15.4 19 15"></path></svg>',
+    "Founders": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20V4"></path><path d="M6 5H16L14 9L16 13H6"></path></svg>',
+    "Ownership and Funding": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 12H17"></path><path d="M12 7V17"></path><circle cx="12" cy="12" r="8"></circle></svg>',
+    "Snapshot Sources": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13A4 4 0 0 1 10 7L12 5A4 4 0 0 1 18 11L17 12"></path><path d="M14 11A4 4 0 0 1 14 17L12 19A4 4 0 0 1 6 13L7 12"></path></svg>',
+    "Department Opportunity Signals": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6H17"></path><path d="M7 12H14"></path><path d="M7 18H12"></path><circle cx="18" cy="18" r="2"></circle></svg>',
+    "Most Likely Workstreams": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="6" height="6" rx="1"></rect><rect x="14" y="5" width="6" height="6" rx="1"></rect><rect x="9" y="13" width="6" height="6" rx="1"></rect><path d="M10 8H14"></path><path d="M12 11V13"></path></svg>',
+    "Why Archetype Is Well Matched": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21S5 17.2 5 11A4 4 0 0 1 12 8A4 4 0 0 1 19 11C19 17.2 12 21 12 21Z"></path></svg>',
+    "Recommended One-Liner": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7H19"></path><path d="M5 12H15"></path><path d="M5 17H12"></path></svg>',
+    "Biggest Messaging Fixes": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20L10 14"></path><path d="M14 10L20 4"></path><path d="M13 4H20V11"></path><path d="M4 13V20H11"></path></svg>',
+    "Content Implications of the Messaging Findings": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4H14L18 8V20H6Z"></path><path d="M14 4V8H18"></path><path d="M9 12H15"></path><path d="M9 16H15"></path></svg>',
+    "Why Each Competitor Matters": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16L4 12L8 8"></path><path d="M16 8L20 12L16 16"></path><path d="M14 5L10 19"></path></svg>',
+    "Messaging Patterns Across the Market": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8H19"></path><path d="M5 12H16"></path><path d="M5 16H13"></path></svg>',
+    "Content Patterns Across the Market": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="2"></rect><path d="M8 9H16"></path><path d="M8 13H16"></path></svg>',
+    "Areas Where the Brand Is Behind, Matched, or Ahead": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L12 12L17 7"></path><path d="M7 7H17V17"></path></svg>',
+    "Priority Issues with Evidence, Reason, and Recommended Fix": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9V13"></path><path d="M12 17H12.01"></path><path d="M10.3 3.8L2.8 17A2 2 0 0 0 4.5 20H19.5A2 2 0 0 0 21.2 17L13.7 3.8A2 2 0 0 0 10.3 3.8Z"></path></svg>',
+    "Content Implications of the SEO Findings": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4H17"></path><path d="M7 9H17"></path><path d="M7 14H13"></path><path d="M17 14L19 16L17 18"></path></svg>',
+    "Platform-Level Readout": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7H20"></path><path d="M4 12H20"></path><path d="M4 17H14"></path></svg>',
+    "Most Influential News Stories in the Last Six Months": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 9H16"></path><path d="M8 13H16"></path><path d="M8 17H12"></path></svg>',
+    "Reputation Implications and Recommended Actions": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V19"></path><path d="M5 12H19"></path><circle cx="12" cy="12" r="8"></circle></svg>',
+    "Content Implications of the Reputation Findings": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6H18"></path><path d="M6 12H18"></path><path d="M6 18H14"></path></svg>',
+    "Priority Content Opportunities": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12H20"></path><path d="M12 4V20"></path></svg>',
+    "Example Article, Guide, or Asset Ideas": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4H14L18 8V20H6Z"></path><path d="M14 4V8H18"></path></svg>',
+    "How This Strategy Responds to the Findings": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12L11 15L16 9"></path><circle cx="12" cy="12" r="8"></circle></svg>',
+    "Sources Reviewed": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5H17"></path><path d="M7 10H17"></path><path d="M7 15H12"></path><rect x="5" y="3" width="14" height="18" rx="2"></rect></svg>',
+    "Missing Data": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V12"></path><path d="M12 16H12.01"></path><circle cx="12" cy="12" r="9"></circle></svg>',
+    "Assumptions and Confidence Notes": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7V12"></path><path d="M12 16H12.01"></path><path d="M12 3A9 9 0 1 1 3 12"></path></svg>',
+}
+
+
+def section_icon_svg(title: str) -> str:
+    return SECTION_ICONS.get(title) or '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 8V12"></path><path d="M12 16H12.01"></path></svg>'
+
+
 def section_heading(level: str, title: str, section_id: str = "", css_class: str = "section-heading") -> str:
     id_attr = f' id="{esc(section_id)}"' if section_id else ""
     return (
         f'<{level}{id_attr} class="{esc(css_class)}">'
-        '<span class="section-icon" aria-hidden="true">⌁</span>'
+        f'<span class="heading-icon" aria-hidden="true">{section_icon_svg(title)}</span>'
         f"<span>{esc(title)}</span>"
         f"</{level}>"
     )
@@ -462,12 +509,27 @@ def campaign_ideas(data_dir: Path, ideas: Any) -> str:
                 if isinstance(examples, list) and examples:
                     parts.append(f'<div class="idea-activation-plan__examples"><strong>Example moments</strong>{list_html(examples)}</div>')
                 if parts:
-                    activation_items.append(f'<li class="idea-activation-plan__item"><div class="idea-activation-plan__title">{esc(item.get("name") or item.get("title"))}</div>{"".join(parts)}</li>')
+                    activation_items.append(
+                        {
+                            "title": esc(item.get("name") or item.get("title")),
+                            "body": "".join(parts),
+                        }
+                    )
         activation_html = ""
         if len(activation_items) == 1:
-            activation_html = f'<div class="idea-activation-plan"><p><strong>Activation expression</strong></p><div class="idea-activation-plan__single">{activation_items[0].replace("<li", "<div", 1).replace("</li>", "</div>")}</div></div>'
+            single = activation_items[0]
+            activation_html = (
+                '<div class="idea-activation-plan"><p><strong>Activation expression</strong></p>'
+                '<div class="idea-activation-plan__single">'
+                f'<div class="idea-activation-plan__item"><div class="idea-activation-plan__title">{single["title"]}</div>{single["body"]}</div>'
+                "</div></div>"
+            )
         elif activation_items:
-            activation_html = f'<div class="idea-activation-plan"><p><strong>Activation expressions</strong></p><ol class="idea-activation-plan__list">{"".join(activation_items)}</ol></div>'
+            activation_list = "".join(
+                f'<li class="idea-activation-plan__item"><div class="idea-activation-plan__title">{item["title"]}</div>{item["body"]}</li>'
+                for item in activation_items
+            )
+            activation_html = f'<div class="idea-activation-plan"><p><strong>Activation expressions</strong></p><ol class="idea-activation-plan__list">{activation_list}</ol></div>'
         channels = idea.get("channels") or []
         channel_html = "".join(f'<span class="idea-card__channel">{esc(channel)}</span>' for channel in channels) if isinstance(channels, list) else ""
         cards.append(
@@ -517,6 +579,17 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
     brand_website_html = f'<a href="{esc(brand_website)}">{esc(brand.get("website"))}</a>' if brand_website else esc(brand.get("website"))
     competitor_list = ", ".join(str(item) for item in cover.get("competitors", []) if has_value(item)) if isinstance(cover.get("competitors"), list) else ""
     assumptions = " ".join(str(item) for item in cover.get("assumptions", []) if has_value(item)) if isinstance(cover.get("assumptions"), list) else ""
+    hero_pills = []
+    distribution = report_meta.get("distribution")
+    audience = report_meta.get("audience")
+    if isinstance(distribution, dict):
+        hero_pills.append({**distribution, "tone": distribution.get("tone") or "warn"})
+    elif has_value(distribution):
+        hero_pills.append({"label": distribution, "tone": "warn"})
+    if isinstance(audience, dict):
+        hero_pills.append({**audience, "tone": audience.get("tone") or "good"})
+    elif has_value(audience):
+        hero_pills.append({"label": audience, "tone": "good"})
 
     body = [
         '<section class="hero">',
@@ -534,7 +607,7 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
         f"<div><strong>Competitors analysed</strong><br>{esc(competitor_list)}</div>",
         "</div>",
         f'<p class="note">{esc(assumptions)}</p>' if assumptions else "",
-        f'<p>{pill_html([report_meta.get("distribution"), report_meta.get("audience")])}</p>',
+        f'<p>{pill_html(hero_pills)}</p>',
         rich(report_meta.get("note")),
         toc(toc_items),
         "</section>",
@@ -635,11 +708,17 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
     ])
 
     seo = data.get("seo_audit", {})
+    seo_provider_evidence = (
+        seo.get("semrush_evidence")
+        or seo.get("similarweb_evidence")
+        or seo.get("search_evidence")
+    )
+    seo_provider_heading = "Provider Evidence Behind the Diagnosis"
     body.extend([
         section_heading("h2", "SEO Audit", "seo-audit"),
         card_grid(seo.get("cards")),
-        section_heading("h3", "SEMrush Evidence Behind the Diagnosis", css_class="category-heading"),
-        card_grid(seo.get("semrush_evidence") or seo.get("search_evidence") or seo.get("similarweb_evidence")),
+        section_heading("h3", seo_provider_heading, css_class="category-heading"),
+        card_grid(seo_provider_evidence),
         simple_charts(seo.get("charts")),
         section_heading("h3", "Priority Issues with Evidence, Reason, and Recommended Fix", css_class="category-heading"),
         table_html(seo.get("priority_issues"), [("Issue", "issue", False), ("Evidence", "evidence", False), ("Why it matters", "why_it_matters", False), ("Recommended fix", "recommended_fix", False)]),
