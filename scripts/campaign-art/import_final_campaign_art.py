@@ -22,6 +22,33 @@ from generate_campaign_illustrations import (
 SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 DEFAULT_GENERATED_IMAGES_DIR = Path.home() / ".codex" / "generated_images"
 
+STYLE_HINTS_BY_TITLE: dict[str, dict[str, str]] = {
+    "The Breach Window": {
+        "illustration_style_family": "photographic",
+        "illustration_style_name": "documentary-cyber-response-photography",
+        "illustration_treatment": "documentary-photography",
+        "illustration_medium": "cinematic documentary photography",
+    },
+    "Platformization Planetarium": {
+        "illustration_style_family": "sculptural",
+        "illustration_style_name": "architectural-systems-maquette",
+        "illustration_treatment": "sculptural-installation",
+        "illustration_medium": "photographed sculptural installation",
+    },
+    "AI Under Supervision": {
+        "illustration_style_family": "painterly",
+        "illustration_style_name": "expressionist-governed-ai-painting",
+        "illustration_treatment": "expressionist-painting",
+        "illustration_medium": "mixed-media expressionist painting",
+    },
+    "The EMEA Threat Atlas": {
+        "illustration_style_family": "cartographic",
+        "illustration_style_name": "luminous-emea-threat-atlas",
+        "illustration_treatment": "cartographic-light-map",
+        "illustration_medium": "luminous mixed-media cartographic atlas",
+    },
+}
+
 
 def load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -95,6 +122,29 @@ def portable_path(path: Path, base: Path) -> str:
         return str(path)
 
 
+def classify_source_root(source_root: Path, report_root: Path) -> str:
+    resolved_source = source_root.resolve()
+    resolved_report = report_root.resolve()
+    script_root = Path(__file__).resolve().parent
+    generated_root = DEFAULT_GENERATED_IMAGES_DIR.resolve()
+    try:
+        resolved_source.relative_to(generated_root)
+        return "generated-images-batch"
+    except ValueError:
+        pass
+    try:
+        resolved_source.relative_to(resolved_report)
+        return "report-output-local"
+    except ValueError:
+        pass
+    try:
+        resolved_source.relative_to(script_root)
+        return "skill-local"
+    except ValueError:
+        pass
+    return "external-source-dir"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Import final raster campaign artwork into newbiz2 report data."
@@ -160,6 +210,7 @@ def main() -> int:
 
     if args.latest_generated_batch and not args.source_dir:
         source_root = latest_generated_batch(DEFAULT_GENERATED_IMAGES_DIR)
+    source_provenance = classify_source_root(source_root, data_path.parent)
 
     source_files = select_source_images(source_root, len(target_ideas))
     prepared_imports: list[dict[str, object]] = []
@@ -210,19 +261,31 @@ def main() -> int:
         dimensions = result["dimensions"]
         idea["illustration_url"] = relative_asset_path(asset_dir, destination)
         idea["illustration_asset_role"] = "final-raster-artwork"
-        idea["illustration_generation_backend"] = "imagegen"
+        idea["illustration_generation_backend"] = "imagegen-batch-import"
         idea["illustration_delivery_target"] = "true-raster-artwork"
         idea["illustration_import_source"] = str(source_path)
+        idea["illustration_source_provenance"] = source_provenance
+        idea["illustration_batch_root"] = str(source_root)
         idea["illustration_imported_at"] = datetime.now(timezone.utc).isoformat()
         idea["illustration_dimensions"] = dimensions
+        style_hints = STYLE_HINTS_BY_TITLE.get(title)
+        if style_hints:
+            for field, value in style_hints.items():
+                idea[field] = value
         for field in (
             "illustration_url",
             "illustration_asset_role",
             "illustration_generation_backend",
             "illustration_delivery_target",
             "illustration_import_source",
+            "illustration_source_provenance",
+            "illustration_batch_root",
             "illustration_imported_at",
             "illustration_dimensions",
+            "illustration_style_family",
+            "illustration_style_name",
+            "illustration_treatment",
+            "illustration_medium",
         ):
             patches.append(
                 {
@@ -244,6 +307,7 @@ def main() -> int:
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "patches": patches,
                 "source_dir": portable_path(source_root, data_path.parent),
+                "source_provenance": source_provenance,
             },
             indent=2,
             ensure_ascii=False,
@@ -256,6 +320,7 @@ def main() -> int:
     payload = {
         "data": str(data_path),
         "source_dir": str(source_root),
+        "source_provenance": source_provenance,
         "imported": len(imported_files),
         "titles": imported_titles,
         "files": imported_files,

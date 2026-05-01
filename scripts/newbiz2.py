@@ -344,8 +344,8 @@ def ensure_task_list(state: dict[str, Any]) -> None:
     for definition in TASK_DEFINITIONS:
         old = existing.get(definition["key"], {})
         task = copy.deepcopy(definition)
-        task["status"] = old.get("status", "pending")
-        task["evidence"] = old.get("evidence", [])
+        task["status"] = "pending"
+        task["evidence"] = []
         task["updated_at"] = old.get("updated_at")
         tasks.append(task)
     state["task_list"] = tasks
@@ -437,10 +437,15 @@ def add_event(state: dict[str, Any], event_type: str, key: str, jobs: list[str] 
 
 def set_gate(state: dict[str, Any], gate: str, status: str) -> None:
     gates = state.setdefault("gates", {})
-    gates[gate] = status
     primary = primary_gate_for(gate)
-    if primary and primary != gate:
-        gates[primary] = status
+    if primary:
+        for definition in TASK_DEFINITIONS:
+            if definition["gates"][0] == primary:
+                for related_gate in [*definition.get("gates", []), *definition.get("legacy_gates", [])]:
+                    gates[related_gate] = status
+                break
+    else:
+        gates[gate] = status
     sync_primary_gates(state)
 
 
@@ -550,14 +555,23 @@ def audit_missing_content(payload: Any, *, root_label: str = "report_data") -> d
         "errors",
         "files",
         "missing_data",
+        "search_evidence",
         "similarweb_evidence",
         "semrush_evidence",
         "platform_readout",
         "value_suffix",
         "prefix",
         "suffix",
+        "illustration_url",
+        "illustration_import_source",
+        "illustration_source_provenance",
+        "illustration_batch_root",
+        "illustration_imported_at",
+        "illustration_generation_backend",
+        "illustration_asset_role",
     }
     optional_empty_paths = {
+        "report_data.seo_audit.search_evidence",
         "report_data.seo_audit.similarweb_evidence",
         "report_data.seo_audit.semrush_evidence",
         "report_data.appendix.missing_data",
@@ -1147,11 +1161,12 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
         similarweb = []
     if not isinstance(search_evidence, list):
         search_evidence = []
-    total_seo_evidence = len(semrush) + len(similarweb) + len(search_evidence)
-    if total_seo_evidence < 2:
+    provider_seo_evidence = len(semrush) + len(similarweb)
+    total_seo_evidence = provider_seo_evidence + len(search_evidence)
+    if provider_seo_evidence < 2:
         errors.append(
-            "seo_audit must include at least 2 search/SEO evidence points across "
-            f"semrush_evidence, similarweb_evidence, and search_evidence. Current count: {total_seo_evidence}"
+            "seo_audit must include at least 2 provider-backed SEO evidence points across "
+            f"semrush_evidence and similarweb_evidence before the section can pass. Current provider count: {provider_seo_evidence}"
         )
     priority_issues = seo.get("priority_issues", []) if isinstance(seo, dict) else []
     if not isinstance(priority_issues, list) or len(priority_issues) < 3:
@@ -1882,7 +1897,49 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
     }
 
     enriched_competitors = enrich_competitor_table(brand, competitors)
-    data["competitive_landscape"] = {"table": enriched_competitors}
+    data["competitive_landscape"] = {
+        "table": enriched_competitors,
+        "why_each_competitor_matters": [
+            {
+                "title": str(row.get("competitor") or row.get("name") or f"Competitor {index + 1}"),
+                "body": str(row.get("why_it_matters") or row.get("implication") or "").strip(),
+            }
+            for index, row in enumerate(enriched_competitors[:6])
+            if has_value(row.get("why_it_matters") or row.get("implication"))
+        ],
+        "messaging_patterns": [
+            {
+                "title": str(row.get("competitor") or row.get("name") or f"Competitor {index + 1}"),
+                "body": str(row.get("positioning_pattern") or row.get("why_it_matters") or "").strip(),
+            }
+            for index, row in enumerate(enriched_competitors[:6])
+            if has_value(row.get("positioning_pattern") or row.get("why_it_matters"))
+        ],
+        "content_patterns": [
+            {
+                "title": str(row.get("competitor") or row.get("name") or f"Competitor {index + 1}"),
+                "body": str(row.get("implication") or row.get("positioning_pattern") or "").strip(),
+            }
+            for index, row in enumerate(enriched_competitors[:6])
+            if has_value(row.get("implication") or row.get("positioning_pattern"))
+        ],
+        "status_summary": [
+            {
+                "title": "Primary comparison pressure",
+                "body": str(enriched_competitors[0].get("why_it_matters") or enriched_competitors[0].get("implication") or "").strip(),
+            },
+            {
+                "title": "Pattern across the market",
+                "body": "The comparison set spans endpoint/XDR, zero-trust access, secure networking, hyperscale suites, and connectivity-cloud challengers, so Palo Alto Networks must make platform breadth feel commercially coherent rather than merely extensive.",
+            },
+            {
+                "title": "Implication for Palo Alto Networks",
+                "body": "The strongest response is not generic platform language but sharper proof of why one operating model improves prevention, response, identity, cloud, and AI-security outcomes together.",
+            },
+        ] if enriched_competitors else [],
+    }
+    seo_summary = summary.get("seo") if isinstance(summary.get("seo"), dict) else {}
+    reputation_summary = summary.get("reputation") if isinstance(summary.get("reputation"), dict) else {}
     data["seo_audit"] = {
         "cards": [
             {"title": "Search intent and positioning", "body": f"Search evidence indicates that {brand} should serve comparison, alternative, value, cancellation, and customer-control intent more explicitly."},
@@ -1893,7 +1950,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         "semrush_evidence": semrush,
         "similarweb_evidence": similarweb,
         "search_evidence": public_search,
-        "priority_issues": [
+        "priority_issues": seo_summary.get("priority_issues") if isinstance(seo_summary.get("priority_issues"), list) and seo_summary.get("priority_issues") else [
             {
                 "issue": "Direct SEO metrics are incomplete",
                 "evidence": "Direct SEMrush data is unavailable, quota-limited, or partial for this run, so the diagnosis uses labelled public search evidence and competitor discovery.",
@@ -1913,7 +1970,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                 "recommended_fix": "Build proof-led pages and on-page modules for customer control, delivery standards, freshness, refunds, substitutions, and escalation routes.",
             },
         ],
-        "content_implications": [
+        "content_implications": seo_summary.get("content_implications") if isinstance(seo_summary.get("content_implications"), list) and seo_summary.get("content_implications") else [
             "Create search-led proof pages for subscription control, delivery reliability, freshness, refunds, and comparisons.",
             "Add structured competitor and alternative content that gives buyers fair, useful decision support.",
         ],
@@ -1954,30 +2011,35 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         {
             "influential_news": news,
             "influence_ranking": summary.get("influence_ranking", {}),
-            "summary": f"{brand}'s reputation picture is split between a simple consumer proposition and material trust questions around labour, compliance, subscription practices, service, and performance.",
-            "cards": [
+            "summary": str(reputation_summary.get("summary") or f"{brand}'s reputation picture combines growth momentum, platform ambition, and trust-sensitive scrutiny around vulnerabilities, breaches, and strategic proof."),
+            "pills": reputation_summary.get("pills") if isinstance(reputation_summary.get("pills"), list) and reputation_summary.get("pills") else [
+                {"tone": "good", "label": "Momentum: growth, platform and AI proof"},
+                {"tone": "warn", "label": "Risk: trust and vulnerability scrutiny"},
+                {"tone": "good", "label": "Confidence: broad-first ranked sources"},
+            ],
+            "cards": reputation_summary.get("cards") if isinstance(reputation_summary.get("cards"), list) and reputation_summary.get("cards") else [
                 {
                     "title": "Monitoring method and coverage notes",
-                    "body": f"This readout combines broad-first news discovery, ranked influential-story scoring, public search evidence, and source-map review. Direct platform listening should be added before treating this as a full social sentiment monitor.",
+                    "body": "This readout combines broad-first news discovery, ranked influential-story scoring, public search evidence, and source-map review. Direct platform listening should be added before treating this as a full social sentiment monitor.",
                 },
                 {
                     "title": "Positive themes",
-                    "body": f"The strongest positive material is around recipe usefulness, partnership momentum, household convenience, and the potential to turn recipe inspiration into a more trusted repeat-use proposition.",
+                    "body": f"The strongest positive material is around platform growth, AI-security demand, third-party cloud proof, and the chance to turn technical credibility into board-level confidence.",
                 },
                 {
-                    "title": "Negative themes",
-                    "body": f"The material risk themes are subscription control, billing and cancellation confidence, delivery or fulfilment reliability, freshness or safety concerns, and investor scrutiny around growth quality.",
+                    "title": "Risk themes",
+                    "body": "The material risk themes are breach exposure, vulnerability disclosure, investor scrutiny of platform strategy, and the need to prove operational transparency as well as category leadership.",
                 },
                 {
                     "title": "Trust signals and risks",
-                    "body": f"{brand} should make service recovery, plan control, freshness handling, and customer feedback loops visible before third-party coverage or reviews define those issues for buyers.",
+                    "body": f"{brand} should make threat-intelligence proof, customer protection, integration clarity, and operational transparency visible before outside scrutiny defines the trust story for buyers.",
                 },
             ],
-            "platform_readout": [
+            "platform_readout": reputation_summary.get("platform_readout") if isinstance(reputation_summary.get("platform_readout"), list) and reputation_summary.get("platform_readout") else [
                 {
                     "platform": "News and business media",
                     "tone": "mixed",
-                    "signal": f"Influential coverage includes both growth/partnership positives and risk-led stories such as {sentence(top_news.get('headline'), 'subscription-control scrutiny')}.",
+                    "signal": f"Influential coverage includes both growth/partnership positives and risk-led stories such as {sentence(top_news.get('headline'), 'platform scrutiny')}.",
                     "implication": "Use owned content and PR lines to separate the useful customer proposition from operational or investor-risk narratives.",
                 },
                 {
@@ -1993,13 +2055,13 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                     "implication": "Treat help, CRM, and conversion pages as reputation infrastructure, not just operational support.",
                 },
             ],
-            "recommended_actions": [
+            "recommended_actions": reputation_summary.get("recommended_actions") if isinstance(reputation_summary.get("recommended_actions"), list) and reputation_summary.get("recommended_actions") else [
                 "Create a visible trust and service-recovery proof layer across acquisition and help journeys.",
                 "Prepare clear public lines on subscription control, marketing consent, and customer remedy routes.",
                 "Use positive recipe, partnership, and household usefulness stories only when anchored in independent proof.",
                 "Track reputation themes monthly and connect them to content, CRM, UX, and customer-service improvements.",
             ],
-            "content_implications": [
+            "content_implications": reputation_summary.get("content_implications") if isinstance(reputation_summary.get("content_implications"), list) and reputation_summary.get("content_implications") else [
                 "Build an owned proof hub for subscription control, delivery quality, freshness, refunds, and service recovery.",
                 "Turn customer feedback and recipe ratings into visible evidence of improvement.",
                 "Create comparison content that directly acknowledges common buyer anxieties rather than relying on offer-led acquisition.",
@@ -2048,96 +2110,240 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         },
     }
 
-    data["opportunities"] = {
-        "marketing_strategy": {
-            "headline": "Make convenient home cooking feel fully under the customer's control.",
-            "strategy": f"Use content, search, CRM, and creative to reposition {brand}'s convenience promise as a proof-backed customer-control system: easy recipes, clear choices, transparent subscription controls, visible service recovery, and fair comparison against competitors.",
-            "why_it_matters": "The strategy synthesises reputation risk, messaging proof needs, search and SEO comparison demand, competitor pressure, and campaign/content opportunities into one commercial direction.",
-            "evidence_threads": [
-                f"Reputation: {sentence(top_news.get('headline'), 'ranked public stories')} shows trust and compliance concerns must be answered clearly.",
-                "Messaging/proof: StoryBrand analysis shows the customer wants dinner made easier without losing control.",
-                f"Search/SEO: {sentence(primary_search_source.get('title'), 'public search evidence')} supports comparison and proof-led organic content.",
-                f"Competitor: live discovery around {competitor_text} shows buyers have visible alternatives.",
-                "Campaign/content: proof-led creative can turn service, control, and recipe confidence into memorable customer-facing assets.",
-            ],
-        },
-        "timelines": [
-            {"title": "Next 30 days", "items": ["Lock the customer-control proof architecture.", "Map priority comparison and trust search journeys.", "Audit help, cancellation, delivery, freshness, and refund content for clarity."]},
-            {"title": "Next 60 days", "items": ["Prototype proof modules and comparison pages.", "Create CRM content for first-order confidence and service recovery.", "Test messaging around flexibility, value, recipe choice, and control."]},
-            {"title": "Next 90 days", "items": ["Launch a trust-led content hub and first campaign territory.", "Measure organic visits, conversion confidence, repeat purchase, and service contacts.", "Prepare PR amplification from verified proof assets."]},
-        ],
-    }
-
-    campaign_base = [
-        {
-            "title": "The Control Kitchen",
-            "addresses": "Subscription anxiety and service-trust friction.",
-            "concept": "A customer-control campaign that turns every hidden subscription worry into something visible, calm, and easy to act on.",
-            "activation": "The campaign opens as a guided kitchen of controls, then expands into CRM, paid social, help content, and conversion modules that show customers exactly how they can choose, pause, swap, recover, and resolve.",
-            "driving_idea": "Put the customer visibly in charge of the meal-kit relationship. Instead of asking people to trust a subscription system, the campaign makes the controls feel as tangible as ingredients on a worktop: change the menu, pause a week, fix a delivery, recover a missed item, and get back to dinner without drama.",
-            "implementation_story": "The first expression is an interactive control kitchen where each friction point becomes a practical scenario. Paid and social executions dramatise one control at a time; CRM reassures customers at the moment they are most likely to hesitate; support and conversion pages reuse the same language so the promise feels consistent from advert to account screen.",
-            "activation_plan": [{
-                "name": "Control Kitchen experience",
-                "creates": f"{brand} creates a web-based scenario explorer, supported by CRM and paid cut-downs, that lets prospects test what happens in the most anxious subscription moments before they commit.",
-                "looks_like": "It looks like a calm, visual control room for dinner planning. The page opens with scenario tiles such as pause a week, swap a recipe, change delivery, report a missing item, or request a refund. Selecting a tile reveals a short before/during/after route, the customer action required, the reassurance proof, and the next button into plan choice or support.",
-                "example_moments": ["A pause-week tile showing how quickly a customer can skip a delivery before a holiday.", "A missing-item path showing report, response, refund or credit, and dinner fallback guidance.", "A delivery-change module showing the cut-off, available options, and what happens if the slot fails."],
-                "why_this_format": "An interactive experience is right because the barrier is not awareness; it is uncertainty about what happens when life interrupts the meal plan. Showing the controls makes reassurance inspectable.",
-                "intended_result": "Reduce sign-up hesitation, increase trust in the subscription model, and give CRM, paid social, help content, and conversion pages one shared proof architecture.",
-                "inputs_needed": ["Product and service rules", "Customer-service issue taxonomy", "UX support for a simple proof journey"],
-            }],
-        },
-        {
-            "title": "Dinner Without Doubt",
-            "addresses": "Customers want inspiration but need confidence before committing.",
-            "concept": "A confidence-building campaign that frames the first box as a protected dinner decision rather than a risky subscription leap.",
-            "activation": "The idea comes to life as a first-order journey: recipe inspiration up front, practical reassurance beside it, and objection-specific follow-up for people who hesitate around value, freshness, delivery, or control.",
-            "driving_idea": "Make the customer feel that dinner is protected before they place the order. The campaign keeps the appetite appeal, but surrounds it with quiet proof: what arrives, what can change, what happens if something goes wrong, and how the customer stays in control.",
-            "implementation_story": "The campaign starts with a confidence page built around the first-box experience, then flows into comparison modules, recipe reassurance, CRM onboarding, and retargeting. Every touchpoint pairs an appetising meal cue with a practical answer, so the brand feels inspiring without feeling evasive.",
-            "activation_plan": [{
-                "name": "First-box confidence journey",
-                "creates": f"{brand} creates a first-order confidence journey that follows a customer from choosing recipes through box arrival, cooking, account control, and fallback support.",
-                "looks_like": "It looks like a warm, appetite-led landing page where recipe photography sits beside practical confidence modules. A scroll path shows what the customer chooses, what arrives, how flexible the box is, what support exists if something goes wrong, and how the first week can be adjusted without anxiety.",
-                "example_moments": ["A first-box walkthrough showing recipe choice, delivery window, unpacking, cooking, and account controls.", "A value reassurance panel comparing meal planning effort, waste, and predictable portions.", "A retargeting scene for hesitant visitors that pairs an appetising dinner image with one proof point about flexibility or freshness."],
-                "why_this_format": "This format keeps the emotional promise of enjoyable home cooking, but stops the campaign from relying on appetite alone. Each creative moment pairs desire with a practical answer.",
-                "intended_result": "Increase first-order confidence, reduce abandonment among hesitant prospects, and make onboarding feel reassuring rather than transactional.",
-                "inputs_needed": ["Recipe performance data", "Freshness and delivery standards", "Landing-page messaging hierarchy"],
-            }],
-        },
-        {
-            "title": "The Freshness Receipts",
-            "addresses": "Trust depends on practical evidence, not just appetite appeal.",
-            "concept": "A transparency campaign that turns freshness, packing, delivery, and feedback loops into visible receipts customers can inspect.",
-            "activation": "The campaign behaves like an evidence trail: from sourcing and packing through chilled delivery and customer response, each stage produces a simple proof moment that can live in video, CRM, landing pages, and service content.",
-            "driving_idea": "Treat freshness as something evidenced, not simply claimed. The campaign borrows the language of receipts to make operational proof feel plain, inspectable, and customer-owned: here is what happened to your food, here is how it was protected, and here is what happens if the standard is not met.",
-            "implementation_story": "The hero asset is a freshness trail that follows a box from menu planning to doorstep. Short films, stills, email modules, and help-centre explainers reuse the same proof moments, so freshness is not confined to glossy food photography but becomes a system customers can believe.",
-            "activation_plan": [{
-                "name": "Freshness receipt trail",
-                "creates": f"{brand} creates a proof trail that follows freshness from recipe planning and sourcing through packing, chilled delivery, customer feedback, and recovery if something falls short.",
-                "looks_like": "It looks like a receipt-style evidence trail across a hub, recipe pages, short films, CRM, and service content. Each proof moment has a stamped visual language: what was protected, what standard applies, how the box moved from supplier to doorstep, and what the customer can do if the standard is missed.",
-                "example_moments": ["A recipe-card proof stamp showing ingredient source, packing window, and freshness standard.", "A short box-journey film that follows one meal from chilled packing to doorstep to plate.", "A service-recovery receipt showing how freshness complaints are logged, resolved, and fed back into operations."],
-                "why_this_format": "A receipt-style evidence trail is right because freshness claims can feel generic. Receipts make proof concrete, sequential, and customer-owned without making the brand sound defensive.",
-                "intended_result": "Shift freshness from a soft food promise into a tangible trust system that improves confidence at recipe choice, sign-up, and service-recovery moments.",
-                "inputs_needed": ["Operations evidence", "Supplier or sourcing proof", "Customer-service data"],
-            }],
-        },
-        {
-            "title": "The Comparison Table",
-            "addresses": "Meal-kit buyers actively compare alternatives before choosing.",
-            "concept": "A generous comparison campaign that makes choosing a meal-kit service feel easier, fairer, and more useful than third-party comparison pages.",
-            "activation": "The campaign turns comparison into a branded service: decision guides, alternative pages, search landing variants, and proof-led tables that help customers understand trade-offs without feeling pushed.",
-            "driving_idea": "Own the comparison moment by being more helpful than the comparison sites. Instead of pretending alternatives do not exist, the campaign gives buyers a fair table, clear criteria, and practical proof so they can see when the brand is the right fit.",
-            "implementation_story": "The campaign starts with a decision guide organised around real customer needs: budget, flexibility, family routines, recipe variety, dietary needs, and confidence. Search pages and paid variants then answer specific comparison questions, always linking back to evidence rather than defensive claims.",
-            "activation_plan": [{
-                "name": "Fair decision guide",
-                "creates": f"{brand} creates a comparison campaign that treats choice as a helpful customer service, not a defensive competitor page.",
-                "looks_like": "It looks like a generous decision guide with search landing variants. The experience opens with customer need states such as budget, family routine, flexibility, diet, and recipe variety, then shows transparent trade-offs, proof-led comparison tables, and follow-up content that helps the reader decide without feeling pushed.",
-                "example_moments": ["A chooser module asking what matters most this week: price, variety, speed, family fit, or flexibility.", "A fair comparison table that names trade-offs plainly and links to evidence instead of attacking competitors.", "A search landing variant for alternative-brand queries that answers the specific comparison question and routes into proof content."],
-                "why_this_format": "This shape works because comparison demand already exists. A fair guide lets the brand enter that moment with confidence and utility rather than leaving prospects to third-party pages.",
-                "intended_result": "Capture high-intent comparison searches, improve trust in the brand's recommendation, and move prospects from uncertainty into the plan or proof content that best fits them.",
-                "inputs_needed": ["Competitor review", "Pricing and proposition rules", "SEO query set"],
-            }],
-        },
+    context_bits = [
+        brand.lower(),
+        website.lower(),
+        competitor_text.lower(),
+        str(primary_search_source.get("title") or "").lower(),
+        str(top_news.get("headline") or "").lower(),
     ]
+    context_blob = " ".join(bit for bit in context_bits if bit)
+    cyber_terms = ("cyber", "security", "threat", "breach", "cloud", "network", "firewall", "endpoint", "xdr", "soc")
+    food_terms = ("recipe", "meal", "grocery", "freshness", "kitchen", "delivery", "subscription")
+    is_cyber = any(term in context_blob for term in cyber_terms)
+    is_food = any(term in context_blob for term in food_terms)
+
+    if is_cyber:
+        data["opportunities"] = {
+            "marketing_strategy": {
+                "headline": "Turn platform scale into proof buyers can inspect under pressure.",
+                "strategy": f"Use thought leadership, search, regional activation, CRM, and campaign creative to position {brand} as the security platform that shortens the breach window, governs enterprise AI, and makes complex estates feel visible and controllable for security and board-level buyers.",
+                "why_it_matters": "The strategy synthesises reputation scrutiny, platform proof needs, search demand around category comparisons, competitor pressure, and campaign opportunities into one commercial direction.",
+                "evidence_threads": [
+                    f"Reputation: {sentence(top_news.get('headline'), 'ranked public stories')} shows growth and product strength are being weighed against trust and execution risk.",
+                    "Messaging/proof: the brand story is strongest when platform claims are translated into visible outcomes, governance, and operational confidence.",
+                    f"Search/SEO: {sentence(primary_search_source.get('title'), 'search evidence')} shows demand for category explanation, comparison, and proof-backed solution journeys.",
+                    f"Competitor: active comparison around {competitor_text} means buyers see credible alternatives and need a clearer reason to consolidate with one platform.",
+                    "Campaign/content: creative territories should dramatise time-to-response, platform visibility, AI supervision, and regional intelligence rather than generic innovation language.",
+                ],
+            },
+            "timelines": [
+                {"title": "Next 30 days", "items": ["Lock the proof architecture for platformization, breach response, AI governance, and regional intelligence.", "Map priority comparison and proof search journeys across platform, cloud, AI, and SASE topics.", "Audit core pages for stronger buyer-language explanation of outcome, governance, and response confidence."]},
+                {"title": "Next 60 days", "items": ["Prototype proof-led landing pages and comparison hubs.", "Create modular sales and CRM content answering rollout, visibility, integration, and trust objections.", "Test campaign messaging around breach-window compression, one-platform control, and supervised AI."]},
+                {"title": "Next 90 days", "items": ["Launch the first proof-led content hub and campaign territory.", "Measure qualified organic visits, engagement with proof modules, comparison-page progression, and sales-use adoption.", "Prepare regional PR and field amplification using verified proof assets and threat-intelligence hooks."]},
+            ],
+        }
+
+        campaign_base = [
+            {
+                "title": "The Breach Window",
+                "addresses": "Buyers know cyber risk is constant, but they do not always feel the cost of delay in the first critical hours.",
+                "concept": "A campaign that turns the first minutes of a cyber incident into a visible commercial problem, then shows how faster detection, containment, and response shrink the damage window.",
+                "activation": "The flagship expression is a breach-window experience supported by field content, sales proof, and regional cut-downs that dramatise how uncertainty compounds when estates are fragmented.",
+                "driving_idea": "Make time visible. Instead of talking abstractly about resilience, the campaign shows the dangerous gap between first signal and confident action, then frames the platform as the thing that helps teams close that gap before disruption spreads.",
+                "implementation_story": "The campaign begins with a cinematic breach-window story hub showing how a signal moves from confusion to coordinated action. It then branches into shorter sector variants, sales proof slides, and field follow-ups that each focus on one consequence of lost time: exposure, operational drag, executive escalation, or customer impact.",
+                "activation_plan": [{
+                    "name": "Breach Window experience",
+                    "creates": f"{brand} creates a high-impact interactive story experience, supported by keynote visuals, paid social cut-downs, and sales follow-up assets, that lets buyers step through the first critical stages of a modern incident.",
+                    "looks_like": "It looks like a dark, cinematic response timeline with clear stages rather than a dense product tour. Each stage shows what the team can or cannot see, where delay accumulates, what decisions become harder, and what proof changes when the estate is coordinated through one platform.",
+                    "example_moments": ["A first-alert scene showing the gap between signal, context, and confident containment.", "An executive-pressure module showing how uncertainty escalates when multiple tools disagree.", "A sector cut-down showing how a breach window widens in cloud, network, or endpoint-heavy estates."],
+                    "why_this_format": "This format works because the challenge is not awareness of cyber risk; it is failure to feel, in concrete terms, how expensive lost visibility becomes in the opening hours of an incident.",
+                    "intended_result": "Increase urgency around consolidation and platform visibility, give sales teams a memorable proof narrative, and move buyers from abstract concern to active evaluation.",
+                    "inputs_needed": ["Response-stage proof points", "Product and SOC workflow evidence", "Design support for timeline storytelling"],
+                }],
+            },
+            {
+                "title": "Platformization Planetarium",
+                "addresses": "Platformization can sound financially attractive but still feel technically abstract or commercially vague to buyers.",
+                "concept": "A visual campaign that treats fragmented tools as disconnected constellations and the platform as the observatory that lets leaders see, govern, and act across the whole estate.",
+                "activation": "The idea comes alive through an immersive observatory narrative, platform explainer pages, board-ready proof modules, and field assets that turn consolidation into a visible control advantage.",
+                "driving_idea": "Show the whole sky at once. The campaign reframes platformization from a vendor efficiency story into an estate-visibility and decision-quality story that matters to CISOs, security architects, and executive stakeholders.",
+                "implementation_story": "The flagship experience visualises multiple disconnected security worlds and then reveals what changes when they are governed through one control layer. Follow-on assets simplify that model for web, keynote, analyst, and sales contexts so the same system story holds together from awareness to deal progression.",
+                "activation_plan": [{
+                    "name": "Platform observatory",
+                    "creates": f"{brand} creates a premium platform observatory experience supported by solution pages, keynote modules, and sales proofs that explain how one control layer improves visibility, governance, and response quality.",
+                    "looks_like": "It looks like a guided visual model of an enterprise estate rather than a product matrix. Buyers move from separate tool clusters into one connected oversight environment, seeing where duplication, delay, and blind spots disappear when the system is treated as one operating surface.",
+                    "example_moments": ["A before-and-after view comparing fragmented telemetry with unified control.", "An executive explainer showing how platformization changes reporting confidence and governance.", "A field-ready proof module mapping buyer pain points to one control-layer outcome."],
+                    "why_this_format": "This shape is right because platformization claims often fail when they sound like vendor rationalisation. A visual observatory makes the operational and strategic upside easier to grasp.",
+                    "intended_result": "Make consolidation feel desirable rather than defensive, strengthen board-level understanding of the platform story, and improve progression on complex multi-product conversations.",
+                    "inputs_needed": ["Platform architecture proof", "Customer or analyst validation", "Cross-solution messaging hierarchy"],
+                }],
+            },
+            {
+                "title": "AI Under Supervision",
+                "addresses": "Enterprise buyers are excited by AI, but they need stronger reassurance that it is governed, inspectable, and secure rather than simply powerful.",
+                "concept": "A campaign that treats enterprise AI as a high-value force that becomes useful only when it is supervised, policy-bound, and secured from code to cloud.",
+                "activation": "The creative system spans AI-governance thought leadership, proof-led landing pages, event storytelling, and sales content that show how supervised AI produces confidence rather than chaos.",
+                "driving_idea": "Do not romanticise the machine; discipline it. The campaign positions AI value and AI control as inseparable, showing that intelligence without governance creates risk, while supervised intelligence creates speed leaders can trust.",
+                "implementation_story": "The campaign opens with a bold supervised-AI narrative and then breaks into role-specific expressions for security leadership, cloud, platform, and AI buyers. Every asset shows one tension being resolved: speed versus control, automation versus oversight, or innovation versus exposure.",
+                "activation_plan": [{
+                    "name": "Supervised AI proof series",
+                    "creates": f"{brand} creates a flagship AI-governance campaign hub supported by short films, keynote modules, and solution-page proof sequences that dramatise the difference between uncontrolled AI activity and supervised enterprise use.",
+                    "looks_like": "It looks like an art-directed tension between energy and discipline: powerful machine behaviour contained inside clear policy, oversight, and security frames. The web expression uses high-contrast proof modules, governance checkpoints, and short scenario stories rather than generic AI hype copy.",
+                    "example_moments": ["A scenario showing how unsupervised AI creates hidden risk across code, cloud, and data paths.", "A governance checkpoint sequence showing where oversight restores confidence.", "A sales proof module comparing AI speed alone with AI speed under disciplined control."],
+                    "why_this_format": "This form is right because AI discussions quickly collapse into either hype or fear. A supervised-AI campaign creates a sharper middle ground: ambition made safe enough to buy.",
+                    "intended_result": "Strengthen differentiation in AI-security conversations, improve trust in platform governance claims, and create more persuasive proof for high-stakes enterprise buyers.",
+                    "inputs_needed": ["AI-governance narrative", "Product proof across AI and cloud security", "Executive messaging for innovation and risk"],
+                }],
+            },
+            {
+                "title": "The EMEA Threat Atlas",
+                "addresses": "Global threat intelligence is powerful, but regional agencies and buyers need it translated into local sector, regulatory, and geopolitical relevance.",
+                "concept": "A campaign that turns threat intelligence into a living EMEA atlas, showing how regional risk shifts by sector, regulation, and operating environment while keeping one coherent platform story.",
+                "activation": "The campaign runs as a modular regional intelligence system with flagship atlas experiences, country or sector cut-downs, PR hooks, and field content for agency activation.",
+                "driving_idea": "Make intelligence feel local. Instead of presenting global threat coverage as a distant authority signal, the campaign turns it into a regional navigation system buyers can use to understand what matters where they operate.",
+                "implementation_story": "The hero asset is an EMEA atlas that blends regional threat patterns, sector themes, and practical implications. Around it sits a modular activation system so country teams can localise the story without losing the central proof architecture or platform narrative.",
+                "activation_plan": [{
+                    "name": "Regional threat atlas",
+                    "creates": f"{brand} creates a flagship EMEA threat-atlas experience with sector and country derivatives for PR, field, CRM, and sales use.",
+                    "looks_like": "It looks like a premium editorial atlas rather than a static report. The experience layers regional currents, sector nodes, response priorities, and proof-backed recommendations so local teams can show buyers why the global intelligence picture matters in their specific context.",
+                    "example_moments": ["A regional overview showing how one threat pattern manifests differently across major EMEA markets.", "A sector layer linking intelligence to board-level commercial consequences.", "A local activation kit turning one atlas theme into PR, event, and follow-up content for a country team."],
+                    "why_this_format": "This shape works because intelligence is most persuasive when buyers can see themselves inside it. A regional atlas turns authority into applied relevance.",
+                    "intended_result": "Give EMEA teams a stronger shared narrative, improve localisation without fragmentation, and convert intelligence credibility into pipeline-facing content.",
+                    "inputs_needed": ["Unit 42 or equivalent threat-intelligence evidence", "Regional sector priorities", "Field and PR localisation plan"],
+                }],
+            },
+        ]
+
+        content_strategy = {
+            "cards": [
+                {"title": "Proof architecture", "body": "Create reusable proof modules for breach-window compression, platform visibility, AI governance, customer protection, and regional threat relevance."},
+                {"title": "Comparison content", "body": f"Build fair comparison and category-explainer pages around {competitor_text} so search demand lands on clearer platform differentiation and proof."},
+                {"title": "Regional activation", "body": "Turn core narratives into modular EMEA-ready assets for country, sector, event, CRM, and sales activation."},
+            ],
+            "priority_opportunities": [
+                "Breach-window proof hub showing what faster coordinated response changes.",
+                "Platformization explainer architecture translating consolidation into visibility and governance outcomes.",
+                "AI-governance content series proving supervision, policy, and secure enablement.",
+            ],
+            "example_ideas": [
+                "What leaders can see in the first critical hour of a modern incident.",
+                f"{brand} vs fragmented point tools: when one control layer changes the decision.",
+                "How supervised enterprise AI becomes faster to trust, not just faster to deploy.",
+            ],
+            "response_to_findings": "These recommendations respond to the report findings by translating platform ambition into inspectable proof, turning comparison demand into owned decision support, and giving regional teams reusable intelligence-led stories.",
+        }
+    else:
+        data["opportunities"] = {
+            "marketing_strategy": {
+                "headline": "Turn category promise into proof-backed commercial confidence.",
+                "strategy": f"Use content, search, CRM, and creative to reposition {brand}'s core offer as a system buyers can understand, verify, and trust before they commit.",
+                "why_it_matters": "The strategy synthesises reputation risk, messaging proof needs, search and SEO comparison demand, competitor pressure, and campaign/content opportunities into one commercial direction.",
+                "evidence_threads": [
+                    f"Reputation: {sentence(top_news.get('headline'), 'ranked public stories')} shows public trust and risk themes that messaging must answer clearly.",
+                    "Messaging/proof: the story is strongest when category promises are backed by visible evidence and simpler buyer language.",
+                    f"Search/SEO: {sentence(primary_search_source.get('title'), 'public search evidence')} supports comparison, proof-led organic content, and clearer landing journeys.",
+                    f"Competitor: live discovery around {competitor_text} shows buyers have visible alternatives and need a sharper reason to choose this brand.",
+                    "Campaign/content: proof-led creative can turn trust, differentiation, and practical outcomes into more memorable customer-facing assets.",
+                ],
+            },
+            "timelines": [
+                {"title": "Next 30 days", "items": ["Lock the proof architecture behind the core brand promise.", "Map priority comparison, trust, and buyer-intent search journeys.", "Audit key landing, help, and proof pages for clarity and commercial relevance."]},
+                {"title": "Next 60 days", "items": ["Prototype proof modules, comparison pages, and mission landing journeys.", "Create CRM and sales-support content for the highest-friction objections.", "Test sharper messaging around proof, control, and buyer confidence."]},
+                {"title": "Next 90 days", "items": ["Launch the first proof-led content hub and campaign territory.", "Measure organic engagement, conversion confidence, and progression on high-intent journeys.", "Prepare amplification from verified proof assets and customer-facing evidence."]},
+            ],
+        }
+
+        campaign_base = [
+            {
+                "title": "Proof, Not Promises",
+                "addresses": "Strong trust signals exist, but they are not yet packaged into a repeatable proof architecture.",
+                "concept": "A trust-led creative platform that turns analyst recognition, partner credibility, customer outcomes, or operational evidence into visible proof around the main claim.",
+                "activation": "The campaign creates proof modules across landing pages, sales support, CRM, and paid or PR cut-downs so the same evidence travels with the proposition.",
+                "driving_idea": "Make belief inspectable. Instead of asking buyers to take the brand at its word, the campaign frames proof as the visible product around each important claim.",
+                "implementation_story": "The flagship asset standardises what counts as proof, how it should look, and how it appears beside the promise. That visual system then flows into channel variants so the same evidence architecture supports acquisition, conversion, and follow-up journeys.",
+                "activation_plan": [{
+                    "name": "Proof architecture hub",
+                    "creates": f"{brand} creates a flagship proof architecture supported by landing-page modules, sales assets, and campaign cut-downs that make the brand's best evidence easy to recognise and reuse.",
+                    "looks_like": "It looks like a clean, ownable proof system rather than a library of disconnected testimonials or badges. Each proof moment pairs a claim with the strongest supporting evidence, the context in which it matters, and the next action a buyer should take.",
+                    "example_moments": ["A hero proof module linking the main proposition to one decisive customer or partner outcome.", "A reusable claim-and-proof component for search or comparison pages.", "A short follow-up asset that turns one hard proof point into a memorable paid or CRM execution."],
+                    "why_this_format": "This shape works because trust grows when evidence feels structured, repeatable, and easy to inspect across the buyer journey.",
+                    "intended_result": "Increase credibility at decision stage, reduce reliance on generic claim language, and create stronger proof continuity across channels.",
+                    "inputs_needed": ["Inventory of trust assets", "Evidence hierarchy", "Design support for reusable modules"],
+                }],
+            },
+            {
+                "title": "The Comparison Moment",
+                "addresses": "Buyers actively compare alternatives and need clearer help understanding the trade-offs.",
+                "concept": "A comparison-led campaign that treats category choice as a service and gives buyers fair, useful guidance before they leave the journey to third-party pages.",
+                "activation": "The idea becomes a set of decision guides, comparison pages, search landing variants, and sales follow-ups that help buyers evaluate fit without defensive language.",
+                "driving_idea": "Be the clearest guide in the room. The campaign meets comparison demand directly and uses it to prove why the brand is the right fit for a specific buyer situation.",
+                "implementation_story": "The flagship asset is a generous decision guide organised around real buyer criteria rather than internal product silos. Search and campaign variants then answer the highest-intent comparison questions and route readers into the proof that matters most to them.",
+                "activation_plan": [{
+                    "name": "Decision guide system",
+                    "creates": f"{brand} creates a comparison and decision-support system spanning search pages, landing modules, and sales-ready proof assets.",
+                    "looks_like": "It looks like a guided choice environment with clear criteria, transparent trade-offs, and proof-linked recommendations rather than a combative competitor page.",
+                    "example_moments": ["A criteria-led chooser that helps a buyer identify the right path into the proposition.", "A fair comparison module that names where the brand wins and where another option may suit a different need.", "A search landing page answering one specific alternative-brand query with useful proof."],
+                    "why_this_format": "This form is right because comparison demand already exists. Meeting it directly lets the brand enter the decision point with clarity and utility.",
+                    "intended_result": "Capture higher-intent search demand, improve trust in the buying recommendation, and reduce drift to third-party comparators.",
+                    "inputs_needed": ["Competitor analysis", "Commercial rules", "SEO query prioritisation"],
+                }],
+            },
+            {
+                "title": "The Operating Model",
+                "addresses": "The brand may be stronger operationally than its public story currently shows.",
+                "concept": "A campaign that turns the hidden operating model into a visible source of confidence, showing how the offer works, what standards hold it together, and where the buyer gains reassurance.",
+                "activation": "The idea becomes a visual operating-model story across web, CRM, video, and sales support so the brand feels understandable rather than opaque.",
+                "driving_idea": "Show how the engine works. The campaign treats operational confidence as a strategic asset, not a back-office fact left out of the story.",
+                "implementation_story": "The hero expression explains the system from input to outcome, then shorter assets isolate the moments buyers care about most: reliability, governance, quality, service recovery, or visible standards.",
+                "activation_plan": [{
+                    "name": "Operating-model explainer",
+                    "creates": f"{brand} creates a flagship operating-model explainer supported by short modules, sales support, and follow-up content that make delivery confidence visible.",
+                    "looks_like": "It looks like a guided system view where each stage reveals what the buyer gains, what the standard is, and what proof supports it.",
+                    "example_moments": ["A step-by-step explainer of how the offer moves from promise to delivered outcome.", "A standards module showing what reliability or quality guardrails are in place.", "A follow-up asset translating an operational fact into a buyer-facing reassurance point."],
+                    "why_this_format": "This shape works because buyers often trust what they can see working. Explaining the operating model turns hidden capability into commercial confidence.",
+                    "intended_result": "Increase trust in the delivery promise, strengthen differentiation through operational proof, and support more confident evaluation.",
+                    "inputs_needed": ["Operational evidence", "Subject-matter review", "Channel-specific simplification"],
+                }],
+            },
+            {
+                "title": "Local Relevance Engine",
+                "addresses": "The central proposition may need stronger localisation by audience, region, sector, or use case.",
+                "concept": "A modular campaign system that keeps one core strategy but adapts it into locally relevant expressions for the audiences and contexts that matter most.",
+                "activation": "The campaign creates a master narrative with region, sector, or audience derivatives across PR, search, CRM, events, and sales follow-up.",
+                "driving_idea": "Keep one engine, vary the route. The campaign protects strategic coherence while making the message feel more relevant in the contexts where buyers actually make decisions.",
+                "implementation_story": "The master asset establishes the central argument and proof structure. Local derivatives then adapt examples, stakes, channels, and emphasis while keeping the same visual and narrative spine.",
+                "activation_plan": [{
+                    "name": "Modular activation kit",
+                    "creates": f"{brand} creates a modular activation kit with one flagship narrative and tailored audience or regional expressions for field, PR, CRM, and sales use.",
+                    "looks_like": "It looks like a family of related assets built from one shared backbone rather than disconnected campaigns. Each version carries the same idea but changes context, examples, and proof emphasis for the audience it serves.",
+                    "example_moments": ["A core narrative page with audience-select paths.", "A localised field or PR asset using the same proof architecture with different examples.", "A sales follow-up variant that turns the same campaign idea into a sector-specific proof story."],
+                    "why_this_format": "This form is right because consistency alone is not enough; the story must also feel natively relevant in the places where demand is won.",
+                    "intended_result": "Improve relevance without fragmenting the brand story, support field teams with stronger local material, and extend the life of the core campaign idea.",
+                    "inputs_needed": ["Audience priorities", "Regional or sector evidence", "Activation governance"],
+                }],
+            },
+        ]
+
+        content_strategy = {
+            "cards": [
+                {"title": "Proof architecture", "body": "Create reusable proof modules that translate the central claim into visible evidence across key landing, sales, and follow-up journeys."},
+                {"title": "Comparison content", "body": f"Build fair comparison and decision-support pages around {competitor_text} so search demand lands on owned guidance rather than third-party summaries."},
+                {"title": "Journey content", "body": "Use CRM, support, and conversion content to answer the highest-friction buyer questions with clearer proof and simpler explanation."},
+            ],
+            "priority_opportunities": [
+                "Proof hub organising the strongest evidence behind the main proposition.",
+                "Comparison and category-explainer architecture for high-intent search demand.",
+                "Operational-confidence content showing how the promise is delivered in practice.",
+            ],
+            "example_ideas": [
+                "How the promise becomes a real delivered outcome.",
+                f"{brand} vs alternatives: the fairest way to decide.",
+                "What proof buyers should see before they commit.",
+            ],
+            "response_to_findings": "These recommendations respond to the report findings by turning trust and differentiation gaps into clearer proof, stronger comparison support, and more useful buyer-facing content.",
+        }
+
     data["creative_campaign_ideas"] = {
         "artwork_delivery_mode": "final-raster-required",
         "illustration_generation_backend": "imagegen",
@@ -2161,25 +2367,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             for idea in campaign_base
         ],
     }
-
-    data["content_strategy"] = {
-        "cards": [
-            {"title": "Proof architecture", "body": "Create reusable proof modules for control, cancellation, delivery, freshness, refunds, customer feedback, and recipe confidence."},
-            {"title": "Comparison content", "body": f"Build fair comparison pages around {competitor_text} so search traffic receives helpful decision support."},
-            {"title": "Retention content", "body": "Use CRM and help content to reduce anxiety after first order and make service recovery easy to understand."},
-        ],
-        "priority_opportunities": [
-            "Customer-control hub covering pause, cancel, swap, delivery, refunds, and substitutions.",
-            "Meal-kit comparison architecture for category and competitor search demand.",
-            "Recipe confidence content using customer ratings, chef guidance, and freshness proof.",
-        ],
-        "example_ideas": [
-            "How your box works if plans change.",
-            "HelloFresh vs alternatives: how to choose the right meal-kit service.",
-            "Freshness, delivery, and refunds explained plainly.",
-        ],
-        "response_to_findings": "These recommendations respond to the reputation findings by turning risk themes into helpful content, while using search evidence to prioritise pages that buyers are already looking for.",
-    }
+    data["content_strategy"] = content_strategy
 
     data["appendix"] = {
         "source_map": source_map,
@@ -2261,7 +2449,7 @@ def build_summary_from_data(data_path: Path, mode: str = "bootstrap-from-report-
         "reputation_public_web": "passed" if data.get("brand_reputation") else "pending",
         "source_gathering": "passed" if source_map or news else "pending",
         "semrush": "passed" if len(semrush) >= 2 else "quota-limited",
-        "search_seo": "passed" if len(semrush) >= 2 or len(similarweb) >= 2 or len(search_evidence) >= 2 else "pending",
+        "search_seo": "passed" if len(semrush) >= 2 or len(similarweb) >= 2 else "pending",
     }
     return {
         "mode": mode,
@@ -2535,8 +2723,7 @@ def apply_semrush_direct_api(
     summary.setdefault("status", {})["semrush"] = status
     enough_direct = len(seo.get("semrush_evidence") or []) >= 2
     enough_similarweb = len(seo.get("similarweb_evidence") or []) >= 2
-    enough_public = len(seo.get("search_evidence") or []) >= 2
-    summary.setdefault("status", {})["search_seo"] = "passed" if enough_direct or enough_similarweb or enough_public else status
+    summary.setdefault("status", {})["search_seo"] = "passed" if enough_direct or enough_similarweb else status
     summary["semrush_direct_api"] = payload
     summary.setdefault("source_provenance_summary", {})["semrush_direct_api_status"] = status
     summary.setdefault("notes", []).append(f"SEMrush direct API status: {status}.")
@@ -2790,14 +2977,15 @@ def validate_research_summary(summary: dict[str, Any], *, allow_examples: bool =
         similarweb_evidence = []
     if not isinstance(search_evidence, list):
         search_evidence = []
-    total_search_evidence = len(semrush_evidence) + len(similarweb_evidence) + len(search_evidence)
-    if status.get("search_seo") == "passed" and total_search_evidence < 2:
+    provider_search_evidence = len(semrush_evidence) + len(similarweb_evidence)
+    total_search_evidence = provider_search_evidence + len(search_evidence)
+    if status.get("search_seo") == "passed" and provider_search_evidence < 2:
         errors.append(
-            "status.search_seo is passed but fewer than 2 search/SEO evidence points are present."
+            "status.search_seo is passed but fewer than 2 provider-backed SEO evidence points are present."
         )
-    if status.get("search_seo") != "passed" and total_search_evidence >= 2:
+    if status.get("search_seo") != "passed" and provider_search_evidence >= 2:
         errors.append(
-            "search/SEO evidence is present but status.search_seo was not marked passed."
+            "Provider-backed search/SEO evidence is present but status.search_seo was not marked passed."
         )
     for evidence_name, evidence_items in (
         ("similarweb_evidence", similarweb_evidence),
@@ -3845,16 +4033,53 @@ def audit_campaign_art(data_path: Path) -> dict[str, Any]:
     diversity_groups: list[str] = []
     style_names: list[str] = []
     fingerprints: list[tuple[int, str, dict[str, Any]]] = []
+    accepted_final_backends = {"imagegen-batch-import"}
+    disallowed_provenance = {"report-output-local", "skill-local", "unknown", "placeholder", ""}
     for index, idea in enumerate(ideas):
         url = idea.get("illustration_url")
         role = idea.get("illustration_asset_role")
         backend = idea.get("illustration_generation_backend")
+        import_source = str(idea.get("illustration_import_source") or "").strip()
+        provenance = str(idea.get("illustration_source_provenance") or "").strip().lower()
         style_name = str(idea.get("illustration_style_name") or "").strip()
         if style_name:
             style_names.append(style_name.lower())
         diversity_groups.append(campaign_art_diversity_group(idea))
         if role != "final-raster-artwork":
             errors.append(f"ideas[{index}] artwork is not marked final-raster-artwork.")
+        if backend in {"local-scaffold", "placeholder"}:
+            errors.append(f"ideas[{index}] uses scaffold backend.")
+        if role == "final-raster-artwork":
+            if backend not in accepted_final_backends:
+                errors.append(
+                    f"ideas[{index}] final artwork must come from a generated image batch import, not backend '{backend or 'missing'}'."
+                )
+            if not import_source:
+                errors.append(f"ideas[{index}] final artwork is missing illustration_import_source provenance.")
+            if provenance in disallowed_provenance:
+                errors.append(
+                    f"ideas[{index}] final artwork uses disallowed source provenance '{provenance or 'missing'}'."
+                )
+            source_path = Path(import_source).expanduser() if import_source else None
+            if source_path:
+                try:
+                    resolved_source = source_path.resolve()
+                    try:
+                        resolved_source.relative_to(data_path.parent.resolve())
+                        errors.append(
+                            f"ideas[{index}] final artwork source points back into the report output folder: {resolved_source}"
+                        )
+                    except ValueError:
+                        pass
+                    try:
+                        resolved_source.relative_to(SCRIPT_ROOT.resolve())
+                        errors.append(
+                            f"ideas[{index}] final artwork source points into the local skill runtime instead of an image batch: {resolved_source}"
+                        )
+                    except ValueError:
+                        pass
+                except OSError:
+                    errors.append(f"ideas[{index}] illustration_import_source could not be resolved: {import_source}")
         if not url:
             errors.append(f"ideas[{index}] has no illustration_url.")
             continue
@@ -3869,8 +4094,6 @@ def audit_campaign_art(data_path: Path) -> dict[str, Any]:
             fingerprint = campaign_art_visual_fingerprint(path)
             if fingerprint:
                 fingerprints.append((index, str(idea.get("title") or f"idea {index + 1}"), fingerprint))
-        if backend in {"local-scaffold", "placeholder"}:
-            errors.append(f"ideas[{index}] uses scaffold backend.")
     if len(style_names) != len(set(style_names)):
         errors.append("Campaign artwork must use distinct style names for each idea.")
     if len(ideas) >= 3:
@@ -4670,6 +4893,7 @@ def module_render(args: argparse.Namespace) -> dict[str, Any]:
     brand_folder = brand_folder_from_data(data_path)
     state = load_state(brand_folder)
     set_status(state, "render", "in_progress")
+    set_gate(state, "gate_8_render_outputs", "in_progress")
     set_gate(state, "gate_6_render_outputs", "in_progress")
     save_state(brand_folder, state)
     validation = validate_report_data(data_path)
@@ -4726,11 +4950,13 @@ def module_render(args: argparse.Namespace) -> dict[str, Any]:
         build_minimal_pptx(data_path, pptx_path)
     if not pptx_path.exists():
         set_status(state, "render", "failed")
+        set_gate(state, "gate_8_render_outputs", "failed")
         set_gate(state, "gate_6_render_outputs", "failed")
         save_state(brand_folder, state)
         raise SystemExit("PPTX output was not created. " + pptx_warning)
     shutil.copy2(pptx_path, archive_dir / pptx_path.name)
     set_status(state, "render", "passed")
+    set_gate(state, "gate_8_render_outputs", "passed")
     set_gate(state, "gate_6_render_outputs", "passed")
     save_state(brand_folder, state)
     return {"module": "render", "data": str(data_path), "brand_folder": str(brand_folder), "bundle": {"html": str(html_path), "pptx": str(pptx_path), "archive": {"directory": str(archive_dir), "html": str(portable_html), "pptx": str(archive_dir / pptx_path.name)}}}
@@ -4777,8 +5003,9 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
     brand_folder = brand_folder_from_data(data_path)
     state = load_state(brand_folder)
     set_status(state, "qa", "in_progress")
-    if state.get("statuses", {}).get("deploy") != "passed":
+    if state.get("status", {}).get("deploy") != "passed":
         set_status(state, "deploy", "pending")
+    set_gate(state, "gate_9_quality_review", "in_progress")
     set_gate(state, "gate_6a_editorial_quality", "in_progress")
     if state.get("gates", {}).get("gate_10_delivery_handoff") != "passed" and state.get("gates", {}).get("gate_7_delivery") != "passed":
         set_gate(state, "gate_10_delivery_handoff", "pending")
@@ -4805,6 +5032,7 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
             errors.append(f"{name}: {result.get('errors') or result.get('missing') or 'not ok'}")
     if errors:
         set_status(state, "qa", "failed")
+        set_gate(state, "gate_9_quality_review", "failed")
         set_gate(state, "gate_6a_editorial_quality", "failed")
         save_state(brand_folder, state)
         checks["task_list"] = audit_task_list(data_path)
@@ -4812,6 +5040,7 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("QA failed: " + "; ".join(errors))
     add_event(state, "reducer", "qa.bundle_reducer", outputs=[str(brand_folder / "qa-results.json")])
     set_status(state, "qa", "passed")
+    set_gate(state, "gate_9_quality_review", "passed")
     set_gate(state, "gate_6a_editorial_quality", "passed")
     save_state(brand_folder, state)
     checks["task_list"] = audit_task_list(data_path)
