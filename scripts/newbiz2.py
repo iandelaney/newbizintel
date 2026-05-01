@@ -4733,6 +4733,98 @@ def assert_deployable_report_html(html_path: Path) -> None:
         )
 
 
+def audit_deploy_stage(stage_root: Path) -> dict[str, Any]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    stage_index = stage_root / "index.html"
+    if not stage_index.exists():
+        return {
+            "ok": False,
+            "errors": [f"Deploy stage is missing index.html: {stage_index}"],
+            "warnings": warnings,
+            "stage_root": str(stage_root),
+            "asset_count": 0,
+            "checked_assets": [],
+        }
+
+    text = stage_index.read_text(encoding="utf-8", errors="ignore")
+    completeness = audit_rendered_html_completeness(text)
+    if not completeness["ok"]:
+        errors.extend(f"stage_html: {error}" for error in completeness.get("errors", []))
+
+    required_markers = (
+        "Competitor positioning in search",
+        "Keyword opportunity groups",
+        "brand-logo-slot",
+        "competitor-badge",
+        "publisher-badge",
+    )
+    for marker in required_markers:
+        if marker not in text:
+            errors.append(f"Deploy stage HTML is missing required marker: {marker}")
+
+    if re.search(r'class="[^"]*brand-logo-slot--fallback', text):
+        errors.append("Deploy stage HTML fell back to initials for the main brand logo.")
+    if re.search(r'class="[^"]*competitor-badge--fallback', text):
+        errors.append("Deploy stage HTML fell back to initials for one or more competitor logos.")
+    if "publisher-badge--missing" in text or re.search(r'<div class="publisher-badge"><span>', text):
+        errors.append("Deploy stage HTML fell back to missing/text publisher badges.")
+
+    asset_paths = sorted(
+        {
+            match
+            for match in re.findall(r'(?:src|href)=["\']((?:slide-assets|assets)/[^"\']+)["\']', text, flags=re.I)
+            if not match.lower().startswith(("http://", "https://", "data:"))
+        }
+    )
+    checked_assets: list[str] = []
+    missing_assets: list[str] = []
+    invalid_assets: list[str] = []
+    image_exts = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif"}
+    for rel_path in asset_paths:
+        asset_path = stage_root / rel_path.replace("/", os.sep)
+        checked_assets.append(rel_path)
+        if not asset_path.exists() or not asset_path.is_file():
+            missing_assets.append(rel_path)
+            continue
+        try:
+            size = asset_path.stat().st_size
+        except OSError:
+            invalid_assets.append(f"{rel_path}: unreadable")
+            continue
+        if size <= 0:
+            invalid_assets.append(f"{rel_path}: empty file")
+            continue
+        if asset_path.suffix.lower() in image_exts:
+            quality = asset_quality(asset_path)
+            if not quality.get("exists"):
+                invalid_assets.append(f"{rel_path}: asset_quality could not read file")
+                continue
+            if asset_path.suffix.lower() != ".svg" and quality.get("width") and quality.get("height"):
+                if quality["width"] < 16 or quality["height"] < 16:
+                    invalid_assets.append(
+                        f"{rel_path}: image too small ({quality['width']}x{quality['height']})"
+                    )
+
+    if missing_assets:
+        errors.append(f"Deploy stage is missing referenced assets: {missing_assets}")
+    if invalid_assets:
+        errors.append(f"Deploy stage has invalid referenced assets: {invalid_assets}")
+    if not asset_paths:
+        errors.append("Deploy stage HTML does not reference any local slide-assets or assets files.")
+
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "warnings": warnings,
+        "stage_root": str(stage_root),
+        "asset_count": len(asset_paths),
+        "checked_assets": checked_assets,
+        "missing_assets": missing_assets,
+        "invalid_assets": invalid_assets,
+    }
+
+
 def make_text_logo_png(label: str, output_path: Path) -> None:
     try:
         from PIL import Image, ImageDraw, ImageFont
@@ -5165,6 +5257,18 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
         set_gate(state, "gate_7_delivery", "pending")
     add_event(state, "fanout", "qa.initial_audits", jobs=["report-data", "task-list", "hybrid", "logos", "campaign-art", "outputs"])
     save_state(brand_folder, state)
+    latest_stage_audit: dict[str, Any] = {"ok": True, "warnings": ["Deploy stage has not been prepared yet."], "errors": []}
+    latest_handoff_path = brand_folder / "vercel-random-handoff-latest.json"
+    if latest_handoff_path.exists():
+        try:
+            latest_handoff = read_json(latest_handoff_path)
+            deploy_path = Path(str(latest_handoff.get("deploy_path") or ""))
+            if deploy_path.exists() and deploy_path.is_dir():
+                latest_stage_audit = audit_deploy_stage(deploy_path)
+            else:
+                latest_stage_audit = {"ok": False, "errors": [f"Latest Vercel stage path is missing: {deploy_path}"], "warnings": []}
+        except Exception as exc:
+            latest_stage_audit = {"ok": False, "errors": [f"Could not audit latest Vercel stage: {exc}"], "warnings": []}
     checks = {
         "report_data": validate_report_data(data_path),
         "hybrid": audit_hybrid(state),
@@ -5172,6 +5276,7 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
         "required_logos": read_json(brand_folder / "required-logo-manifest.json") if (brand_folder / "required-logo-manifest.json").exists() else {"ok": False, "errors": ["required-logo-manifest.json missing"]},
         "source_badges": read_json(brand_folder / "source-badge-manifest.json") if (brand_folder / "source-badge-manifest.json").exists() else {"ok": False, "errors": ["source-badge-manifest.json missing"]},
         "presentation_html": audit_presentation_html(brand_folder, data_path),
+        "deploy_stage": latest_stage_audit,
         "outputs": {
             "ok": (brand_folder / "newbizintel-report.html").exists() and (brand_folder / "archive" / "newbizintel-report-portable.html").exists() and (brand_folder / "newbizintel-report.pptx").exists(),
             "html": str(brand_folder / "newbizintel-report.html"),
@@ -5263,6 +5368,15 @@ def prepare_random_vercel_stage(data_path: Path) -> dict[str, Any]:
                 shutil.rmtree(destination)
             shutil.copytree(source, destination)
 
+    stage_audit = audit_deploy_stage(stage_root)
+    write_json(stage_root / "deploy-stage-audit.json", stage_audit)
+    write_json(brand_folder / "deploy-stage-audit-latest.json", stage_audit)
+    if not stage_audit.get("ok"):
+        raise SystemExit(
+            "Refusing Vercel stage handoff because deploy-stage asset validation failed. "
+            + "; ".join(stage_audit.get("errors", []))
+        )
+
     handoff = {
         "deploy_path": str(stage_root),
         "random_site_slug": stage_root.name,
@@ -5273,6 +5387,7 @@ def prepare_random_vercel_stage(data_path: Path) -> dict[str, Any]:
             urllib.parse.urlparse(normalize_url(website)).netloc.replace("www.", "").split(".")[0] if website else "",
         ],
         "vercel_skill": "vercel-deploy",
+        "deploy_stage_audit": stage_audit,
         "instructions": "Use the vercel-deploy skill to deploy this deploy_path. Do not deploy the brand output folder directly. Reuse this random stage to update existing pages; set NEWBIZ2_FORCE_NEW_VERCEL_STAGE=1 only when a fresh random URL is explicitly needed.",
     }
     handoff["must_not_contain"] = list(dict.fromkeys(item for item in handoff["must_not_contain"] if item))
