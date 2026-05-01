@@ -184,7 +184,57 @@ def section_heading(level: str, title: str, section_id: str = "", css_class: str
 
 
 def back_to_contents() -> str:
-    return '<p class="back-link"><a href="#contents">Back to contents</a></p>'
+    return '<p class="back-link"><a href="#contents"><span aria-hidden="true">↩</span><span>Back to contents</span></a></p>'
+
+
+def linkedin_icon_svg() -> str:
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.8 8.5v8.7M6.8 5.8h.01M10.5 17.2V8.5h4.1c2.1 0 3.4 1.4 3.4 3.8v4.9M10.5 12.2c0-2.3 1.4-3.7 3.3-3.7" /></svg>'
+
+
+def x_icon_svg() -> str:
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>'
+
+
+def bluesky_icon_svg() -> str:
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7.5c1.8 1.4 3.1 3 5 5.5 1.9-2.5 3.2-4.1 5-5.5.7-.6 2-.9 2 1 0 1.1-.6 2.4-1.5 3.6-.8 1.1-1.9 2.2-3 2.9 1.2-.2 2.5 0 3.4.6 1 .6 1.4 1.6.7 2.5-.6.8-1.8 1.1-3 .9-1.4-.2-2.7-1-3.6-2.2-.9 1.2-2.2 2-3.6 2.2-1.2.2-2.4-.1-3-.9-.7-.9-.3-1.9.7-2.5.9-.6 2.2-.8 3.4-.6-1.1-.7-2.2-1.8-3-2.9C5.6 11 5 9.7 5 8.6c0-1.9 1.3-1.6 2-1.1Z" /></svg>'
+
+
+def profile_platform_meta(platform: Any, url: Any) -> dict[str, str]:
+    normalized_platform = text(platform).strip().lower()
+    normalized_url = text(url).strip().lower()
+    if normalized_platform == "linkedin" or "linkedin.com" in normalized_url:
+        return {"key": "linkedin", "label": "LinkedIn", "icon": linkedin_icon_svg()}
+    if normalized_platform in {"x", "twitter"} or re.search(r"(^https?://)?(www\.)?(x\.com|twitter\.com)/", normalized_url):
+        return {"key": "x", "label": "X", "icon": x_icon_svg()}
+    if normalized_platform in {"bluesky", "bsky"} or "bsky.app" in normalized_url:
+        return {"key": "bluesky", "label": "Bluesky", "icon": bluesky_icon_svg()}
+    return {"key": "profile", "label": "Profile", "icon": linkedin_icon_svg()}
+
+
+def is_generic_profile_label(name: Any, meta: dict[str, str]) -> bool:
+    normalized = text(name).strip().lower()
+    if not normalized:
+        return True
+    generic_labels = {
+        "profile",
+        "official profile",
+        "leadership profile",
+        "executive profile",
+        "official leadership profile",
+        "linkedin",
+        "linkedin profile",
+        "official linkedin profile",
+        "x",
+        "x profile",
+        "twitter",
+        "twitter profile",
+        "bluesky",
+        "bluesky profile",
+    }
+    meta_label = text(meta.get("label")).strip().lower()
+    if meta_label:
+        generic_labels.update({meta_label, f"{meta_label} profile", f"official {meta_label} profile"})
+    return normalized in generic_labels
 
 
 def card_grid(cards: Any) -> str:
@@ -287,7 +337,17 @@ def label_value_grid(items: Any, css_class: str = "snapshot-grid") -> str:
             links = []
             for profile in profiles:
                 if isinstance(profile, dict) and safe_href(profile.get("url")):
-                    links.append(f'<a class="profile-link" href="{esc(profile.get("url"))}" target="_blank" rel="noreferrer noopener">{esc(profile.get("name") or profile.get("platform") or "Profile")}</a>')
+                    meta = profile_platform_meta(profile.get("platform"), profile.get("url"))
+                    label = text(profile.get("name") or profile.get("platform") or meta.get("label") or "Profile")
+                    generic = is_generic_profile_label(label, meta)
+                    link_class = f'profile-link {esc(meta["key"])}-link'
+                    visible_label = f'<span class="sr-only">{esc(meta["label"])} profile</span>' if generic else f'<span class="profile-link-label">{esc(label)}</span>'
+                    if generic:
+                        link_class += " profile-link--badge"
+                    links.append(
+                        f'<a class="{link_class}" href="{esc(profile.get("url"))}" target="_blank" rel="noreferrer noopener" aria-label="{esc((meta["label"] + " profile") if generic else label)}" title="{esc((meta["label"] + " profile") if generic else label)}">'
+                        f'<span class="profile-link-icon">{meta["icon"]}</span>{visible_label}</a>'
+                    )
             profile_links = f'<div class="profile-links">{"".join(links)}</div>' if links else ""
         source = f' <a class="source-ref" href="{esc(url)}" target="_blank" rel="noreferrer noopener">[link]</a>' if safe_href(url) else ""
         if has_value(label) or has_value(value):

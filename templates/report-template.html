@@ -169,28 +169,33 @@
     .toc a:hover {
       color: #0b57d0;
     }
-    .section-return {
-      margin-top: 14px;
-      margin-bottom: 4px;
-      text-align: right;
-    }
-    .section-return a {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid #d8e1ea;
-      background: #fbfcfe;
-      color: #5b6b7e;
-      font-size: 12px;
-      font-weight: 600;
-      text-decoration: none;
-    }
-    .section-return a:hover {
-      color: #304255;
-      background: #f4f7fa;
-    }
+    .section-return,
+    .back-link {
+        margin-top: 14px;
+        margin-bottom: 4px;
+        text-align: right;
+      }
+    .section-return a,
+    .back-link a {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid #d4dfeb;
+        background: linear-gradient(180deg, #ffffff, #f4f7fb);
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255,255,255,0.85);
+        color: #506173;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        text-decoration: none;
+      }
+    .section-return a:hover,
+    .back-link a:hover {
+        color: #23384d;
+        background: linear-gradient(180deg, #ffffff, #eef4f9);
+      }
     .card-grid { margin: 18px 0 6px; }
     .card, .score, .timeline-step, .source-list {
       padding: 18px;
@@ -790,10 +795,10 @@
       color: #28496b;
     }
     .profile-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
     }
     .profile-link {
       display: inline-flex;
@@ -805,17 +810,31 @@
       background: #f7faff;
       color: #0a66c2;
       font-size: 13px;
-      font-weight: 600;
-      line-height: 1;
-      text-decoration: none;
-    }
+        font-weight: 600;
+        line-height: 1;
+        text-decoration: none;
+      }
+    .profile-link-label {
+        display: inline-block;
+      }
     .profile-link:hover {
-      background: #eef5ff;
-    }
+        background: #eef5ff;
+      }
+    .profile-link--badge {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        justify-content: center;
+        gap: 0;
+      }
+    .profile-link--badge .profile-link-label,
+    .profile-link--badge .profile-link-platform {
+        display: none;
+      }
     .profile-link-icon {
-      width: 18px;
-      height: 18px;
-      display: inline-flex;
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
       align-items: center;
       justify-content: center;
       border-radius: 999px;
@@ -833,12 +852,23 @@
       stroke-linejoin: round;
     }
     .profile-link-platform {
-      color: #7a8a9a;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-    }
+        color: #7a8a9a;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
     .linkedin-link .profile-link-icon {
       background: #0a66c2;
     }

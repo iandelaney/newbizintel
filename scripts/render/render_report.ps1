@@ -1360,7 +1360,7 @@ $($listItems -join "`n")
 }
 
 function ConvertTo-BackToContentsHtml {
-    return '<div class="section-return"><a href="#contents">Back to contents</a></div>'
+    return '<div class="section-return"><a class="section-return-link" href="#contents"><span aria-hidden="true">↩</span><span>Back to contents</span></a></div>'
 }
 
 function ConvertTo-CompetitorCellHtml {
@@ -1684,6 +1684,42 @@ function Get-ProfilePlatformMeta {
     }
 }
 
+function Test-IsGenericProfileLabel {
+    param(
+        [string]$Name,
+        [pscustomobject]$Meta
+    )
+
+    $normalized = ([string]$Name).Trim().ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return $true
+    }
+
+    $genericLabels = @(
+        'profile',
+        'official profile',
+        'leadership profile',
+        'executive profile',
+        'official leadership profile',
+        'linkedin',
+        'linkedin profile',
+        'official linkedin profile',
+        'x',
+        'x profile',
+        'twitter',
+        'twitter profile',
+        'bluesky',
+        'bluesky profile'
+    )
+
+    if ($Meta -and -not [string]::IsNullOrWhiteSpace([string]$Meta.label)) {
+        $metaLabel = ([string]$Meta.label).Trim().ToLowerInvariant()
+        $genericLabels += @($metaLabel, "$metaLabel profile", "official $metaLabel profile")
+    }
+
+    return $genericLabels -contains $normalized
+}
+
 function ConvertTo-ProfileLinksHtml {
     param([object[]]$Profiles)
 
@@ -1700,12 +1736,22 @@ function ConvertTo-ProfileLinksHtml {
         }
 
         $meta = Get-ProfilePlatformMeta -Platform ([string]$profile.platform) -Url $url
+        $isGenericLabel = Test-IsGenericProfileLabel -Name $name -Meta $meta
+        $linkClass = "profile-link $($meta.key)-link"
+        $visibleLabelHtml = ''
+        if ($isGenericLabel) {
+            $linkClass += ' profile-link--badge'
+            $visibleLabelHtml = '<span class="sr-only">{0}</span>' -f (ConvertTo-HtmlEncoded ("{0} profile" -f $meta.label))
+        }
+        else {
+            $visibleLabelHtml = '<span class="profile-link-label">{0}</span>' -f (ConvertTo-HtmlEncoded $name)
+        }
+        $accessibilityLabel = if ($isGenericLabel) { "{0} profile" -f $meta.label } else { $name }
 
         @"
-        <a class="profile-link $($meta.key)-link" href="$(ConvertTo-HtmlEncoded $url)" target="_blank" rel="noreferrer noopener">
+        <a class="$linkClass" href="$(ConvertTo-HtmlEncoded $url)" target="_blank" rel="noreferrer noopener" aria-label="$(ConvertTo-HtmlEncoded $accessibilityLabel)" title="$(ConvertTo-HtmlEncoded $accessibilityLabel)">
           <span class="profile-link-icon">$($meta.icon)</span>
-          <span>$(ConvertTo-HtmlEncoded $name)</span>
-          <span class="profile-link-platform">$(ConvertTo-HtmlEncoded $meta.label)</span>
+          $visibleLabelHtml
         </a>
 "@
     }
