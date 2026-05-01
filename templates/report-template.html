@@ -1017,7 +1017,11 @@
       height: 19px;
       stroke-width: 1.7;
     }
-    a { color: #0b57d0; }
+    a {
+      color: #0b57d0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
     .source-ref {
       display: inline-block;
       margin-left: 0.35em;
@@ -1070,6 +1074,11 @@
     .competitor-name {
       font-weight: 700;
       color: var(--ink);
+      text-decoration: none;
+    }
+    .competitor-name:hover {
+      color: #0b57d0;
+      text-decoration: underline;
     }
     .competitor-site {
       color: var(--muted);

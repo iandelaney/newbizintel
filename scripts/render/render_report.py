@@ -49,6 +49,18 @@ def safe_href(value: Any, allow_fragment: bool = False) -> str:
     return ""
 
 
+def compact_url_label(value: Any) -> str:
+    href = safe_href(value)
+    if not href:
+        return text(value)
+    parsed = urllib.parse.urlparse(href)
+    host = parsed.netloc.replace("www.", "")
+    path = parsed.path.rstrip("/")
+    if path and path != "/":
+        return f"{host}{path}"
+    return host
+
+
 def asset_src(data_dir: Path, value: Any) -> str:
     raw = text(value)
     if not raw:
@@ -407,10 +419,20 @@ def competitor_cell(data_dir: Path, row: dict[str, Any]) -> str:
     name = row.get("competitor") or row.get("name") or ""
     website = row.get("website") or row.get("url") or ""
     logo = asset_src(data_dir, row.get("logo_url") or row.get("competitor_logo_url") or row.get("badge_url") or row.get("mark_url"))
-    image = f'<span class="competitor-badge"><img src="{esc(logo)}" alt="{esc(name)} logo"></span>' if logo else '<span class="competitor-badge">?</span>'
     href = safe_href(website)
-    site = f'<a href="{esc(href)}">{esc(website)}</a>' if href else esc(website)
-    return f'<div class="competitor-cell">{image}<span><strong>{esc(name)}</strong><br><small>{site}</small></span></div>'
+    image_inner = f'<img src="{esc(logo)}" alt="{esc(name)} logo">' if logo else "?"
+    image = (
+        f'<a class="competitor-badge" href="{esc(href)}" target="_blank" rel="noreferrer noopener" aria-label="{esc(name)}">'
+        f"{image_inner}</a>"
+        if href
+        else (f'<span class="competitor-badge">{image_inner}</span>' if not logo else f'<span class="competitor-badge"><img src="{esc(logo)}" alt="{esc(name)} logo"></span>')
+    )
+    name_html = (
+        f'<a class="competitor-name" href="{esc(href)}" target="_blank" rel="noreferrer noopener">{esc(name)}</a>'
+        if href
+        else f'<span class="competitor-name">{esc(name)}</span>'
+    )
+    return f'<div class="competitor-cell">{image}<span>{name_html}</span></div>'
 
 
 def competitive_insight_grid(items: Any, css_class: str = "") -> str:
@@ -659,7 +681,7 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
     cover = data.get("cover", {})
     report_meta = data.get("report_meta", {})
     brand_website = safe_href(brand.get("website"))
-    brand_website_html = f'<a href="{esc(brand_website)}">{esc(brand.get("website"))}</a>' if brand_website else esc(brand.get("website"))
+    brand_website_html = f'<a href="{esc(brand_website)}">{esc(compact_url_label(brand.get("website")))}</a>' if brand_website else esc(brand.get("website"))
     competitor_list = ", ".join(str(item) for item in cover.get("competitors", []) if has_value(item)) if isinstance(cover.get("competitors"), list) else ""
     assumptions = " ".join(str(item) for item in cover.get("assumptions", []) if has_value(item)) if isinstance(cover.get("assumptions"), list) else ""
     hero_pills = []
