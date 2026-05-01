@@ -3362,6 +3362,8 @@ def discover_site_logo_candidates(website: str) -> list[str]:
         values = [part.strip().split()[0] for part in match.group(1).split(",")]
         for value in values:
             add(value)
+    for match in re.finditer(r'<img\b[^>]*(?:src|data-src)=["\']([^"\']*(?:logo|brand)[^"\']*\.(?:png|jpe?g|webp|svg))["\']', text, re.I):
+        add(match.group(1))
     for match in re.finditer(r'"logo"\s*:\s*"([^"]+)"', text, re.I):
         add(match.group(1))
     for match in re.finditer(r'https?://[^"\'<>\s]+(?:logo|Logo|favicon|FavIcon)[^"\'<>\s]*\.(?:png|jpe?g|webp|svg|ico)', text):
@@ -3369,14 +3371,22 @@ def discover_site_logo_candidates(website: str) -> list[str]:
     def score(candidate: str) -> tuple[int, int]:
         lower = candidate.lower()
         priority = 0
+        if any(token in lower for token in ("seoimages", "social-", "social_", "/social/", "share-", "share_", "/share/")):
+            priority += 120
         if "lockup" in lower:
             priority -= 60
         if "logo_square" in lower or "square" in lower:
             priority -= 40
+        if "primary" in lower:
+            priority -= 35
+        if "brand" in lower:
+            priority -= 20
+        if "pan-logo" in lower or "nav-logo" in lower:
+            priority -= 45
         if "logo" in lower:
             priority -= 20
         if "favicon" in lower or "apple-touch" in lower:
-            priority += 10
+            priority += 80
         if "og:image" in lower or "thumbnail" in lower:
             priority += 20
         return (priority, len(candidate))
@@ -3759,6 +3769,11 @@ def preferred_logo_asset(asset_dir: Path, stem: str, prefer_square: bool = False
     return matches[0] if matches else None
 
 
+def source_looks_like_share_card(source: str) -> bool:
+    lower = (source or "").lower()
+    return any(token in lower for token in ("seoimages", "social-", "social_", "/social/", "share-", "share_", "/share/"))
+
+
 def brand_logo_manifest_entry(name: str, asset: str, source: str, ok: bool, brand_folder: Path) -> dict[str, Any]:
     entry: dict[str, Any] = {"name": name, "asset": asset, "ok": ok, "resolution_source": source}
     asset_path = (brand_folder / asset).resolve() if asset and not Path(asset).is_absolute() else Path(asset)
@@ -3775,9 +3790,15 @@ def brand_logo_manifest_entry(name: str, asset: str, source: str, ok: bool, bran
     elif not quality.get("valid_image"):
         entry["ok"] = False
         entry["error"] = f"Primary brand logo asset is invalid: {quality.get('reason') or 'unknown quality failure'}."
-    elif quality.get("format") != "svg" and (quality.get("width", 0) < 96 or quality.get("height", 0) < 48):
+    elif quality.get("format") != "svg" and (quality.get("width", 0) < 200 or quality.get("height", 0) < 60):
         entry["ok"] = False
-        entry["error"] = f"Primary brand logo raster is too small ({quality.get('width')}x{quality.get('height')})."
+        entry["error"] = f"Primary brand logo raster is too small ({quality.get('width')}x{quality.get('height')}); use a dedicated asset at least 200px wide and 60px tall."
+    elif source_looks_like_share_card(source):
+        entry["ok"] = False
+        entry["error"] = "Primary brand logo used a social/share image instead of a dedicated first-party logo asset."
+    elif quality.get("format") != "svg" and not visible_logo_occupancy_ok(asset_path, minimum_span=0.58):
+        entry["ok"] = False
+        entry["error"] = "Primary brand logo does not occupy enough of the asset frame to stay readable in report badges."
     return entry
 
 
@@ -3794,7 +3815,15 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
     brand_candidates = discover_site_logo_candidates(str(brand.get("website", "")))
     ok, source = acquire_logo(brand_name, brand.get("website", ""), brand_logo, candidates=brand_candidates, allow_simpleicons=False)
     if ok:
-        brand_asset = preferred_logo_asset(asset_dir, f"{brand_slug}-logo")
+        brand_asset = None
+        source_path = Path(urllib.parse.urlparse(source).path)
+        source_suffix = source_path.suffix.lower() if source_path.suffix else ""
+        if source_suffix in {".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"}:
+            exact_brand_asset = asset_dir / f"{brand_slug}-logo{source_suffix}"
+            if exact_brand_asset.exists() and quality_ok(exact_brand_asset):
+                brand_asset = exact_brand_asset
+        if brand_asset is None:
+            brand_asset = preferred_logo_asset(asset_dir, f"{brand_slug}-logo")
         brand["logo_url"] = relative_to_brand(brand_asset, brand_folder) if brand_asset else ""
         brand["mark_url"] = brand["logo_url"]
     else:
