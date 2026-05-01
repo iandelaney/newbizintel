@@ -1087,6 +1087,11 @@ def validate_executive_summary_tone(data: dict[str, Any], errors: list[str]) -> 
         "provider:",
         "ranked story set",
         "led by accc takes",
+        "reputation evidence means",
+        "search evidence points",
+        "public search evidence points",
+        "the leading reputation signal is",
+        "this story matters because",
     )
     subjectless_starts = (
         "raises ",
@@ -1117,6 +1122,14 @@ def validate_executive_summary_tone(data: dict[str, Any], errors: list[str]) -> 
             errors.append(f"executive_summary.cards[{index}].body appears to be a sentence fragment or note-style field.")
         if len(body) > 420:
             errors.append(f"executive_summary.cards[{index}].body is too long for an executive summary card.")
+        if not re.search(r"\b(opportunity|risk|task|needs to|should|must|chance|question|challenge|implication)\b", lower_body):
+            errors.append(
+                f"executive_summary.cards[{index}].body must state a clear implication, risk, or opportunity for an executive reader."
+            )
+        if "later" in lower_body or "below" in lower_body or "in the reputation chapter" in lower_body:
+            errors.append(
+                f"executive_summary.cards[{index}].body must stand alone and not rely on later sections of the report."
+            )
 
 
 def is_enriched_company_snapshot(value: Any) -> bool:
@@ -1392,6 +1405,56 @@ def sentence(value: Any, fallback: str = "") -> str:
     return text or fallback
 
 
+def clean_executive_signal_text(value: Any, fallback: str = "") -> str:
+    text = sentence(value, fallback)
+    replacements = (
+        (r"^\s*this story matters because\s+", ""),
+        (r"^\s*the leading reputation signal is\s+", ""),
+        (r"^\s*public search evidence points to\s+", ""),
+        (r"^\s*search evidence points to\s+", ""),
+        (r"^\s*public coverage has raised questions about\s+", ""),
+        (r"^\s*public coverage shows that\s+", ""),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text).strip(" .")
+    if text and not text.endswith((".", "!", "?")):
+        text = f"{text}."
+    return text or fallback
+
+
+def executive_primary_takeaway(
+    brand: str,
+    top_news: dict[str, Any],
+    competitors: list[str],
+) -> str:
+    signal = clean_executive_signal_text(
+        top_news.get("why_it_matters") or top_news.get("headline"),
+        "The opportunity is to turn market momentum into a buying story that feels simpler, clearer, and easier to trust.",
+    )
+    combined = f"{top_news.get('headline', '')} {signal}".lower()
+    competitor_text = ", ".join(competitors[:3])
+    if any(term in combined for term in ("acquisition", "deal", "platform", "ai era", "identity-security", "cyberark")):
+        return (
+            f"{brand} enters this brief with scale, momentum, and platform ambition, but the executive question is whether that breadth "
+            f"feels like one coherent operating model rather than a growing collection of capabilities."
+        )
+    if any(term in combined for term in ("vulnerability", "breach", "security flaw", "outage", "incident")):
+        return (
+            f"{brand} has strong category authority, but the first-read challenge is confidence: the promise will land best if resilience, "
+            f"response, and customer protection are made visible rather than assumed."
+        )
+    comparison_clause = (
+        f" Against {competitor_text}, the brand needs to make its value easier to understand on first contact."
+        if competitor_text
+        else ""
+    )
+    return (
+        f"{brand} has clear market relevance, but the immediate task is to make the promise easier to buy than to admire."
+        f"{comparison_clause}"
+    )
+
+
 def executive_seo_opportunity_summary(
     brand: str,
     competitors: list[str],
@@ -1408,18 +1471,18 @@ def executive_seo_opportunity_summary(
         for item in search_evidence
     )
     evidence_clause = (
-        " Search evidence points to visibility headroom around category, competitor, and trust-led queries."
+        " There is visibility headroom around category, competitor, and trust-led queries."
         if has_semrush
-        else " Public search evidence points to visibility headroom around category, competitor, and trust-led queries."
+        else " Search visibility can still be improved around category, competitor, and trust-led queries."
     )
     return (
-        f"{brand} should make search a reassurance channel."
+        f"{brand} should treat search as part of the sales conversation, not just a traffic channel."
         f"{evidence_clause}{comparison_clause}"
     )
 
 
 def executive_commercial_risk_summary(brand: str, top_news: dict[str, Any]) -> str:
-    raw = sentence(
+    raw = clean_executive_signal_text(
         top_news.get("why_it_matters"),
         "Trust concerns could weaken conversion and retention even when the category proposition is clear.",
     )
@@ -1429,6 +1492,15 @@ def executive_commercial_risk_summary(brand: str, top_news: dict[str, Any]) -> s
         return (
             f"The biggest commercial risk is subscription trust: customers may hesitate if they are not confident "
             f"that {brand} is easy to understand, control, pause, cancel, and resolve when something goes wrong."
+        )
+    if any(term in combined for term in ("acquisition", "deal", "platform", "identity-security", "cyberark", "google cloud")):
+        return (
+            f"The commercial risk is that buyers see {brand} as strategically expansive but operationally complex, which would make platform scale "
+            f"feel harder to adopt, govern, or justify."
+        )
+    if any(term in combined for term in ("vulnerability", "breach", "incident", "outage", "product-security")):
+        return (
+            f"The commercial risk is that trust questions drown out the growth story, making resilience and response proof more persuasive than broad brand claims."
         )
     lower_raw = raw.lower()
     if lower_raw.startswith("raises "):
@@ -1444,10 +1516,38 @@ def executive_reputation_insight_summary(brand: str, top_news: dict[str, Any]) -
     headline = sentence(top_news.get("headline"), "high-authority reputation coverage")
     lower_headline = headline.lower()
     if "subscription trap" in lower_headline or "subscription traps" in lower_headline:
-        return f"Public scrutiny of subscription practices makes control, cancellation clarity, and service recovery central to {brand}'s trust story."
+        return f"The reputation implication is that public scrutiny of subscription practices makes control, cancellation clarity, and service recovery central to {brand}'s trust story."
     if "regulator" in lower_headline or "court" in lower_headline:
-        return f"Regulatory or legal scrutiny means {brand} needs visible proof that customers can understand, control, and recover from service issues."
-    return f"The leading reputation signal is {headline[0].lower()}{headline[1:]}; the response should turn reassurance into visible proof, not just brand tone."
+        return f"The reputation implication is that regulatory or legal scrutiny means {brand} needs visible proof that customers can understand, control, and recover from service issues."
+    if any(term in lower_headline for term in ("acquisition", "deal", "platform", "cyberark", "google cloud")):
+        return (
+            f"The reputation implication is positive momentum with a tougher standard of proof: {brand} now has to show how scale becomes customer clarity, not just corporate ambition."
+        )
+    if any(term in lower_headline for term in ("vulnerability", "breach", "incident", "outage")):
+        return (
+            f"The reputation implication is that the story will be shaped less by broad promise than by whether {brand} appears disciplined, transparent, and operationally dependable under pressure."
+        )
+    return f"The reputation implication is that {brand} needs visible proof behind its strongest claims, so trust is earned through clarity and operating confidence rather than tone alone."
+
+
+def executive_messaging_opportunity_summary(brand: str, competitors: list[str]) -> str:
+    competitor_text = ", ".join(competitors[:3])
+    if competitor_text:
+        return (
+            f"The messaging opportunity is to make the promise sharper at buying moments: explain what becomes simpler, safer, and easier to govern with {brand} than with {competitor_text}, "
+            f"then prove it in plain language."
+        )
+    return (
+        f"The messaging opportunity is to make the promise sharper at buying moments: explain what becomes simpler, safer, and easier to govern with {brand}, "
+        f"then prove it in plain language."
+    )
+
+
+def executive_content_strategy_summary(brand: str) -> str:
+    return (
+        f"The content opportunity is to build a proof-led content system for {brand}: comparison pages, reassurance modules, executive explainers, and service-confidence assets "
+        f"that answer objections before sales or procurement have to."
+    )
 
 
 def first_dicts(value: Any, limit: int = 3) -> list[dict[str, Any]]:
@@ -1895,14 +1995,17 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
 
     data["executive_summary"] = {
         "cards": [
-            {"title": "What stands out most", "body": f"{brand} has a simple customer promise, but the reputation evidence means that proof, transparency, and service confidence need to be made more visible."},
+            {"title": "What stands out most", "body": executive_primary_takeaway(brand, top_news, competitor_names)},
             {"title": "Biggest commercial risk", "body": executive_commercial_risk_summary(brand, top_news)},
-            {"title": "Biggest messaging opportunity", "body": "Lead with the buyer outcome that matters most, then back the promise with plain-English proof around delivery, control, reliability, and response when problems arise."},
+            {"title": "Biggest messaging opportunity", "body": executive_messaging_opportunity_summary(brand, competitor_names)},
             {"title": "Biggest reputation insight", "body": executive_reputation_insight_summary(brand, top_news)},
             {"title": "Biggest SEO opportunity", "body": executive_seo_opportunity_summary(brand, competitor_names, search_evidence)},
-            {"title": "Biggest content strategy opportunity", "body": "Turn buyer anxieties into helpful proof content: how the offer works, how decisions are controlled, how issues are resolved, and how the proposition compares."},
+            {"title": "Biggest content strategy opportunity", "body": executive_content_strategy_summary(brand)},
         ],
-        "overall_recommendation": f"Position {brand} around a clear buyer outcome, supported by proof-led content that answers trust, control, differentiation, and comparison questions before they become objections.",
+        "overall_recommendation": (
+            f"Make {brand} easier to buy at first read: define the executive outcome, show how the platform simplifies real operating decisions, "
+            f"and support that story with proof-led content for comparison, governance, and trust."
+        ),
     }
 
     data["agency_opportunity"] = {
