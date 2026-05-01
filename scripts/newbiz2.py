@@ -5258,7 +5258,10 @@ def prepare_random_vercel_stage(data_path: Path) -> dict[str, Any]:
     for directory_name in ("slide-assets", "assets"):
         source = brand_folder / directory_name
         if source.exists() and source.is_dir():
-            shutil.copytree(source, stage_root / directory_name, dirs_exist_ok=True)
+            destination = stage_root / directory_name
+            if destination.exists():
+                shutil.rmtree(destination)
+            shutil.copytree(source, destination)
 
     handoff = {
         "deploy_path": str(stage_root),
