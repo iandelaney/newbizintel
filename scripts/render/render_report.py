@@ -471,7 +471,7 @@ def simple_charts(charts: Any) -> str:
         if not isinstance(chart, dict):
             continue
         rows_html = []
-        rows = chart.get("rows") or chart.get("items") or []
+        rows = chart.get("rows") or chart.get("items") or chart.get("series") or []
         if isinstance(rows, list):
             for row in rows:
                 if not isinstance(row, dict):
@@ -791,12 +791,16 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
     ])
 
     seo = data.get("seo_audit", {})
-    seo_provider_evidence = (
-        seo.get("semrush_evidence")
-        or seo.get("similarweb_evidence")
-        or seo.get("search_evidence")
-    )
-    seo_provider_heading = "Provider Evidence Behind the Diagnosis"
+    semrush_evidence = seo.get("semrush_evidence") if isinstance(seo, dict) else []
+    similarweb_evidence = seo.get("similarweb_evidence") if isinstance(seo, dict) else []
+    search_evidence = seo.get("search_evidence") if isinstance(seo, dict) else []
+    seo_provider_evidence = semrush_evidence or similarweb_evidence or search_evidence
+    if isinstance(semrush_evidence, list) and semrush_evidence:
+        seo_provider_heading = "SEMrush Evidence Behind the Diagnosis"
+    elif isinstance(similarweb_evidence, list) and similarweb_evidence:
+        seo_provider_heading = "SimilarWeb Evidence Behind the Diagnosis"
+    else:
+        seo_provider_heading = "Search Evidence Behind the Diagnosis"
     body.extend([
         section_heading("h2", "SEO Audit", "seo-audit"),
         card_grid(seo.get("cards")),
