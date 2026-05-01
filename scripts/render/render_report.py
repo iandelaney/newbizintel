@@ -239,7 +239,7 @@ def is_generic_profile_label(name: Any, meta: dict[str, str]) -> bool:
     return normalized in generic_labels
 
 
-def card_grid(cards: Any) -> str:
+def card_grid(cards: Any, css_class: str = "") -> str:
     if not isinstance(cards, list):
         return ""
     rows: list[str] = []
@@ -251,7 +251,8 @@ def card_grid(cards: Any) -> str:
         if not has_value(title) and not has_value(body):
             continue
         rows.append(f'<article class="card"><h3>{esc(title)}</h3>{rich(body)}</article>')
-    return f'<div class="card-grid">{"".join(rows)}</div>' if rows else ""
+    class_attr = f"card-grid {esc(css_class)}".strip()
+    return f'<div class="{class_attr}">{"".join(rows)}</div>' if rows else ""
 
 
 def table_html(rows: Any, columns: list[tuple[str, str, bool]], css_class: str = "") -> str:
@@ -410,6 +411,26 @@ def competitor_cell(data_dir: Path, row: dict[str, Any]) -> str:
     href = safe_href(website)
     site = f'<a href="{esc(href)}">{esc(website)}</a>' if href else esc(website)
     return f'<div class="competitor-cell">{image}<span><strong>{esc(name)}</strong><br><small>{site}</small></span></div>'
+
+
+def competitive_insight_grid(items: Any, css_class: str = "") -> str:
+    if not isinstance(items, list):
+        return ""
+    rows: list[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        title = item.get("title") or item.get("label") or item.get("name") or ""
+        body = item.get("body") or item.get("value") or item.get("summary") or ""
+        if not has_value(title) and not has_value(body):
+            continue
+        title_html = f'<p class="insight-card__title">{esc(title)}</p>' if has_value(title) else ""
+        body_html = rich(body) if has_value(body) else ""
+        rows.append(f'<article class="card insight-card">{title_html}{body_html}</article>')
+    if not rows:
+        return ""
+    class_attr = f'card-grid insight-grid {esc(css_class)}'.strip()
+    return f'<div class="{class_attr}">{"".join(rows)}</div>'
 
 
 def news_table(data_dir: Path, news: Any) -> str:
@@ -759,13 +780,13 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
         table_html(competitor_rows, [("Competitor", "competitor_cell", True), ("Why it matters", "why_it_matters", False), ("Positioning pattern", "positioning_pattern", False), ("Implication for the brand", "implication", False)], "competitive-table"),
         simple_charts(landscape.get("charts")),
         section_heading("h3", "Why Each Competitor Matters", css_class="category-heading"),
-        card_grid(landscape.get("why_each_competitor_matters")),
+        competitive_insight_grid(landscape.get("why_each_competitor_matters"), "insight-grid--competitors"),
         section_heading("h3", "Messaging Patterns Across the Market", css_class="category-heading"),
-        list_html(landscape.get("messaging_patterns")),
+        competitive_insight_grid(landscape.get("messaging_patterns"), "insight-grid--market-patterns"),
         section_heading("h3", "Content Patterns Across the Market", css_class="category-heading"),
-        list_html(landscape.get("content_patterns")),
+        competitive_insight_grid(landscape.get("content_patterns"), "insight-grid--market-patterns"),
         section_heading("h3", "Areas Where the Brand Is Behind, Matched, or Ahead", css_class="category-heading"),
-        list_html(landscape.get("status_summary")),
+        competitive_insight_grid(landscape.get("status_summary"), "insight-grid--summary"),
         back_to_contents(),
     ])
 
