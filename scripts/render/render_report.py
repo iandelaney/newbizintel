@@ -185,6 +185,21 @@ def section_icon_svg(title: str) -> str:
     return SECTION_ICONS.get(title) or '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 8V12"></path><path d="M12 16H12.01"></path></svg>'
 
 
+DEPARTMENT_ICONS = {
+    "pr & comms": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 16H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1"></path><path d="M7 8l8-3v14l-8-3Z"></path><path d="M15 10h2a3 3 0 0 1 0 6h-2"></path></svg>',
+    "content": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="12" height="16" rx="2"></rect><path d="M9 9H15"></path><path d="M9 13H15"></path><path d="M9 17H13"></path></svg>',
+    "digital marketing": '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="5"></circle><path d="M20 20l-4.2-4.2"></path><path d="M11 8v6"></path><path d="M8 11h6"></path></svg>',
+    "brands": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l2.1 4.2 4.6.7-3.3 3.2.8 4.6-4.2-2.2-4.2 2.2.8-4.6-3.3-3.2 4.6-.7Z"></path></svg>',
+    "creative services": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7"></path><path d="M14 6h4v4"></path><path d="M6 14v4h4"></path></svg>',
+    "insights & intelligence": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18V9"></path><path d="M12 18V5"></path><path d="M18 18v-7"></path></svg>',
+}
+
+
+def department_icon_svg(department: Any) -> str:
+    normalized = text(department).strip().lower()
+    return DEPARTMENT_ICONS.get(normalized) or '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M12 9v3"></path><path d="M12 15h.01"></path></svg>'
+
+
 def section_heading(level: str, title: str, section_id: str = "", css_class: str = "section-heading") -> str:
     id_attr = f' id="{esc(section_id)}"' if section_id else ""
     return (
@@ -531,9 +546,10 @@ def department_signals(items: Any, lead_department: str) -> str:
         body = item.get("opportunity_signal") or item.get("rationale") or item.get("opportunity") or ""
         tone = text(item.get("tone") or item.get("status") or "green").lower()
         lead = " opportunity-signal--lead" if text(dept).lower() == text(lead_department).lower() else ""
+        icon_tone = tone if tone in {"good", "warn", "bad"} else "good"
         cards.append(
             f'<article class="opportunity-signal opportunity-signal--{esc(tone)}{lead}">'
-            f'<div class="department-label"><span class="department-label__icon">•</span><span class="department-label__text">{esc(dept)}</span></div>'
+            f'<div class="department-label"><span class="department-label__icon department-label__icon--{esc(icon_tone)}">{department_icon_svg(dept)}</span><span class="department-label__text">{esc(dept)}</span></div>'
             f"{rich(body)}</article>"
         )
     return f'<div class="opportunity-signal-grid">{"".join(cards)}</div>' if cards else ""
