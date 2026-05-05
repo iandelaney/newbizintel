@@ -15,6 +15,7 @@ trap {
     if ($null -ne $state -and $null -ne $context) {
         $state.status.deploy = 'failed'
         $state.gates.gate_7_delivery = 'failed'
+        $state.gates.gate_10_delivery_handoff = 'failed'
         & $context.save_run_state -Path $context.run_state_path -State $state
     }
     throw
@@ -31,6 +32,7 @@ if (-not ($context.data_path -ieq $canonicalDataPath)) {
 
 $state.status.deploy = 'in_progress'
 $state.gates.gate_7_delivery = 'in_progress'
+$state.gates.gate_10_delivery_handoff = 'in_progress'
 & $context.save_run_state -Path $context.run_state_path -State $state
 
 $handoff = & (Join-Path $PSScriptRoot 'refresh_vercel_handoff.ps1') -BrandFolder $context.brand_folder -HandoffFolder $HandoffFolder | ConvertFrom-Json
@@ -43,6 +45,7 @@ Assert-NewBizPath -Name 'Handoff slide assets' -Path $handoff.slide_assets
 
 $state.status.deploy = 'passed'
 $state.gates.gate_7_delivery = 'passed'
+$state.gates.gate_10_delivery_handoff = 'passed'
 & $context.save_run_state -Path $context.run_state_path -State $state
 
 try {
@@ -52,6 +55,7 @@ try {
 catch {
     $state.status.deploy = 'failed'
     $state.gates.gate_7_delivery = 'failed'
+    $state.gates.gate_10_delivery_handoff = 'failed'
     & $context.save_run_state -Path $context.run_state_path -State $state
     throw
 }
