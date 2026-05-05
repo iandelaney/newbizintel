@@ -880,6 +880,16 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
     ])
 
     reputation = data.get("brand_reputation", {})
+    reporter_watchlist_table = table_html(
+        reputation.get("reporter_watchlist"),
+        [
+            ("Reporter", "reporter", False),
+            ("Outlet", "outlet", False),
+            ("Relevant story", "story_html", True),
+            ("Why they matter", "why_it_matters", False),
+        ],
+        "reporter-table",
+    )
     body.extend([
         section_heading("h2", "Brand Reputation Snapshot", "brand-reputation"),
         f"<p>{pill_html(reputation.get('pills'))}</p>",
@@ -888,6 +898,8 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
         list_html(reputation.get("platform_readout")),
         section_heading("h3", "Most Influential News Stories in the Last Six Months", css_class="category-heading"),
         news_table(data_dir, reputation.get("influential_news")),
+        section_heading("h3", "Reporter Watchlist", css_class="category-heading") if reporter_watchlist_table else "",
+        reporter_watchlist_table,
         section_heading("h3", "Reputation Implications and Recommended Actions", css_class="category-heading"),
         recommendation_cards(reputation.get("recommended_actions"), "teal"),
         section_heading("h3", "Content Implications of the Reputation Findings", css_class="category-heading"),

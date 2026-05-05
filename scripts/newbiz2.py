@@ -685,6 +685,12 @@ def is_cross_client_safe(payload: Any) -> bool:
 
 def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
     errors: list[str] = []
+    sanitized_html = re.sub(
+        r"data:[^\"']+;base64,[A-Za-z0-9+/=]+",
+        "data:image/embedded",
+        html_text,
+        flags=re.I,
+    )
     patterns = {
         "empty unordered list": r"<ul(?:\s[^>]*)?>\s*</ul>",
         "empty ordered list": r"<ol(?:\s[^>]*)?>\s*</ol>",
@@ -694,15 +700,15 @@ def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
         "empty table body": r"<tbody(?:\s[^>]*)?>\s*</tbody>",
     }
     for label, pattern in patterns.items():
-        count = len(re.findall(pattern, html_text, flags=re.I | re.S))
+        count = len(re.findall(pattern, sanitized_html, flags=re.I | re.S))
         if count:
             errors.append(f"Rendered HTML contains {count} {label} element(s).")
     for marker, reason in PLACEHOLDER_MARKERS:
         if marker.lower() == "replace with":
-            count = len(re.findall(re.escape(marker), html_text, flags=re.I))
+            count = len(re.findall(re.escape(marker), sanitized_html, flags=re.I))
         else:
             pattern = re.compile(rf"(?<![A-Za-z0-9]){re.escape(marker)}(?![A-Za-z0-9])", re.I)
-            count = len(pattern.findall(html_text))
+            count = len(pattern.findall(sanitized_html))
         if count:
             errors.append(f"Rendered HTML contains {count} {reason} marker(s): {marker}.")
     leaked_object_patterns = {
@@ -712,7 +718,7 @@ def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
         "Python dict/list literal": r"(?:\[\s*)?\{(?:&#x27;|&quot;|'|\")\w+(?:&#x27;|&quot;|'|\")\s*:",
     }
     for label, pattern in leaked_object_patterns.items():
-        count = len(re.findall(pattern, html_text, flags=re.I | re.S))
+        count = len(re.findall(pattern, sanitized_html, flags=re.I | re.S))
         if count:
             errors.append(
                 f"Rendered HTML contains {count} leaked {label} string(s), usually caused by rendering structured data as raw text."
@@ -722,7 +728,7 @@ def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
         "idea activation example list missing list-item close before list end": r'<div class="idea-activation-plan__examples">.*?</div>\s*</ul>',
     }
     for label, pattern in malformed_patterns.items():
-        count = len(re.findall(pattern, html_text, flags=re.I | re.S))
+        count = len(re.findall(pattern, sanitized_html, flags=re.I | re.S))
         if count:
             errors.append(f"Rendered HTML contains {count} malformed {label} pattern(s).")
     heading_pattern = re.compile(
@@ -4415,17 +4421,18 @@ def campaign_section(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def campaign_art_diversity_group(idea: dict[str, Any]) -> str:
-    text = " ".join(
-        str(idea.get(field) or "").lower()
-        for field in (
-            "illustration_style_family",
-            "illustration_style_name",
-            "illustration_medium",
-            "illustration_prompt",
-        )
-    )
+    family = str(idea.get("illustration_style_family") or "").strip().lower()
+    if family:
+        normalized_family = re.sub(r"[^a-z0-9]+", "-", family).strip("-")
+        if normalized_family:
+            return normalized_family
+
+    style_name = str(idea.get("illustration_style_name") or "").strip().lower()
+    medium = str(idea.get("illustration_medium") or "").strip().lower()
+    prompt = str(idea.get("illustration_prompt") or "").strip().lower()
+    text = " ".join(part for part in (family, style_name, medium, prompt) if part)
     groups = [
-        ("technical-system", ("technical", "blueprint", "schematic", "interface", "circuit", "systems")),
+        ("technical-system", ("technical", "blueprint", "schematic", "interface", "circuit")),
         ("playful-infographic", ("bubble", "sticker", "playful-infographic", "icon", "cartoon-control-room")),
         ("poster-collage", ("poster", "collage", "zine", "xerox", "risograph", "print", "silkscreen")),
         ("cubist-painting", ("cubist", "picasso", "fractured", "angular planes")),
@@ -4442,7 +4449,7 @@ def campaign_art_diversity_group(idea: dict[str, Any]) -> str:
     for group, needles in groups:
         if any(needle in text for needle in needles):
             return group
-    return re.sub(r"[^a-z0-9]+", "-", str(idea.get("illustration_style_family") or "unknown").lower()).strip("-") or "unknown"
+    return re.sub(r"[^a-z0-9]+", "-", family or "unknown").strip("-") or "unknown"
 
 
 def campaign_art_visual_fingerprint(path: Path) -> dict[str, Any] | None:
