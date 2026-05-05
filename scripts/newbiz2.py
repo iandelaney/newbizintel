@@ -4456,6 +4456,36 @@ def reconcile_render_gate_from_outputs(state: dict[str, Any], data_path: Path, b
     return True
 
 
+def reconcile_structure_gate_from_data(state: dict[str, Any], data_path: Path) -> bool:
+    validation = validate_report_data(data_path)
+    if not validation["ok"]:
+        return False
+    current_status = state.get("status", {}).get("structure")
+    current_gate = state.get("gates", {}).get("gate_5_report_structure")
+    current_legacy_gate = state.get("gates", {}).get("gate_4_report_data")
+    if current_status == "passed" and current_gate == "passed" and current_legacy_gate == "passed":
+        return False
+    set_status(state, "structure", "passed")
+    set_gate(state, "gate_5_report_structure", "passed")
+    add_event(state, "reducer", "structure.validation_reconciliation", outputs=[str(data_path)])
+    return True
+
+
+def reconcile_campaign_art_gate_from_audit(state: dict[str, Any], data_path: Path) -> bool:
+    audit = audit_campaign_art(data_path)
+    if not audit["ok"]:
+        return False
+    current_status = state.get("status", {}).get("campaign_art")
+    current_gate = state.get("gates", {}).get("gate_7_campaign_ideas_and_art")
+    current_legacy_gate = state.get("gates", {}).get("gate_5b_campaign_art")
+    if current_status == "passed" and current_gate == "passed" and current_legacy_gate == "passed":
+        return False
+    set_status(state, "campaign_art", "passed")
+    set_gate(state, "gate_7_campaign_ideas_and_art", "passed")
+    add_event(state, "reducer", "campaign_art.audit_reconciliation", outputs=[str(data_path)])
+    return True
+
+
 def campaign_section(data: dict[str, Any]) -> dict[str, Any]:
     return data.get("creative_campaign_ideas") or data.get("creative_campaigns") or {}
 
@@ -5614,7 +5644,14 @@ def module_render(args: argparse.Namespace) -> dict[str, Any]:
 def audit_task_list(data_path: Path) -> dict[str, Any]:
     brand_folder = data_path.parent
     state = load_state(brand_folder)
+    changed = False
+    if reconcile_structure_gate_from_data(state, data_path):
+        changed = True
+    if reconcile_campaign_art_gate_from_audit(state, data_path):
+        changed = True
     if reconcile_render_gate_from_outputs(state, data_path, brand_folder):
+        changed = True
+    if changed:
         save_state(brand_folder, state)
     ensure_task_list(state)
     sync_task_status_from_gates(state)
@@ -5653,7 +5690,14 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
     data_path = data_path_from_args(args)
     brand_folder = brand_folder_from_data(data_path)
     state = load_state(brand_folder)
+    changed = False
+    if reconcile_structure_gate_from_data(state, data_path):
+        changed = True
+    if reconcile_campaign_art_gate_from_audit(state, data_path):
+        changed = True
     if reconcile_render_gate_from_outputs(state, data_path, brand_folder):
+        changed = True
+    if changed:
         save_state(brand_folder, state)
     set_status(state, "qa", "in_progress")
     if state.get("status", {}).get("deploy") != "passed":
