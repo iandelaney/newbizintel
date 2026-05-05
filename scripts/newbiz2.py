@@ -140,6 +140,10 @@ DEFAULT_MODEL_ROUTING = {
     "deterministic_helpers": "gpt-5.4-mini",
 }
 
+RICH_RENDER_SCRIPT = SCRIPT_ROOT / "render" / "render_report.py"
+RICH_RENDER_TEMPLATE = SKILL_ROOT / "templates" / "report-template.html"
+RENDERER_FINGERPRINT_PREFIX = "NEWBIZ2_RENDERER_FINGERPRINT:"
+
 
 TASK_DEFINITIONS = [
     {
@@ -282,6 +286,24 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest().upper()
+
+
+def current_renderer_fingerprint() -> str:
+    digest = hashlib.sha256()
+    for label, path in (("render_report.py", RICH_RENDER_SCRIPT), ("report-template.html", RICH_RENDER_TEMPLATE)):
+        digest.update(label.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()[:16]
+
+
+def extract_renderer_fingerprint(rendered_html: str) -> str:
+    match = re.search(
+        rf"{re.escape(RENDERER_FINGERPRINT_PREFIX)}\s+([0-9a-fA-F]{{16,64}})",
+        rendered_html,
+    )
+    return (match.group(1) if match else "").lower()
 
 
 def output_root(explicit_root: str | None) -> Path:
@@ -4387,6 +4409,7 @@ def render_outputs_current(data_path: Path, brand_folder: Path) -> dict[str, Any
     pptx_path = brand_folder / "newbizintel-report.pptx"
     outputs = [html_path, portable_html, pptx_path]
     errors: list[str] = []
+    expected_fingerprint = current_renderer_fingerprint()
     if not data_path.exists():
         errors.append("report-data.json is missing.")
     else:
@@ -4397,7 +4420,24 @@ def render_outputs_current(data_path: Path, brand_folder: Path) -> dict[str, Any
                 continue
             if path.stat().st_mtime + 1e-6 < data_mtime:
                 errors.append(f"{path.name} is older than report-data.json.")
-    return {"ok": not errors, "errors": errors, "outputs": [str(path) for path in outputs]}
+        for html_candidate in (html_path, portable_html):
+            if not html_candidate.exists():
+                continue
+            rendered_text = html_candidate.read_text(encoding="utf-8", errors="ignore")
+            embedded_fingerprint = extract_renderer_fingerprint(rendered_text)
+            if not embedded_fingerprint:
+                errors.append(f"{html_candidate.name} is missing the renderer fingerprint and must be rebuilt.")
+            elif embedded_fingerprint != expected_fingerprint:
+                errors.append(
+                    f"{html_candidate.name} was rendered by an older renderer/template build "
+                    f"({embedded_fingerprint} != {expected_fingerprint})."
+                )
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "outputs": [str(path) for path in outputs],
+        "expected_renderer_fingerprint": expected_fingerprint,
+    }
 
 
 def reconcile_render_gate_from_outputs(state: dict[str, Any], data_path: Path, brand_folder: Path) -> bool:
@@ -4599,6 +4639,15 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
 
     size = html_path.stat().st_size
     text = html_path.read_text(encoding="utf-8", errors="ignore")
+    expected_fingerprint = current_renderer_fingerprint()
+    embedded_fingerprint = extract_renderer_fingerprint(text)
+    if not embedded_fingerprint:
+        errors.append("Rendered HTML is missing the current renderer fingerprint and must be rebuilt.")
+    elif embedded_fingerprint != expected_fingerprint:
+        errors.append(
+            "Rendered HTML was produced by an older renderer/template build "
+            f"({embedded_fingerprint} != {expected_fingerprint})."
+        )
     completeness_audit = audit_rendered_html_completeness(text)
     if not completeness_audit["ok"]:
         errors.extend(completeness_audit.get("errors", []))
@@ -5092,6 +5141,15 @@ def audit_deploy_stage(stage_root: Path) -> dict[str, Any]:
         }
 
     text = stage_index.read_text(encoding="utf-8", errors="ignore")
+    expected_fingerprint = current_renderer_fingerprint()
+    embedded_fingerprint = extract_renderer_fingerprint(text)
+    if not embedded_fingerprint:
+        errors.append("Deploy stage HTML is missing the current renderer fingerprint.")
+    elif embedded_fingerprint != expected_fingerprint:
+        errors.append(
+            "Deploy stage HTML was produced by an older renderer/template build "
+            f"({embedded_fingerprint} != {expected_fingerprint})."
+        )
     completeness = audit_rendered_html_completeness(text)
     if not completeness["ok"]:
         errors.extend(f"stage_html: {error}" for error in completeness.get("errors", []))

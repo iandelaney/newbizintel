@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 import argparse
 import html
+import hashlib
 import json
 import re
 import urllib.parse
 from pathlib import Path
 from typing import Any
+
+
+RENDERER_FINGERPRINT_PREFIX = "NEWBIZ2_RENDERER_FINGERPRINT:"
 
 
 def parse_args():
@@ -220,6 +224,16 @@ def section_heading(level: str, title: str, section_id: str = "", css_class: str
 
 def back_to_contents() -> str:
     return '<p class="back-link"><a href="#contents"><span aria-hidden="true">↩</span><span>Back to contents</span></a></p>'
+
+
+def renderer_fingerprint(script_path: Path, template_path: Path) -> str:
+    digest = hashlib.sha256()
+    for label, path in (("render_report.py", script_path), ("report-template.html", template_path)):
+        digest.update(label.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()[:16]
 
 
 def linkedin_icon_svg() -> str:
@@ -476,6 +490,46 @@ def competitive_insight_grid(items: Any, css_class: str = "") -> str:
         return ""
     class_attr = f'card-grid insight-grid {esc(css_class)}'.strip()
     return f'<div class="{class_attr}">{"".join(rows)}</div>'
+
+
+def platform_readout_grid(items: Any) -> str:
+    if not isinstance(items, list):
+        return ""
+    tone_labels = {
+        "green": "Positive",
+        "good": "Positive",
+        "blue": "Strategic",
+        "mixed": "Mixed",
+        "amber": "Watch",
+        "warn": "Watch",
+        "gold": "Watch",
+        "red": "Risk",
+        "bad": "Risk",
+    }
+    rows: list[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        title = item.get("platform") or item.get("title") or item.get("label") or ""
+        signal = item.get("signal") or item.get("summary") or item.get("body") or ""
+        implication = item.get("implication") or item.get("recommended_action") or ""
+        tone_key = text(item.get("tone")).lower()
+        tone_label = tone_labels.get(tone_key, "Readout")
+        if not has_value(title) and not has_value(signal) and not has_value(implication):
+            continue
+        title_html = f'<p class="insight-card__title">{esc(title)}</p>' if has_value(title) else ""
+        tone_html = f'<span class="platform-readout-card__tone platform-readout-card__tone--{esc(tone_key or "mixed")}">{esc(tone_label)}</span>'
+        signal_html = f'<div class="platform-readout-card__block"><span>Signal</span>{rich(signal)}</div>' if has_value(signal) else ""
+        implication_html = f'<div class="platform-readout-card__block"><span>Implication</span>{rich(implication)}</div>' if has_value(implication) else ""
+        rows.append(
+            '<article class="card insight-card platform-readout-card">'
+            f'{title_html}'
+            f'<div class="platform-readout-card__meta">{tone_html}</div>'
+            f'{signal_html}'
+            f'{implication_html}'
+            '</article>'
+        )
+    return f'<div class="card-grid insight-grid platform-readout-grid">{"".join(rows)}</div>' if rows else ""
 
 
 def news_table(data_dir: Path, news: Any) -> str:
@@ -926,7 +980,7 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
         f"<p>{pill_html(reputation.get('pills'))}</p>",
         card_grid(reputation.get("cards")),
         section_heading("h3", "Platform-Level Readout", css_class="category-heading"),
-        list_html(reputation.get("platform_readout")),
+        platform_readout_grid(reputation.get("platform_readout")),
         section_heading("h3", "Most Influential News Stories in the Last Six Months", css_class="category-heading"),
         news_table(data_dir, reputation.get("influential_news")),
         section_heading("h3", "Reporter Watchlist", css_class="category-heading") if reporter_watchlist_table else "",
@@ -1000,6 +1054,12 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
         template.replace("{{PAGE_TITLE}}", esc(title))
         .replace("{{FAVICON_HREF}}", esc(favicon))
         .replace("{{BODY_CONTENT}}", "\n".join(part for part in body if part).strip())
+    )
+    fingerprint = renderer_fingerprint(Path(__file__).resolve(), template_path.resolve())
+    html_text = html_text.replace(
+        "<head>",
+        f"<head>\n  <!-- {RENDERER_FINGERPRINT_PREFIX} {fingerprint} -->",
+        1,
     )
     file_uri_matches = re.findall(r"file:///[^\"'<\s)]+", html_text, flags=re.I)
     if file_uri_matches:
