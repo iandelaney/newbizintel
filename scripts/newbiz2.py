@@ -4623,8 +4623,12 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
         errors.append("Competitor logos fell back to initials in rendered HTML.")
     if re.search(r'<div class="publisher-badge"><span>', text):
         errors.append("News/source logos fell back to text badges in rendered HTML.")
+    if re.search(r'<span class="publisher-badge[^"]*">\s*<img[^>]+src="https?://[^"]*favicon', text, flags=re.I):
+        errors.append("News/source logos are still using remote favicon URLs in rendered HTML.")
     if re.search(r'class="[^"]*brand-logo-slot--fallback', text):
         errors.append("Brand logo fell back to initials in rendered HTML.")
+    if not re.search(r'<link[^>]+rel="icon"[^>]+href="(?:assets|slide-assets)/', text, flags=re.I):
+        errors.append("Rendered HTML is missing a local favicon link.")
     if "Department Opportunity Map" in text:
         errors.append("Department Opportunity Map is redundant and must not be rendered.")
     usp = data.get("usp_ksp_review", {})
@@ -5098,6 +5102,7 @@ def audit_deploy_stage(stage_root: Path) -> dict[str, Any]:
         "brand-logo-slot",
         "competitor-badge",
         "publisher-badge",
+        'rel="icon"',
     )
     for marker in required_markers:
         if marker not in text:
@@ -5109,6 +5114,10 @@ def audit_deploy_stage(stage_root: Path) -> dict[str, Any]:
         errors.append("Deploy stage HTML fell back to initials for one or more competitor logos.")
     if "publisher-badge--missing" in text or re.search(r'<div class="publisher-badge"><span>', text):
         errors.append("Deploy stage HTML fell back to missing/text publisher badges.")
+    if re.search(r'<span class="publisher-badge[^"]*">\s*<img[^>]+src="https?://[^"]*favicon', text, flags=re.I):
+        errors.append("Deploy stage HTML is still using remote favicon URLs for publisher badges.")
+    if not re.search(r'<link[^>]+rel="icon"[^>]+href="(?:assets|slide-assets)/', text, flags=re.I):
+        errors.append("Deploy stage HTML is missing a local favicon link.")
 
     asset_paths = sorted(
         {

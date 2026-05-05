@@ -78,6 +78,14 @@ def asset_src(data_dir: Path, value: Any) -> str:
     return ""
 
 
+def first_asset_src(data_dir: Path, *values: Any) -> str:
+    for value in values:
+        resolved = asset_src(data_dir, value)
+        if resolved:
+            return resolved
+    return ""
+
+
 def rich(value: Any) -> str:
     raw = esc(value)
     if not raw:
@@ -477,7 +485,12 @@ def news_table(data_dir: Path, news: Any) -> str:
     for item in news:
         if not isinstance(item, dict):
             continue
-        logo = asset_src(data_dir, item.get("source_logo_url") or item.get("publisher_logo_url"))
+        logo = first_asset_src(
+            data_dir,
+            item.get("publisher_logo_url"),
+            item.get("source_logo_url"),
+            item.get("logo_url"),
+        )
         publisher = item.get("source") or item.get("publisher") or ""
         logo_html = f'<span class="publisher-badge publisher-badge--image"><img src="{esc(logo)}" alt="{esc(publisher)} logo"></span>' if logo else '<span class="publisher-badge publisher-badge--missing">?</span>'
         href = safe_href(item.get("url") or item.get("source_url"))
@@ -672,7 +685,8 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
     data_dir = data_path.parent
     brand = data.get("brand", {})
     title = f"{text(brand.get('name') or 'Brand')} New Business Intelligence Report"
-    logo = asset_src(data_dir, brand.get("logo_url") or brand.get("mark_url"))
+    logo = first_asset_src(data_dir, brand.get("logo_url"), brand.get("mark_url"))
+    favicon = first_asset_src(data_dir, brand.get("mark_url"), brand.get("logo_url"))
     logo_html = (
         f'<div class="brand-logo-slot"><img src="{esc(logo)}" alt="{esc(brand.get("name"))} logo"></div>'
         if logo
@@ -965,7 +979,11 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
     ])
 
     template = template_path.read_text(encoding="utf-8")
-    html_text = template.replace("{{PAGE_TITLE}}", esc(title)).replace("{{BODY_CONTENT}}", "\n".join(part for part in body if part).strip())
+    html_text = (
+        template.replace("{{PAGE_TITLE}}", esc(title))
+        .replace("{{FAVICON_HREF}}", esc(favicon))
+        .replace("{{BODY_CONTENT}}", "\n".join(part for part in body if part).strip())
+    )
     file_uri_matches = re.findall(r"file:///[^\"'<\s)]+", html_text, flags=re.I)
     if file_uri_matches:
         raise SystemExit("Rendered HTML contains local file URIs: " + ", ".join(sorted(set(file_uri_matches))[:5]))
