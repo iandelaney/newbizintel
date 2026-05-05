@@ -1623,16 +1623,22 @@ def extract_statement_from_content(content: str, keywords: tuple[str, ...], fall
             continue
         if any(skip in lower for skip in ("newsletter", "sign up", "special deals", "announcement")):
             continue
+        if is_biography_like(lower) or is_careers_benefits_like(lower):
+            continue
         if 45 <= len(clean) <= 240 and any(keyword in lower for keyword in keywords):
             score = 0
             if " is " in lower or " are " in lower:
                 score += 3
+            if lower.startswith(("our mission", "our vision", "our purpose", "our values", "we help", "we enable", "we protect", "to be the")):
+                score += 8
             if any(term in lower for term in ("mission", "purpose", "promise", "values", "vision", "strategy")):
                 score += 4
             if any(term in lower for term in ("customer", "buyer", "client", "people", "organisations", "outcomes")):
                 score += 2
             if any(term in lower for term in ("secure", "protect", "enable", "trust", "confidence", "innovation", "transformation")):
                 score += 4
+            if any(term in lower for term in ("employee", "employees", "benefits", "family", "career", "jobs")):
+                score -= 8
             candidates.append((score, clean))
     if candidates:
         candidates.sort(key=lambda item: item[0], reverse=True)
@@ -1668,7 +1674,70 @@ WEAK_PUBLISHED_MESSAGING_SNIPPETS = (
     "newsletter",
     "sign up",
     "special deals",
+    "prior to joining",
+    "board of directors",
+    "chief executive officer",
+    "joined palo alto networks",
+    "joined the palo alto networks board",
+    "benefits program",
+    "401(k)",
+    "refresh and bring joy",
+    "your family are healthy",
+    "employee benefits",
 )
+
+
+BIOGRAPHY_MESSAGING_SNIPPETS = (
+    "prior to joining",
+    "joined the company",
+    "joined palo alto networks",
+    "board of directors",
+    "chief executive officer",
+    "chief financial officer",
+    "chief product",
+    "chief marketing",
+    "served as",
+    "holds a bachelor's degree",
+    "holds both bachelor's and master's degrees",
+    "earned an engineering degree",
+    "he is responsible for",
+    "she is responsible for",
+    "by leading the company's",
+)
+
+
+CAREERS_MESSAGING_SNIPPETS = (
+    "benefits program",
+    "401(k)",
+    "refresh and bring joy",
+    "your family are healthy",
+    "health savings accounts",
+    "professional development",
+    "employees' input",
+    "careers and jobs",
+)
+
+
+def is_biography_like(text: str) -> bool:
+    lower = str(text or "").lower()
+    return any(snippet in lower for snippet in BIOGRAPHY_MESSAGING_SNIPPETS)
+
+
+def is_careers_benefits_like(text: str) -> bool:
+    lower = str(text or "").lower()
+    return any(snippet in lower for snippet in CAREERS_MESSAGING_SNIPPETS)
+
+
+def messaging_source_officiality_score(item: dict[str, Any], website: str) -> int:
+    url = str(item.get("url") or "").strip().lower()
+    score = 0
+    site_domain = brand_domain_from_website(website)
+    url_domain = brand_domain_from_website(url)
+    if site_domain and url_domain and (url_domain == site_domain or url_domain.endswith(f".{site_domain}")):
+        score += 18
+    if any(term in url for term in ("jobs.", "/careers", "/culture")):
+        score -= 14
+    return score
 
 
 GENERIC_COMPETITOR_ANALYSIS_SNIPPETS = (
@@ -1753,6 +1822,10 @@ def messaging_source_score(item: dict[str, Any]) -> int:
         score += 6
     if "blog." in url:
         score -= 8
+    if is_biography_like(haystack):
+        score -= 18
+    if is_careers_benefits_like(haystack):
+        score -= 16
     for term in HIGH_ORDER_MESSAGING_TERMS:
         if term in haystack:
             score += 3
@@ -1763,7 +1836,11 @@ def messaging_source_score(item: dict[str, Any]) -> int:
 
 
 def select_published_messaging_sources(owned_results: list[dict[str, Any]], website: str) -> list[dict[str, Any]]:
-    scored = [(messaging_source_score(item), item) for item in owned_results if isinstance(item, dict)]
+    scored = [
+        (messaging_source_score(item) + messaging_source_officiality_score(item, website), item)
+        for item in owned_results
+        if isinstance(item, dict)
+    ]
     scored.sort(key=lambda pair: pair[0], reverse=True)
     selected: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
@@ -1771,15 +1848,49 @@ def select_published_messaging_sources(owned_results: list[dict[str, Any]], webs
         url = str(item.get("url") or "")
         if not url or url in seen_urls:
             continue
+        haystack = f"{item.get('title', '')} {item.get('content', '')} {url}"
+        if (is_biography_like(haystack) or is_careers_benefits_like(haystack)) and selected:
+            continue
         if score < 3 and selected:
             continue
         selected.append(item)
         seen_urls.add(url)
-        if len(selected) >= 3:
+        if len(selected) >= 5:
             break
     if selected:
         return selected
     return [{"title": "Company website", "url": website, "content": ""}]
+
+
+def best_published_statement_source(
+    sources: list[dict[str, Any]],
+    website: str,
+    keywords: tuple[str, ...],
+    fallback: str,
+) -> tuple[dict[str, Any], str]:
+    candidates: list[tuple[int, dict[str, Any], str]] = []
+    for item in sources:
+        if not isinstance(item, dict):
+            continue
+        content = str(item.get("content") or "")
+        statement = extract_statement_from_content(content, keywords, "")
+        if not statement:
+            continue
+        lower_statement = statement.lower()
+        if is_biography_like(lower_statement) or is_careers_benefits_like(lower_statement):
+            continue
+        score = messaging_source_score(item) + messaging_source_officiality_score(item, website)
+        if any(keyword in lower_statement for keyword in keywords):
+            score += 6
+        if lower_statement.startswith(("our mission", "our vision", "our purpose", "our values", "we help", "we enable", "we protect", "to be the")):
+            score += 10
+        candidates.append((score, item, statement))
+    if candidates:
+        candidates.sort(key=lambda entry: entry[0], reverse=True)
+        _, source, statement = candidates[0]
+        return source, statement
+    fallback_source = sources[0] if sources else {"title": "Company website", "url": website, "content": ""}
+    return fallback_source, fallback
 
 
 def build_published_statements(data: dict[str, Any], summary: dict[str, Any], brand_folder: Path) -> list[dict[str, str]]:
@@ -1788,42 +1899,42 @@ def build_published_statements(data: dict[str, Any], summary: dict[str, Any], br
     domain = brand_domain_from_website(website)
     owned_results = read_owned_workpack_results(brand_folder, domain)
     selected_sources = select_published_messaging_sources(owned_results, website)
-    first_owned = selected_sources[0] if selected_sources else {}
-    second_owned = selected_sources[1] if len(selected_sources) > 1 else first_owned
-    third_owned = selected_sources[2] if len(selected_sources) > 2 else first_owned
-    mission_statement = extract_statement_from_content(
-        str(first_owned.get("content") or ""),
-        ("mission", "purpose", "vision", "change", "protect", "enable", "customer", "future"),
+    mission_source, mission_statement = best_published_statement_source(
+        selected_sources,
+        website,
+        ("mission", "purpose", "vision", "change", "protect", "enable", "secure", "future"),
         f"{brand} presents its published offer around a clear customer outcome and a broader company purpose.",
     )
-    promise_statement = extract_statement_from_content(
-        str(second_owned.get("content") or first_owned.get("content") or ""),
-        ("promise", "values", "customer", "trust", "innovation", "service", "experience", "platform"),
+    promise_source, promise_statement = best_published_statement_source(
+        selected_sources,
+        website,
+        ("promise", "values", "trust", "customer", "partner", "innovation", "experience", "secure", "protect"),
         f"{brand} frames its promise around customer value, trust, and a repeatable delivery standard.",
     )
-    business_model_statement = extract_statement_from_content(
-        str(third_owned.get("content") or first_owned.get("content") or ""),
-        ("business model", "platform", "operating model", "customer-centric", "customer centric", "innovation", "security", "control"),
+    business_model_source, business_model_statement = best_published_statement_source(
+        selected_sources,
+        website,
+        ("platform", "operating model", "strategy", "innovation", "customer", "security", "control", "transformation"),
         f"{brand} describes how its operating model turns the central promise into repeatable customer outcomes.",
     )
     statements = [
         {
             "label": "Mission",
             "statement": mission_statement,
-            "source": str(first_owned.get("title") or f"{brand} website"),
-            "source_url": str(first_owned.get("url") or website),
+            "source": str(mission_source.get("title") or f"{brand} website"),
+            "source_url": str(mission_source.get("url") or website),
         },
         {
             "label": "Promise and values",
             "statement": promise_statement,
-            "source": str(second_owned.get("title") or f"{brand} website"),
-            "source_url": str(second_owned.get("url") or website),
+            "source": str(promise_source.get("title") or f"{brand} website"),
+            "source_url": str(promise_source.get("url") or website),
         },
         {
             "label": "Business model promise",
             "statement": business_model_statement,
-            "source": str(third_owned.get("title") or f"{brand} website"),
-            "source_url": str(third_owned.get("url") or website),
+            "source": str(business_model_source.get("title") or f"{brand} website"),
+            "source_url": str(business_model_source.get("url") or website),
         },
     ]
     return [item for item in statements if has_value(item.get("statement"))]
@@ -4465,6 +4576,7 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
         errors.extend(completeness_audit.get("errors", []))
     if size < 100_000:
         errors.append(f"HTML report is too small for the rich presentation layer ({size} bytes).")
+    data = read_json(data_path)
     for label in ("Competitive Landscape", "SEO Audit", "Brand Reputation", "Creative Campaign Ideas"):
         if label not in text:
             errors.append(f"HTML report is missing required section: {label}")
@@ -4487,13 +4599,31 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
         errors.append("Brand logo fell back to initials in rendered HTML.")
     if "Department Opportunity Map" in text:
         errors.append("Department Opportunity Map is redundant and must not be rendered.")
+    usp = data.get("usp_ksp_review", {})
+    if isinstance(usp, dict):
+        usp_rows = usp.get("rows", [])
+        if isinstance(usp_rows, list) and len(usp_rows) >= 3:
+            rendered_claims = 0
+            for row in usp_rows:
+                if not isinstance(row, dict):
+                    continue
+                claim_type = str(row.get("claim_type") or "").strip()
+                proof_feedback = str(row.get("proof_feedback") or "").strip()
+                if claim_type and claim_type in text:
+                    rendered_claims += 1
+                elif proof_feedback and proof_feedback in text:
+                    rendered_claims += 1
+            if rendered_claims < 3:
+                errors.append("USP/KSP rendered section is incomplete: structured claim/proof rows were not rendered into the HTML presentation.")
+        verdict = usp.get("overall_verdict", {})
+        if isinstance(verdict, dict) and has_value(verdict.get("headline")) and str(verdict.get("headline")) not in text:
+            errors.append("USP/KSP rendered section is incomplete: overall verdict is missing from the HTML presentation.")
     signal_start = text.find("Department Opportunity Signals")
     signal_end = text.find("Most Likely Workstreams", signal_start)
     signal_section = text[signal_start:signal_end] if signal_start >= 0 and signal_end > signal_start else ""
     if signal_section and re.search(r'(?:Value:|<span class="opportunity-chip)', signal_section, flags=re.I):
         errors.append("Department Opportunity Signals cards must describe target-brand opportunities, not value labels or lead/status chips.")
 
-    data = read_json(data_path)
     leakage_audit = audit_cross_client_leakage({"report_data": data, "rendered_html": text}, root_label="presentation_html")
     if not leakage_audit["ok"]:
         errors.extend(leakage_audit.get("errors", []))

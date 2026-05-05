@@ -799,10 +799,37 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
     ])
 
     usp = data.get("usp_ksp_review", {})
+    usp_rows = []
+    for row in usp.get("rows", []) if isinstance(usp.get("rows"), list) else []:
+        if isinstance(row, dict):
+            usp_rows.append(
+                {
+                    "claim_type": row.get("claim_type"),
+                    "claim_summary": row.get("claim_summary"),
+                    "proof_points": row.get("proof_points"),
+                    "proof_feedback": row.get("proof_feedback"),
+                }
+            )
+    usp_verdict = usp.get("overall_verdict", {}) if isinstance(usp.get("overall_verdict"), dict) else {}
+    usp_verdict_cards = [
+        {"title": "Overall verdict", "body": usp_verdict.get("headline")},
+        {"title": "Distinctiveness read", "body": usp_verdict.get("uniqueness_verdict")},
+        {"title": "Who this lands with", "body": usp_verdict.get("who_for")},
+    ]
     body.extend([
         section_heading("h2", "USP and KSP Review", "usp-ksp-review"),
         f'<div class="score"><span class="eyebrow">USP and KSP score</span><strong>{esc(usp.get("score"))}</strong>{rich(usp.get("score_summary"))}</div>',
-        table_html(usp.get("claimed_positioning"), [("Claim", "claim", False), ("Evidence", "evidence", False), ("Gap", "gap", False), ("Fix", "fix", False)]),
+        f'<div class="section-intro">{rich(usp.get("summary"))}</div>' if has_value(usp.get("summary")) else "",
+        table_html(
+            usp_rows,
+            [
+                ("Claim type", "claim_type", False),
+                ("What the brand is claiming", "claim_summary", False),
+                ("What supports it", "proof_points", False),
+                ("What still needs strengthening", "proof_feedback", False),
+            ],
+        ),
+        card_grid([card for card in usp_verdict_cards if has_value(card.get("body"))], "insight-grid insight-grid--usp"),
         back_to_contents(),
     ])
 
