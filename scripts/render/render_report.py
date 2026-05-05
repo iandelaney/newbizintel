@@ -517,6 +517,16 @@ def simple_charts(charts: Any) -> str:
     if not isinstance(charts, list):
         return ""
     chart_blocks = []
+    tone_map = {
+        "teal": "teal",
+        "green": "teal",
+        "blue": "blue",
+        "amber": "gold",
+        "gold": "gold",
+        "orange": "coral",
+        "coral": "coral",
+        "red": "coral",
+    }
     for chart in charts:
         if not isinstance(chart, dict):
             continue
@@ -531,18 +541,25 @@ def simple_charts(charts: Any) -> str:
                     width = max(0, min(100, float(value)))
                 except Exception:
                     width = 55
+                label = row.get("label") or row.get("name") or ""
+                display_value = row.get("display_value") or row.get("status") or row.get("value_label") or ""
+                note = row.get("note") or row.get("evidence") or ""
+                tone = tone_map.get(text(row.get("tone")).lower(), "blue")
+                note_html = f'<div class="chart-note">{rich(note)}</div>' if has_value(note) else ""
                 rows_html.append(
                     '<div class="chart-row">'
-                    f'<strong>{esc(row.get("label") or row.get("name"))}</strong>'
-                    f'<span class="chart-bar"><span style="width:{width:.0f}%"></span></span>'
-                    f'<em>{esc(row.get("display_value") or row.get("status") or row.get("note"))}</em>'
-                    f'{rich(row.get("note") or row.get("evidence"))}'
+                    f'<div class="chart-label">{esc(label)}</div>'
+                    f'<div class="chart-bar-track"><div class="chart-bar-fill chart-bar-fill--{esc(tone)}" style="width:{width:.0f}%"></div></div>'
+                    f'<div class="chart-value">{esc(display_value)}</div>'
                     "</div>"
+                    f'{note_html}'
                 )
         if rows_html:
+            subtitle_html = f'<div class="chart-subtitle">{esc(chart.get("subtitle"))}</div>' if has_value(chart.get("subtitle")) else ""
             chart_blocks.append(
                 '<div class="chart-card">'
-                f'<div class="chart-card__header"><h4>{esc(chart.get("title"))}</h4>{rich(chart.get("subtitle"))}</div>'
+                f'<div class="chart-card__header"><h4>{esc(chart.get("title"))}</h4>'
+                f'{subtitle_html}</div>'
                 f'<div class="chart-card__rows">{"".join(rows_html)}</div></div>'
             )
     return f'<div class="chart-grid">{"".join(chart_blocks)}</div>' if chart_blocks else ""
