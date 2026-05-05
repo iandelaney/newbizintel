@@ -1231,6 +1231,12 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
                     lower_value = value.lower()
                     if any(snippet in lower_value for snippet in GENERIC_COMPETITOR_ANALYSIS_SNIPPETS):
                         errors.append(f"competitive_landscape.table[{index}].{field} contains generic discovery-language.")
+                logo_fields = ("logo_url", "competitor_logo_url", "badge_url", "mark_url")
+                if not any(has_value(row.get(field_name)) for field_name in logo_fields):
+                    errors.append(
+                        f"competitive_landscape.table[{index}] must include a usable competitor logo field "
+                        f"({', '.join(logo_fields)})."
+                    )
                 why_values.append(str(row.get("why_it_matters") or "").strip().lower())
                 pattern_values.append(str(row.get("positioning_pattern") or "").strip().lower())
             populated_count = len([value for value in pattern_values if value])
@@ -1305,6 +1311,15 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
         warnings,
         prefix="brand_reputation.influential_news",
     )
+    for index, item in enumerate(news if isinstance(news, list) else []):
+        if not isinstance(item, dict):
+            continue
+        logo_fields = ("source_logo_url", "publisher_logo_url")
+        if not any(has_value(item.get(field_name)) for field_name in logo_fields):
+            errors.append(
+                f"brand_reputation.influential_news[{index}] must include a usable publisher/source logo field "
+                f"({', '.join(logo_fields)})."
+            )
     for index, item in enumerate(data.get("agency_opportunity", {}).get("department_opportunity_map", [])):
         if not has_value(item.get("opportunity_signal")):
             errors.append(f"agency_opportunity.department_opportunity_map[{index}].opportunity_signal is required.")
