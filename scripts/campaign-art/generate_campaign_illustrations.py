@@ -216,6 +216,57 @@ SURPRISE_STYLE_LIBRARY = {
                 "accent": "#84b0e8",
             },
         },
+        {
+            "slug": "sunny-comic-energy-cascade",
+            "medium": "cartoony editorial illustration",
+            "family": "cartoon-illustration",
+            "style": "playful comic energy, bright daylight palette, exaggerated motion, soft outlined symbols, and a full-column cascade of visible system drift",
+            "renderer": "drift",
+            "palette": {
+                "sky_top": "#dff4ff",
+                "sky_bottom": "#ffe5ba",
+                "sun": "#ff8c42",
+                "glow": "#ffd166",
+                "deep": "#2f5d7c",
+                "mid": "#67a6c9",
+                "light": "#fff7ee",
+                "accent": "#42c2ff",
+            },
+        },
+        {
+            "slug": "impressionist-solar-garden",
+            "medium": "impressionist landscape painting",
+            "family": "impressionist-painting",
+            "style": "sunlit brushwork, broken colour, airy atmosphere, and lyrical energy movement that feels painterly rather than technological",
+            "renderer": "drift",
+            "palette": {
+                "sky_top": "#b9dcff",
+                "sky_bottom": "#ffd8a8",
+                "sun": "#ff934f",
+                "glow": "#ffe08a",
+                "deep": "#5a7d5f",
+                "mid": "#8ebf92",
+                "light": "#fff6ea",
+                "accent": "#5ba7d1",
+            },
+        },
+        {
+            "slug": "ukiyo-current-study",
+            "medium": "Japanese brush-and-wash printmaking",
+            "family": "brush-ink",
+            "style": "ukiyo-e inspired flowing contours, brushed currents, pale paper space, and elegant directional energy instead of dark futurism",
+            "renderer": "drift",
+            "palette": {
+                "sky_top": "#f5efe5",
+                "sky_bottom": "#ead9c0",
+                "sun": "#d8703f",
+                "glow": "#f1c27d",
+                "deep": "#304d5a",
+                "mid": "#6c8f87",
+                "light": "#fffaf2",
+                "accent": "#6e8fb3",
+            },
+        },
     ],
     "control": [
         {
@@ -320,6 +371,57 @@ SURPRISE_STYLE_LIBRARY = {
                 "soft2": "#1e3b59",
             },
         },
+        {
+            "slug": "bubble-icon-orchestration-board",
+            "medium": "playful systems infographic",
+            "family": "playful-infographic",
+            "style": "bright control bubbles, icon-like nodes, clear orchestration pathways, and generous pale space that makes governance feel calm and understandable",
+            "renderer": "control",
+            "palette": {
+                "bg": "#f7f5ef",
+                "panel": "#e8ecf2",
+                "grid": "#b8c4d3",
+                "ink": "#17314b",
+                "accent": "#4da6ff",
+                "highlight": "#ff8c42",
+                "soft": "#d6dee8",
+                "soft2": "#c8d3df",
+            },
+        },
+        {
+            "slug": "cartoon-control-room",
+            "medium": "cartoony control-room illustration",
+            "family": "cartoon-illustration",
+            "style": "friendly but precise command-centre scene with modular panels, bright shapes, and visible cause-and-effect rather than ominous glow",
+            "renderer": "control",
+            "palette": {
+                "bg": "#eef8ff",
+                "panel": "#dbeef7",
+                "grid": "#9fc5da",
+                "ink": "#163046",
+                "accent": "#2f80ed",
+                "highlight": "#f2994a",
+                "soft": "#cfe4ef",
+                "soft2": "#bed8e7",
+            },
+        },
+        {
+            "slug": "picasso-governance-plane",
+            "medium": "Picasso-esque cubist systems painting",
+            "family": "cubist-painting",
+            "style": "angled planes, simplified faces and instruments, fractured system blocks, and a museum-like painterly reading of governance and supervision",
+            "renderer": "control",
+            "palette": {
+                "bg": "#f3e7d8",
+                "panel": "#e0c8b0",
+                "grid": "#b19074",
+                "ink": "#2f2a28",
+                "accent": "#2f6db0",
+                "highlight": "#d4683d",
+                "soft": "#d8bea5",
+                "soft2": "#cfb294",
+            },
+        },
     ],
     "proof": [
         {
@@ -412,6 +514,54 @@ SURPRISE_STYLE_LIBRARY = {
                 "pink": "#2f5fd0",
             },
         },
+        {
+            "slug": "still-life-proof-photography",
+            "medium": "still-life studio photography",
+            "family": "still-life-photography",
+            "style": "high-key photographic still life with arranged evidence objects, crisp daylight, reflective surfaces, and premium magazine calm instead of dark drama",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#fbf6ef",
+                "ink": "#2f3439",
+                "accent": "#e76f51",
+            },
+        },
+        {
+            "slug": "impressionist-proof-canvas",
+            "medium": "impressionist evidence painting",
+            "family": "impressionist-painting",
+            "style": "sunlit painterly proof scene with thick visible strokes, optimistic colour vibration, and tactile evidence surfaces laid through the full portrait",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#fff4df",
+                "ink": "#3c4f3d",
+                "accent": "#de6b48",
+            },
+        },
+        {
+            "slug": "brush-seal-proof-scroll",
+            "medium": "Japanese brush-scroll painting",
+            "family": "brush-ink",
+            "style": "ink-wash movement, seal-like marks, pale fibres, and elegant vertical proof stacking inspired by Japanese brushwork",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#f6f1e7",
+                "ink": "#24323a",
+                "accent": "#c75b39",
+            },
+        },
+        {
+            "slug": "bubble-sticker-pop",
+            "medium": "bubble-and-icon pop graphic",
+            "family": "playful-infographic",
+            "style": "layered bubbles, sticker-like icons, bright flat colour bursts, and upbeat proof moments that feel accessible rather than severe",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#fff7ea",
+                "ink": "#213547",
+                "accent": "#ff7f50",
+            },
+        },
     ],
     "freshness": [
         {
@@ -502,6 +652,30 @@ SURPRISE_STYLE_LIBRARY = {
                 "bg": "#fff0cf",
                 "ink": "#101010",
                 "accent": "#ff3b30",
+            },
+        },
+        {
+            "slug": "pop-bubble-comparison-board",
+            "medium": "bubble-chart pop graphic",
+            "family": "playful-infographic",
+            "style": "bright comparative bubbles, icon-cluster logic, playful dividers, and quick-read contrast that still feels premium and intentional",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#fff8ef",
+                "ink": "#23384d",
+                "accent": "#ff7a59",
+            },
+        },
+        {
+            "slug": "picasso-choice-tableau",
+            "medium": "Picasso-esque still-life painting",
+            "family": "cubist-painting",
+            "style": "fractured tabletop forms, theatrical comparison objects, and angular storytelling that jars sharply against technical treatments",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#f2e4d3",
+                "ink": "#2f2b2a",
+                "accent": "#3c78b5",
             },
         },
     ],
@@ -600,6 +774,46 @@ SURPRISE_STYLE_LIBRARY = {
                 "ink": "#4f5d52",
                 "accent": "#6ea38c",
                 "highlight": "#cfd9b1",
+            },
+        },
+        {
+            "slug": "matisse-paper-constellation",
+            "medium": "Matisse-like paper-cut mural",
+            "family": "paper-art",
+            "style": "light-filled cut paper shapes, optimistic spatial rhythm, and a distinctly artistic strategic growth composition with lots of breathable pale space",
+            "renderer": "portfolio",
+            "palette": {
+                "bg": "#fbf6ed",
+                "surface": "#dde8d8",
+                "surface2": "#fffaf4",
+                "shadow": "#b5c0b4",
+                "ink": "#35524a",
+                "accent": "#4ca6a8",
+                "highlight": "#f0a24f",
+            },
+        },
+        {
+            "slug": "sunlit-still-life-infrastructure",
+            "medium": "sunlit still-life photography",
+            "family": "still-life-photography",
+            "style": "clean editorial still life of sculptural strategic objects, soft daylight, and a premium magazine sense of growth and arrangement",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#faf5ec",
+                "ink": "#334640",
+                "accent": "#d97a4a",
+            },
+        },
+        {
+            "slug": "brush-mountain-masterplan",
+            "medium": "Japanese brush landscape painting",
+            "family": "brush-ink",
+            "style": "vertical brush-landscape composition, strategic pathways like mountain routes, soft mineral colour, and elegant planning calm",
+            "renderer": "generic",
+            "palette": {
+                "bg": "#f5efe6",
+                "ink": "#32424a",
+                "accent": "#6b8f7f",
             },
         },
     ],
@@ -720,12 +934,18 @@ def base_profile_for_kind(kind: str) -> dict:
 
 
 def build_bitmap_prompt(title: str, concept: str, profile: dict) -> str:
+    palette = profile.get("palette") or {}
+    palette_hint = ", ".join(str(value) for value in palette.values() if isinstance(value, str) and value.startswith("#"))
+    family = profile.get("family") or profile.get("slug") or "distinct-media-family"
     return (
         f"Create a tall portrait campaign illustration for '{title}'. "
         f"Use a {profile['medium']} treatment. "
         f"The core idea is: {concept}. "
         f"Art direction: {profile['style']}. "
+        f"Make the result read unmistakably as {family}, not as generic corporate vector art. "
+        f"Colour direction: {palette_hint}. "
         "Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. "
+        "Vary the tempo, light, and mood from other campaign ideas in the same set. "
         "Avoid generic flat corporate vector art. "
         "Make it visually distinct from the other campaign ideas and premium in finish. "
         f"{NEGATIVE_ART_DIRECTION}"

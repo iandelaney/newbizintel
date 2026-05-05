@@ -22,34 +22,6 @@ from generate_campaign_illustrations import (
 SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 DEFAULT_GENERATED_IMAGES_DIR = Path.home() / ".codex" / "generated_images"
 
-STYLE_HINTS_BY_TITLE: dict[str, dict[str, str]] = {
-    "The Breach Window": {
-        "illustration_style_family": "photographic",
-        "illustration_style_name": "documentary-cyber-response-photography",
-        "illustration_treatment": "documentary-photography",
-        "illustration_medium": "cinematic documentary photography",
-    },
-    "Platformization Planetarium": {
-        "illustration_style_family": "sculptural",
-        "illustration_style_name": "architectural-systems-maquette",
-        "illustration_treatment": "sculptural-installation",
-        "illustration_medium": "photographed sculptural installation",
-    },
-    "AI Under Supervision": {
-        "illustration_style_family": "painterly",
-        "illustration_style_name": "expressionist-governed-ai-painting",
-        "illustration_treatment": "expressionist-painting",
-        "illustration_medium": "mixed-media expressionist painting",
-    },
-    "The EMEA Threat Atlas": {
-        "illustration_style_family": "cartographic",
-        "illustration_style_name": "luminous-emea-threat-atlas",
-        "illustration_treatment": "cartographic-light-map",
-        "illustration_medium": "luminous mixed-media cartographic atlas",
-    },
-}
-
-
 def load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -145,6 +117,32 @@ def classify_source_root(source_root: Path, report_root: Path) -> str:
     return "external-source-dir"
 
 
+def load_prompt_manifest(asset_dir: Path, brand_slug: str) -> dict[str, dict[str, str]]:
+    manifest_path = asset_dir / f"{brand_slug}-campaign-illustration-prompts.json"
+    if not manifest_path.exists():
+        return {}
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    prompts = payload.get("prompts", [])
+    if not isinstance(prompts, list):
+        return {}
+    by_title: dict[str, dict[str, str]] = {}
+    for item in prompts:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        if not title:
+            continue
+        by_title[title] = {
+            "illustration_style_family": str(item.get("style_family") or "").strip(),
+            "illustration_style_name": str(item.get("style_slug") or "").strip(),
+            "illustration_medium": str(item.get("medium") or "").strip(),
+        }
+    return by_title
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Import final raster campaign artwork into newbiz2 report data."
@@ -180,6 +178,7 @@ def main() -> int:
     brand = data.get("brand", {})
     brand_slug = slugify(brand.get("slug") or brand.get("name") or data_path.parent.name)
     asset_dir = data_path.parent / "slide-assets"
+    prompt_manifest_by_title = load_prompt_manifest(asset_dir, brand_slug)
     section = get_section(data)
     section_key = "creative_campaign_ideas" if data.get("creative_campaign_ideas") is section else "creative_campaigns"
     ideas = list(section.get("ideas") or [])
@@ -268,9 +267,9 @@ def main() -> int:
         idea["illustration_batch_root"] = str(source_root)
         idea["illustration_imported_at"] = datetime.now(timezone.utc).isoformat()
         idea["illustration_dimensions"] = dimensions
-        style_hints = STYLE_HINTS_BY_TITLE.get(title)
-        if style_hints:
-            for field, value in style_hints.items():
+        style_hints = prompt_manifest_by_title.get(title, {})
+        for field, value in style_hints.items():
+            if value and not str(idea.get(field) or "").strip():
                 idea[field] = value
         for field in (
             "illustration_url",

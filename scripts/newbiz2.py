@@ -4426,11 +4426,17 @@ def campaign_art_diversity_group(idea: dict[str, Any]) -> str:
     )
     groups = [
         ("technical-system", ("technical", "blueprint", "schematic", "interface", "circuit", "systems")),
-        ("poster-collage", ("poster", "collage", "zine", "xerox", "risograph", "print")),
-        ("painting", ("painting", "oil", "brush", "pastel", "watercolour", "baroque", "still-life")),
-        ("photography", ("photo", "photographic", "cinematic", "infrared", "long-exposure")),
+        ("playful-infographic", ("bubble", "sticker", "playful-infographic", "icon", "cartoon-control-room")),
+        ("poster-collage", ("poster", "collage", "zine", "xerox", "risograph", "print", "silkscreen")),
+        ("cubist-painting", ("cubist", "picasso", "fractured", "angular planes")),
+        ("impressionist-painting", ("impressionist", "broken colour", "sunlit brushwork")),
+        ("brush-ink", ("brush-ink", "ukiyo", "ink-wash", "brush-scroll", "seal-like")),
+        ("still-life-painting", ("still-life painting", "baroque", "botanical watercolour")),
+        ("still-life-photography", ("still-life studio", "still-life photography", "magazine photography")),
+        ("painting", ("painting", "oil", "brush", "pastel", "watercolour")),
+        ("photography", ("photo", "photographic", "cinematic", "infrared", "long-exposure", "documentary")),
         ("sculpture-paper", ("sculpture", "sculptural", "maquette", "paper", "relief", "clay", "model")),
-        ("comic-graphic", ("comic", "graphic novel", "noir")),
+        ("comic-graphic", ("comic", "graphic novel", "noir", "cartoon-illustration")),
         ("cartographic", ("atlas", "cartographic", "geospatial", "map", "orbital")),
     ]
     for group, needles in groups:
