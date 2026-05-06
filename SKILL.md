@@ -14,7 +14,7 @@ This root skill is only the entrypoint and routing policy. It should not absorb 
 Use the Python runner by default:
 
 ```bash
-python scripts/newbiz2.py run --mode full --brand-name "Brand" --website "https://www.example.com/" --brand-folder "/path/to/output"
+python scripts/newbizintel.py run --mode full --brand-name "Brand" --website "https://www.example.com/" --brand-folder "/path/to/output"
 ```
 
 PowerShell is now a Windows legacy/compatibility path only. Do not require Mac colleagues to install `pwsh`.
@@ -61,15 +61,15 @@ Do not ask colleagues to install a separate Slides skill. The render path should
 
 ## Modules
 
-- `newbiz2-orchestrator`: route work and manage gate state
-- `newbiz2-intake`: create the working folder and settle identity assumptions
-- `newbiz2-research`: gather Tavily and SEMrush-backed evidence
-- `newbiz2-structure`: build and validate `report-data.json`
-- `newbiz2-assets`: build and validate logos, marks, competitor badges, and source badges
-- `newbiz2-campaign-art`: create or refresh Creative Campaign illustration prompts and final raster assets
-- `newbiz2-render`: render HTML, portable HTML, PPTX, and bundle outputs
-- `newbiz2-qa`: run presentation and smoke-test checks
-- `newbiz2-deploy`: refresh handoff and prepare optional Vercel deployment
+- `newbizintel-orchestrator`: route work and manage gate state
+- `newbizintel-intake`: create the working folder and settle identity assumptions
+- `newbizintel-research`: gather Tavily and SEMrush-backed evidence
+- `newbizintel-structure`: build and validate `report-data.json`
+- `newbizintel-assets`: build and validate logos, marks, competitor badges, and source badges
+- `newbizintel-campaign-art`: create or refresh Creative Campaign illustration prompts and final raster assets
+- `newbizintel-render`: render HTML, portable HTML, PPTX, and bundle outputs
+- `newbizintel-qa`: run presentation and smoke-test checks
+- `newbizintel-deploy`: refresh handoff and prepare optional Vercel deployment
 
 ## Canonical 10-Step Task List
 
@@ -161,9 +161,9 @@ The Executive Summary must read like board-ready synthesis, not research notes.
 - The Messaging section must begin with an assessment of existing published messaging before the StoryBrand analysis. Use `storybrand.existing_messaging_assessment` with at least two published mission, purpose, promise, proposition, or brand-platform statements, their source labels and source URLs, a reputation read-across, and a practical implication. Render those source labels as hyperlinks so readers can verify the published statements. Do not change the StoryBrand cards to satisfy this requirement; instead, let the published-message assessment frame them. `storybrand.messaging_fixes` and `storybrand.content_implications` must explain the WHY behind each recommendation and must explicitly draw on reputation, trust, service, growth, proof, customer, or technology findings.
 - Brand report outputs must live under the resolved output root, normally `C:\codex projects\output\<brand-slug>`. Do not default to a skill-local `output` folder. Deploy handoff files must remain in the brand output folder or a child of it; do not create sibling folders such as `output\vercel` for brand report artifacts.
 - End every full report run by asking the user whether they would like the finished report deployed to Vercel. Do not deploy automatically. Ask: "Would you like me to deploy this report to Vercel as a randomly named preview URL?"
-- If the user says yes to Vercel deployment, use the `vercel-deploy` skill. First run the NewBiz2 random staging command (`python scripts/newbiz2.py vercel-stage --data-path "<brand-folder>/report-data.json"`) and pass the returned `deploy_path` to `vercel-deploy`; never deploy the brand output folder directly.
-- Vercel uploads from NewBiz2 must always use a random staging folder/project identity so generated URLs do not include the target brand name, brand slug, or domain. If the returned URL contains the brand name, brand slug, or domain token, treat it as a failed deployment handoff and create a fresh random stage before trying again.
-- Proof, fixture, and disposable test artifacts are not brand report outputs. Create them through `scripts\common\resolve_proof_root.ps1`, which defaults to `C:\codex projects\tmp-newbiz2-proofs` or `NEWBIZ2_PROOF_ROOT`, and must refuse locations inside the delivery output root such as `output\skill-runs`.
+- If the user says yes to Vercel deployment, use the `vercel-deploy` skill. First run the NewBizIntel random staging command (`python scripts/newbizintel.py vercel-stage --data-path "<brand-folder>/report-data.json"`) and pass the returned `deploy_path` to `vercel-deploy`; never deploy the brand output folder directly.
+- Vercel uploads from NewBizIntel must always use a random staging folder/project identity so generated URLs do not include the target brand name, brand slug, or domain token. If the returned URL contains the brand name, brand slug, or domain token, treat it as a failed deployment handoff and create a fresh random stage before trying again.
+- Proof, fixture, and disposable test artifacts are not brand report outputs. Create them through `scripts\common\resolve_proof_root.ps1`, which defaults to `C:\codex projects\tmp-newbizintel-proofs` or `NEWBIZINTEL_PROOF_ROOT`, and must refuse locations inside the delivery output root such as `output\skill-runs`.
 - For SEMrush, favour direct API access first. If `SEMRUSH_API_KEY` is available, the research module should automatically select and run the direct SEMrush API collector without requiring a separate reminder flag. If the operator supplies `-SemrushApiKey`, use it only as an in-process runtime secret for that run and never write it to repo files, report artifacts, run state, notes, or output JSON. If direct API is unavailable, quota-limited, or blocked, use Composio MCP as the SEMrush backup before falling back to SimilarWeb, Jina, or other public-web context. SimilarWeb/public-web evidence can satisfy the broader Search and SEO evidence gate when clearly sourced and labelled, but must never be described as SEMrush-backed.
 - SEO charts must be self-explaining. Prefer raw or clearly derived search metrics from SEMrush, Similarweb, GSC, or another named provider. If a chart uses judgement scores, the title or subtitle must say it is an indexed interpretation, the subtitle must name the evidence base, and every row note must cite the underlying search or traffic signal. Do not use vague subtitles such as "Strategic read from public evidence" in the SEO section.
 - When target and competitor search visibility evidence exists, add a target-vs-competitor visibility comparison chart. Use raw metrics where possible; if using ranks, make the conversion explicit, display the original rank, and state that lower rank means stronger visibility.

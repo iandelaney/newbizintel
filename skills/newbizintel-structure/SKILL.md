@@ -1,5 +1,5 @@
 ---
-name: newbiz2-structure
+name: newbizintel-structure
 description: Build and validate the canonical report-data.json payload for newbiz2 from upstream research and asset information. Use when structured report data needs to be created, refreshed, or revalidated.
 ---
 

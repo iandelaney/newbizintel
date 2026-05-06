@@ -6,6 +6,10 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if ([string]::IsNullOrWhiteSpace($ProofRoot)) {
+    $ProofRoot = $env:NEWBIZINTEL_PROOF_ROOT
+}
+
+if ([string]::IsNullOrWhiteSpace($ProofRoot)) {
     $ProofRoot = $env:NEWBIZ2_PROOF_ROOT
 }
 
@@ -13,7 +17,7 @@ $outputRoot = & (Join-Path $PSScriptRoot 'resolve_output_root.ps1')
 $workspaceRoot = Split-Path -Parent $outputRoot
 
 if ([string]::IsNullOrWhiteSpace($ProofRoot)) {
-    $ProofRoot = Join-Path $workspaceRoot 'tmp-newbiz2-proofs'
+    $ProofRoot = Join-Path $workspaceRoot 'tmp-newbizintel-proofs'
 }
 
 $resolvedProofRoot = [System.IO.Path]::GetFullPath($ProofRoot)
@@ -24,7 +28,7 @@ if (
     $resolvedProofRoot.Equals($resolvedOutputRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
     $resolvedProofRoot.StartsWith($outputPrefix, [System.StringComparison]::OrdinalIgnoreCase)
 ) {
-    throw "NewBiz2 proof artifacts must not be written inside the delivery output root. Use a proof root outside '$resolvedOutputRoot'. Requested: $resolvedProofRoot"
+    throw "NewBizIntel proof artifacts must not be written inside the delivery output root. Use a proof root outside '$resolvedOutputRoot'. Requested: $resolvedProofRoot"
 }
 
 if (-not $NoCreate) {

@@ -15,7 +15,7 @@ REQUIRED_MODULES = {
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Check NewBiz2 Python runtime dependencies.")
+    parser = argparse.ArgumentParser(description="Check NewBizIntel Python runtime dependencies.")
     parser.add_argument("--repo-root", default=str(Path(__file__).resolve().parents[2]))
     parser.add_argument("--runtime-only", action="store_true")
     parser.add_argument("--quiet", action="store_true")
@@ -23,13 +23,15 @@ def parse_args():
 
 
 def runtime_marker(vendor_site: Path) -> dict:
-    marker_path = vendor_site / ".newbiz2-runtime.json"
-    if not marker_path.exists():
-        return {}
-    try:
-        return json.loads(marker_path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    for marker_name in (".newbizintel-runtime.json", ".newbiz2-runtime.json"):
+        marker_path = vendor_site / marker_name
+        if not marker_path.exists():
+            continue
+        try:
+            return json.loads(marker_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+    return {}
 
 
 def vendor_has_binary_extensions(vendor_site: Path) -> bool:
@@ -44,7 +46,7 @@ def vendor_is_compatible(vendor_site: Path) -> tuple[bool, str]:
 
     marker = runtime_marker(vendor_site)
     if not marker:
-        return False, f"Missing or unreadable runtime marker at {vendor_site / '.newbiz2-runtime.json'}."
+        return False, f"Missing or unreadable runtime marker at {vendor_site / '.newbizintel-runtime.json'}."
 
     expected_python = f"{sys.version_info.major}.{sys.version_info.minor}"
     marker_platform = marker.get("platform")
@@ -97,7 +99,7 @@ def main():
         {
             "key": "python_version",
             "ok": version_ok,
-            "detail": f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}; NewBiz2 requires Python 3.10+.",
+            "detail": f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}; NewBizIntel requires Python 3.10+.",
         },
         {
             "key": "python_vendor_runtime",

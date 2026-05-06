@@ -1,5 +1,5 @@
 ---
-name: newbiz2-assets
+name: newbizintel-assets
 description: Manage logos, marks, competitor badges, and source badges for newbiz2. Use when visual identity assets need to be created, corrected, refreshed, or revalidated.
 ---
 

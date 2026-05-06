@@ -29,15 +29,15 @@ If shared code is extracted later, it should move into a clearly versioned and d
 
 ## Module set
 
-- `newbiz2-orchestrator`
-- `newbiz2-intake`
-- `newbiz2-research`
-- `newbiz2-structure`
-- `newbiz2-assets`
-- `newbiz2-campaign-art`
-- `newbiz2-render`
-- `newbiz2-qa`
-- `newbiz2-deploy`
+- `newbizintel-orchestrator`
+- `newbizintel-intake`
+- `newbizintel-research`
+- `newbizintel-structure`
+- `newbizintel-assets`
+- `newbizintel-campaign-art`
+- `newbizintel-render`
+- `newbizintel-qa`
+- `newbizintel-deploy`
 
 ## Core contract
 
@@ -59,9 +59,9 @@ What works today:
 - the orchestrator can run `full`, `research-only`, `render-stack`, `qa-only`, `deploy-handoff`, `art-refresh`, and `assets-refresh`
 - `research-summary.json` is produced in bootstrap mode from an existing `report-data.json`
 - `research-summary.json` can also be imported in `live-summary` mode after Codex gathers current-web evidence with Tavily or direct web methods, uses direct SEMrush API evidence first, falls back to Composio-backed SEMrush when needed, uses Jina as a current-web backup, and may use clearly labelled Similarweb evidence when SEMrush routes are blocked or quota-limited
-- `newbiz2-structure` now consumes `research-summary.json` when present and writes the live research layer back into `report-data.json` before validation
+- `newbizintel-structure` now consumes `research-summary.json` when present and writes the live research layer back into `report-data.json` before validation
 - `run-state.json` is updated as modules complete
-- `scripts/newbiz2.py` is the default cross-platform runner for colleagues; the PowerShell runner remains available for Windows compatibility and legacy module wrappers
+- `scripts/newbizintel.py` is the default cross-platform runner for colleagues; the legacy `newbiz2` runner remains available as a compatibility shim, and the PowerShell runner remains available for Windows compatibility and legacy module wrappers
 - HTML, portable HTML, native PPTX, and deploy handoff outputs are produced from the copied stable `newbizintel` machinery plus a PptxGenJS deck path aligned to the `slides` skill
 - the full modular chain is proven on the real Univers brand folder through `research -> structure -> assets -> campaign-art -> render -> qa -> deploy-handoff`
 - premium Creative Campaign art now defaults to prompt-driven image-generated raster artwork, with local scaffold placeholders allowed only when a report explicitly opts into scaffold mode
@@ -74,7 +74,7 @@ The premium Creative Campaign path is now:
 1. Prepare prompts and handoff files:
 
 ```bash
-python scripts/newbiz2.py campaign-art --data-path ./output/<brand>/report-data.json
+python scripts/newbizintel.py campaign-art --data-path ./output/<brand>/report-data.json
 ```
 
 2. Generate one raster image per prompt from the produced brief and manifest:
@@ -85,13 +85,13 @@ python scripts/newbiz2.py campaign-art --data-path ./output/<brand>/report-data.
 3. Import the resulting batch and clear the campaign-art gate:
 
 ```bash
-python scripts/newbiz2.py campaign-art --data-path ./output/<brand>/report-data.json --campaign-art-source-dir <folder-with-final-images> --campaign-art-overwrite-final
+python scripts/newbizintel.py campaign-art --data-path ./output/<brand>/report-data.json --campaign-art-source-dir <folder-with-final-images> --campaign-art-overwrite-final
 ```
 
 Or, when the images were just created by Codex image generation:
 
 ```bash
-python scripts/newbiz2.py campaign-art --data-path ./output/<brand>/report-data.json --campaign-art-latest-generated-batch --campaign-art-overwrite-final
+python scripts/newbizintel.py campaign-art --data-path ./output/<brand>/report-data.json --campaign-art-latest-generated-batch --campaign-art-overwrite-final
 ```
 
 The Python runner now applies the prompt manifest, imports the final imagegen raster batch, then audits the actual final files in one gate. The import step normalizes the images into the expected portrait PNG outputs, marks them as `final-raster-artwork`, and lets QA distinguish true final art from placeholder scaffold output. The PowerShell wrapper remains available as a Windows compatibility path, but it is not required for macOS users.
@@ -157,8 +157,8 @@ For a colleague on macOS, this is the shortest copy-and-run sequence:
 ./scripts/qa/check_prereqs.sh
 ./install-local.sh
 # add YOUR_TAVILY_API_KEY to the written Codex config or snippet
-python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.json
-python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py run --mode render-stack --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py qa --data-path ./examples/report-data.json
 ```
 
 ### 1. Clone the repo
@@ -234,13 +234,13 @@ Start with the sample data:
 Windows PowerShell:
 
 ```powershell
-.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.json -Mode render-stack
+.\scripts\run_newbizintel.ps1 -DataPath .\examples\report-data.json -Mode render-stack
 ```
 
 macOS or other Unix-like shells:
 
 ```bash
-python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py run --mode render-stack --data-path ./examples/report-data.json
 ```
 
 Then check portability before sharing onward:
@@ -254,7 +254,7 @@ Windows PowerShell:
 macOS or other Unix-like shells:
 
 ```bash
-python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py qa --data-path ./examples/report-data.json
 ```
 
 Then run the repo-local install smoke test to prove the colleague install path still works:
@@ -284,7 +284,7 @@ Windows PowerShell:
 macOS or other Unix-like shells:
 
 ```bash
-python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py run --mode render-stack --data-path ./examples/report-data.json
 ```
 
 Expected result:
@@ -343,8 +343,8 @@ Windows PowerShell:
 macOS or other Unix-like shells:
 
 ```bash
-python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.json
-python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py run --mode render-stack --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py qa --data-path ./examples/report-data.json
 ```
 
 This rolls up the current required checks:
@@ -375,7 +375,7 @@ The next refactor should reduce duplication only in a way that preserves repo po
 Use the Python QA path as the cross-platform portability smoke test before sharing the repo:
 
 ```bash
-python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py qa --data-path ./examples/report-data.json
 ```
 
 On Windows, the legacy PowerShell audit can also catch machine-specific path dependencies:
@@ -391,30 +391,30 @@ From the repo root, use the Python runner by default.
 Windows:
 
 ```powershell
-py .\scripts\newbiz2.py run --mode full --data-path .\examples\report-data.json
-py .\scripts\newbiz2.py run --mode research-only --data-path .\examples\report-data.json
-py .\scripts\newbiz2.py run --mode render-stack --data-path .\examples\report-data.json
-py .\scripts\newbiz2.py run --mode research-only --data-path .\examples\report-data.json --research-mode live-summary --research-summary-path .\examples\research-summary.json
-py .\scripts\newbiz2.py qa --data-path .\examples\report-data.json
+py .\scripts\newbizintel.py run --mode full --data-path .\examples\report-data.json
+py .\scripts\newbizintel.py run --mode research-only --data-path .\examples\report-data.json
+py .\scripts\newbizintel.py run --mode render-stack --data-path .\examples\report-data.json
+py .\scripts\newbizintel.py run --mode research-only --data-path .\examples\report-data.json --research-mode live-summary --research-summary-path .\examples\research-summary.json
+py .\scripts\newbizintel.py qa --data-path .\examples\report-data.json
 ```
 
 macOS or other Unix-like shells:
 
 ```bash
-python3 ./scripts/newbiz2.py run --mode full --data-path ./examples/report-data.json
-python3 ./scripts/newbiz2.py run --mode research-only --data-path ./examples/report-data.json
-python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.json
-python3 ./scripts/newbiz2.py run --mode research-only --data-path ./examples/report-data.json --research-mode live-summary --research-summary-path ./examples/research-summary.json
-python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py run --mode full --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py run --mode research-only --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py run --mode render-stack --data-path ./examples/report-data.json
+python3 ./scripts/newbizintel.py run --mode research-only --data-path ./examples/report-data.json --research-mode live-summary --research-summary-path ./examples/research-summary.json
+python3 ./scripts/newbizintel.py qa --data-path ./examples/report-data.json
 ```
 
 The PowerShell runner remains available for Windows compatibility:
 
 ```powershell
-.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.json -Mode full
-.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.json -Mode research-only
-.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.json -Mode render-stack
-.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.json -Mode research-only -ResearchMode live-summary -ResearchSummaryPath .\examples\research-summary.json
+.\scripts\run_newbizintel.ps1 -DataPath .\examples\report-data.json -Mode full
+.\scripts\run_newbizintel.ps1 -DataPath .\examples\report-data.json -Mode research-only
+.\scripts\run_newbizintel.ps1 -DataPath .\examples\report-data.json -Mode render-stack
+.\scripts\run_newbizintel.ps1 -DataPath .\examples\report-data.json -Mode research-only -ResearchMode live-summary -ResearchSummaryPath .\examples\research-summary.json
 .\scripts\fixtures\run_univers_live_summary_proof.ps1
 ```
 

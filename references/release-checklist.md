@@ -7,11 +7,11 @@ Use this checklist before sharing `newbizintel` with colleagues or publishing it
 - Run [audit_portability.ps1](C:\codex projects\newbizintel-skill-repo\scripts\qa\audit_portability.ps1) and confirm `ok: true`
 - Run [smoke_test_install.ps1](C:\codex projects\newbizintel-skill-repo\scripts\qa\smoke_test_install.ps1) and confirm `ok: true`
 - Run a sample gated proof with the cross-platform Python runner:
-  - [newbiz2.py](C:\codex projects\newbizintel-skill-repo\scripts\newbiz2.py)
+  - [newbizintel.py](C:\codex projects\newbizintel-skill-repo\scripts\newbizintel.py)
   - `run --mode render-stack --data-path .\examples\report-data.json`
   - `qa --data-path .\examples\report-data.json`
 - On Windows, run a sample full gated proof with the legacy PowerShell runner:
-  - [run_newbiz2.ps1](C:\codex projects\newbizintel-skill-repo\scripts\run_newbiz2.ps1)
+  - [run_newbizintel.ps1](C:\codex projects\newbizintel-skill-repo\scripts\run_newbizintel.ps1)
   - `-DataPath .\examples\report-data.json -Mode full`
 - Confirm the QA smoke test still uses the hybrid parallel path, with deterministic jobs only writing isolated audit outputs before render.
 - Confirm `scripts\qa\audit_task_list.ps1` passes and reports the 10 primary workflow steps in order.

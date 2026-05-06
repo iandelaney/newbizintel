@@ -1,5 +1,5 @@
 ---
-name: newbiz2-research
+name: newbizintel-research
 description: Gather current-web, competitor, news, reputation, source, and SEO evidence for the modular newbiz2 workflow, using direct APIs where available. Use direct SEMrush API first, Composio-backed SEMrush as backup, Jina/direct web as current-web fallback, and clearly labelled Similarweb evidence when SEMrush is blocked or quota-limited.
 ---
 
@@ -16,7 +16,7 @@ Own:
 - Composio-backed SEMrush evidence as backup
 - clearly labelled Similarweb evidence when SEMrush routes are blocked, quota-limited, or unavailable
 
-Outputs should be structured enough for `newbiz2-structure` to map into `report-data.json` cleanly.
+Outputs should be structured enough for `newbizintel-structure` to map into `report-data.json` cleanly.
 
 Do not render deliverables here.
 

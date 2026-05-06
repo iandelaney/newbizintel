@@ -9,6 +9,10 @@ if ($ExplicitRoot) {
     return [System.IO.Path]::GetFullPath($ExplicitRoot)
 }
 
+if ($env:NEWBIZINTEL_OUTPUT_ROOT) {
+    return [System.IO.Path]::GetFullPath($env:NEWBIZINTEL_OUTPUT_ROOT)
+}
+
 if ($env:NEWBIZ2_OUTPUT_ROOT) {
     return [System.IO.Path]::GetFullPath($env:NEWBIZ2_OUTPUT_ROOT)
 }

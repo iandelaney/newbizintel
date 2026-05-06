@@ -57,7 +57,10 @@ Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'assets')) 'Instal
 Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'scripts')) 'Installed main skill is missing scripts.'
 Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'package.json')) 'Installed main skill is missing package.json for native PPTX export.'
 Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'node_modules\pptxgenjs')) 'Installed main skill is missing the local pptxgenjs dependency.'
-Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'vendor\pptx_runtime\.newbiz2-runtime.json')) 'Installed main skill is missing the Python runtime marker.'
+Assert-True (
+    (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'vendor\pptx_runtime\.newbizintel-runtime.json')) -or
+    (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'vendor\pptx_runtime\.newbiz2-runtime.json'))
+) 'Installed main skill is missing the Python runtime marker.'
 Assert-True (Test-Path -LiteralPath $configPath) "Config file was not created at $configPath."
 Assert-True (Test-Path -LiteralPath $snippetPath) "Config snippet was not created at $snippetPath."
 

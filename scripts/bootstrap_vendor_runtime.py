@@ -20,7 +20,7 @@ RUNTIMES = {
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Build platform-native vendor runtimes for the newbiz2 skill."
+        description="Build platform-native vendor runtimes for the newbizintel skill."
     )
     parser.add_argument(
         "--runtime",
@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument(
         "--repo-root",
         default=str(Path(__file__).resolve().parents[1]),
-        help="Path to the newbiz2 skill repo root.",
+        help="Path to the newbizintel skill repo root.",
     )
     return parser.parse_args()
 
@@ -62,10 +62,9 @@ def rebuild_runtime(target: Path, packages):
         "python": f"{sys.version_info.major}.{sys.version_info.minor}",
         "packages": packages,
     }
-    (staging_root / ".newbiz2-runtime.json").write_text(
-        json.dumps(marker, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    marker_payload = json.dumps(marker, indent=2) + "\n"
+    (staging_root / ".newbizintel-runtime.json").write_text(marker_payload, encoding="utf-8")
+    (staging_root / ".newbiz2-runtime.json").write_text(marker_payload, encoding="utf-8")
 
     if backup.exists():
         shutil.rmtree(backup)

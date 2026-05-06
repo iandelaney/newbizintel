@@ -1,5 +1,5 @@
 ---
-name: newbiz2-deploy
+name: newbizintel-deploy
 description: Refresh handoff outputs and deploy newbiz2 reports to Vercel when render outputs are already current. Use when a preview or production deployment is needed after QA passes.
 ---
 

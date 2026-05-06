@@ -1,5 +1,5 @@
 ---
-name: newbiz2-qa
+name: newbizintel-qa
 description: Run presentation checks, smoke tests, and gate verification for newbiz2 outputs. Use when rendered outputs need to be validated before delivery or deployment.
 ---
 
