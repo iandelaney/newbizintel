@@ -17,7 +17,7 @@ if [[ -z "$destination_root" ]]; then
   fi
 fi
 
-destination="$destination_root/newbiz2"
+destination="$destination_root/newbizintel"
 
 mkdir -p "$destination_root"
 rm -rf "$destination"
@@ -68,7 +68,7 @@ if ! command -v "$python_bin" >/dev/null 2>&1; then
 fi
 
 if ! command -v "$python_bin" >/dev/null 2>&1; then
-  echo "Python 3 is required to verify or refresh the NewBiz2 runtime." >&2
+  echo "Python 3 is required to verify or refresh the NewBizIntel runtime." >&2
   exit 1
 fi
 

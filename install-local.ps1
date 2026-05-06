@@ -32,7 +32,7 @@ function Update-CodexConfig {
     New-Item -ItemType Directory -Path $codexRoot -Force | Out-Null
 
     $configPath = Join-Path $codexRoot 'config.toml'
-    $snippetPath = Join-Path $codexRoot 'newbiz2-config-snippet.toml'
+    $snippetPath = Join-Path $codexRoot 'newbizintel-config-snippet.toml'
     $examplePath = Join-Path $RepoRoot 'codex-config.example.toml'
     Copy-Item -LiteralPath $examplePath -Destination $snippetPath -Force
 
@@ -64,8 +64,8 @@ function Update-CodexConfig {
         }
     }
 
-    $markerStart = '# >>> newbiz2 setup >>>'
-    $markerEnd = '# <<< newbiz2 setup <<<'
+    $markerStart = '# >>> newbizintel setup >>>'
+    $markerEnd = '# <<< newbizintel setup <<<'
 
     if (-not $hasOverlap -and -not $existing.Contains($markerStart)) {
         $prefix = if ($existing.EndsWith("`r`n") -or $existing.EndsWith("`n")) { '' } else { [Environment]::NewLine }

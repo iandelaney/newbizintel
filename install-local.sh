@@ -32,12 +32,12 @@ update_codex_config() {
   mkdir -p "$codex_root"
 
   local config_path="$codex_root/config.toml"
-  local snippet_path="$codex_root/newbiz2-config-snippet.toml"
+  local snippet_path="$codex_root/newbizintel-config-snippet.toml"
   local example_path="$repo_root/codex-config.example.toml"
   cp "$example_path" "$snippet_path"
 
-  local marker_start="# >>> newbiz2 setup >>>"
-  local marker_end="# <<< newbiz2 setup <<<"
+  local marker_start="# >>> newbizintel setup >>>"
+  local marker_end="# <<< newbizintel setup <<<"
 
   if [[ ! -f "$config_path" || ! -s "$config_path" ]]; then
     cp "$example_path" "$config_path"

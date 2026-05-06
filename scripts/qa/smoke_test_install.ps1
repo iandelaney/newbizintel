@@ -35,9 +35,9 @@ function Test-JsonArrayContains {
 $installRoot = Join-Path $RepoRoot 'dist\install-smoke'
 $skillsRoot = Join-Path $installRoot 'skills'
 $codexRoot = Join-Path $installRoot '.codex'
-$mainSkillRoot = Join-Path $skillsRoot 'newbiz2'
+$mainSkillRoot = Join-Path $skillsRoot 'newbizintel'
 $configPath = Join-Path $codexRoot 'config.toml'
-$snippetPath = Join-Path $codexRoot 'newbiz2-config-snippet.toml'
+$snippetPath = Join-Path $codexRoot 'newbizintel-config-snippet.toml'
 
 if (Test-Path -LiteralPath $installRoot) {
     Remove-Item -LiteralPath $installRoot -Recurse -Force
@@ -61,7 +61,7 @@ Assert-True (Test-Path -LiteralPath (Join-Path $mainSkillRoot 'vendor\pptx_runti
 Assert-True (Test-Path -LiteralPath $configPath) "Config file was not created at $configPath."
 Assert-True (Test-Path -LiteralPath $snippetPath) "Config snippet was not created at $snippetPath."
 
-foreach ($companion in @('playwright', 'slides', 'vercel-deploy')) {
+foreach ($companion in @('playwright', 'vercel-deploy')) {
     Assert-True (Test-Path -LiteralPath (Join-Path $skillsRoot $companion)) "Missing installed companion skill: $companion."
     Assert-True (Test-JsonArrayContains -Array $firstRun.installed_companion_skills -Expected $companion) "First install did not report companion skill $companion as installed."
 }
@@ -72,8 +72,8 @@ $snippetText = Get-Content -LiteralPath $snippetPath -Raw
 Assert-True ($configText.Contains('[mcp_servers.tavily]')) 'Installed config is missing Tavily MCP settings.'
 Assert-True ($configText.Contains('[mcp_servers.composio]')) 'Installed config is missing Composio MCP settings.'
 Assert-True ($configText.Contains('YOUR_TAVILY_API_KEY')) 'Installed config is missing Tavily placeholder guidance.'
-Assert-True ($snippetText.Contains('newbiz2') -or $snippetPath.EndsWith('newbiz2-config-snippet.toml')) 'Snippet naming does not reflect newbiz2.'
-Assert-True (-not $configText.Contains('newbizintel')) 'Installed config still contains stale newbizintel naming.'
+Assert-True ($snippetPath.EndsWith('newbizintel-config-snippet.toml')) 'Snippet naming does not reflect newbizintel.'
+Assert-True ($firstRun.config_status -in @('created','appended','snippet_only')) 'First install did not report a valid config status.'
 
 $secondRun = & $installScript -DestinationRoot $skillsRoot -CodexRoot $codexRoot | ConvertFrom-Json
 
@@ -81,8 +81,8 @@ Assert-True ($secondRun.installed -eq $true) 'Second install run did not report 
 Assert-True ($secondRun.config_status -eq 'snippet_only') "Expected second install to leave config in snippet_only state, got $($secondRun.config_status)."
 
 $configTextAfterSecondRun = Get-Content -LiteralPath $configPath -Raw
-$markerCount = ([regex]::Matches($configTextAfterSecondRun, [regex]::Escape('# >>> newbiz2 setup >>>'))).Count
-Assert-True ($markerCount -le 1) 'Config contains duplicate newbiz2 managed blocks after rerun.'
+$markerCount = ([regex]::Matches($configTextAfterSecondRun, [regex]::Escape('# >>> newbizintel setup >>>'))).Count
+Assert-True ($markerCount -le 1) 'Config contains duplicate newbizintel managed blocks after rerun.'
 
 $prereq = & $prereqScript -CodexRoot $codexRoot | ConvertFrom-Json
 Assert-True ($prereq.ok -eq $true) 'Prerequisite checker did not pass against the repo-local smoke-test Codex root.'

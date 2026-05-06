@@ -17,7 +17,7 @@ if (-not $DestinationRoot) {
 }
 
 $sourceRoot = $PSScriptRoot
-$destination = Join-Path $DestinationRoot 'newbiz2'
+$destination = Join-Path $DestinationRoot 'newbizintel'
 
 if (Test-Path -LiteralPath $destination) {
     Remove-Item -LiteralPath $destination -Recurse -Force
