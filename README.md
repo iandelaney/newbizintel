@@ -1,14 +1,14 @@
-# newbiz2
+# newbizintel
 
-`newbiz2` is a modular successor to `newbizintel`.
+`newbizintel` is the supported default path for new-business intelligence work.
 
 It is designed to preserve the rigor of the current workflow while splitting the work into smaller, reusable modules coordinated by one orchestrator.
 
 ## Design goal
 
-Keep `newbizintel` stable.
+Use the modular `newbizintel` workflow as the primary path while preserving compatibility with legacy output contracts where that still reduces migration risk.
 
-Use `newbiz2` to experiment with:
+Use `newbizintel` to improve:
 
 - orchestration
 - resumable runs
@@ -17,13 +17,13 @@ Use `newbiz2` to experiment with:
 
 ## Portability rule
 
-`newbiz2` should be shareable with colleagues as a clean standalone repo.
+`newbizintel` should be shareable with colleagues as a clean standalone repo.
 
 That means:
 
 - no hidden dependency on sibling folders in `C:\codex projects`
 - no local-only helper path outside this repo unless it is explicitly documented as an external prerequisite
-- prefer temporary duplication inside `newbiz2` over an undeclared cross-repo dependency
+- prefer temporary duplication inside the repo over an undeclared cross-repo dependency
 
 If shared code is extracted later, it should move into a clearly versioned and documented package or companion repo, not an implicit local workspace helper folder.
 
@@ -51,7 +51,7 @@ It also adds resumable state:
 
 ## Current state
 
-This repo is now minimally runnable from `newbiz2` itself.
+This repo is now minimally runnable from `newbizintel` itself.
 
 What works today:
 
@@ -98,7 +98,7 @@ The Python runner now applies the prompt manifest, imports the final imagegen ra
 
 ## Colleague install
 
-`newbiz2` is intended to be installable on both Windows and macOS.
+`newbizintel` is intended to be installable on both Windows and macOS.
 
 Prerequisites:
 
@@ -129,7 +129,7 @@ macOS or other Unix-like shells:
 ./install-local.sh
 ```
 
-The install path also runs `npm install --omit=dev` inside the installed `newbiz2` skill so the native PptxGenJS deck exporter is ready for PPTX generation. It also verifies the Python runtime modules and rebuilds `vendor/pptx_runtime` when the checked-in runtime is for a different OS or Python version.
+The install path also runs `npm install --omit=dev` inside the installed `newbizintel` skill so the native PptxGenJS deck exporter is ready for PPTX generation. It also verifies the Python runtime modules and rebuilds `vendor/pptx_runtime` when the checked-in runtime is for a different OS or Python version.
 
 If you only want to install the skill files without updating Codex config:
 
@@ -147,7 +147,7 @@ macOS or other Unix-like shells:
 
 ## Handoff to colleagues
 
-If you are sharing `newbiz2` with a colleague, this is the shortest clean start path.
+If you are sharing `newbizintel` with a colleague, this is the shortest clean start path.
 
 ### Mac quick start
 
@@ -157,13 +157,13 @@ For a colleague on macOS, this is the shortest copy-and-run sequence:
 ./scripts/qa/check_prereqs.sh
 ./install-local.sh
 # add YOUR_TAVILY_API_KEY to the written Codex config or snippet
-python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.sample.json
-python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.json
+python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.json
 ```
 
 ### 1. Clone the repo
 
-Place `newbiz2-skill-repo` anywhere convenient. It does not need sibling repos to work.
+Place `newbizintel-skill-repo` anywhere convenient. It does not need sibling repos to work.
 
 ### 2. Run the prerequisite self-check
 
@@ -219,7 +219,7 @@ macOS or other Unix-like shells:
 
 The installer writes or updates Codex config using:
 
-- [codex-config.example.toml](C:\codex projects\newbiz2-skill-repo\codex-config.example.toml)
+- [codex-config.example.toml](C:\codex projects\newbizintel-skill-repo\codex-config.example.toml)
 
 Replace `YOUR_TAVILY_API_KEY` in the written Codex config or snippet file with a real Tavily key.
 
@@ -234,13 +234,13 @@ Start with the sample data:
 Windows PowerShell:
 
 ```powershell
-.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.sample.json -Mode render-stack
+.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.json -Mode render-stack
 ```
 
 macOS or other Unix-like shells:
 
 ```bash
-python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.json
 ```
 
 Then check portability before sharing onward:
@@ -254,7 +254,7 @@ Windows PowerShell:
 macOS or other Unix-like shells:
 
 ```bash
-python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.json
 ```
 
 Then run the repo-local install smoke test to prove the colleague install path still works:
@@ -284,7 +284,7 @@ Windows PowerShell:
 macOS or other Unix-like shells:
 
 ```bash
-python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.json
 ```
 
 Expected result:
@@ -295,7 +295,7 @@ Expected result:
 
 ## Gold-path regression target
 
-`Univers` is the current real-brand proof case for `newbiz2`.
+`WebOps` is the preferred current real-brand proof case for `newbizintel` when a maintained local bundle exists. `Univers` remains the repo-maintained live-summary proof script until that handoff is refreshed.
 
 Use this fixture when you want to prove the full live-summary path end to end:
 
@@ -325,10 +325,10 @@ What is still intentionally incomplete:
 
 Use these checks before sharing installer changes with colleagues:
 
-- [audit_portability.ps1](C:\codex projects\newbiz2-skill-repo\scripts\qa\audit_portability.ps1) to catch hidden workspace dependencies
-- [check_prereqs.ps1](C:\codex projects\newbiz2-skill-repo\scripts\qa\check_prereqs.ps1) or [check_prereqs.sh](C:\codex projects\newbiz2-skill-repo\scripts\qa\check_prereqs.sh) to verify a target machine is ready
-- [smoke_test_install.ps1](C:\codex projects\newbiz2-skill-repo\scripts\qa\smoke_test_install.ps1) to prove the repo-local install path still works cleanly and does not duplicate config blocks on rerun
-- [release_check.ps1](C:\codex projects\newbiz2-skill-repo\scripts\qa\release_check.ps1) to run the current release gate in one command
+- [audit_portability.ps1](C:\codex projects\newbizintel-skill-repo\scripts\qa\audit_portability.ps1) to catch hidden workspace dependencies
+- [check_prereqs.ps1](C:\codex projects\newbizintel-skill-repo\scripts\qa\check_prereqs.ps1) or [check_prereqs.sh](C:\codex projects\newbizintel-skill-repo\scripts\qa\check_prereqs.sh) to verify a target machine is ready
+- [smoke_test_install.ps1](C:\codex projects\newbizintel-skill-repo\scripts\qa\smoke_test_install.ps1) to prove the repo-local install path still works cleanly and does not duplicate config blocks on rerun
+- [release_check.ps1](C:\codex projects\newbizintel-skill-repo\scripts\qa\release_check.ps1) to run the current release gate in one command
 
 ## Release readiness
 
@@ -343,8 +343,8 @@ Windows PowerShell:
 macOS or other Unix-like shells:
 
 ```bash
-python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.sample.json
-python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.json
+python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.json
 ```
 
 This rolls up the current required checks:
@@ -355,11 +355,11 @@ This rolls up the current required checks:
 
 The human-readable checklist lives at:
 
-- [release-checklist.md](C:\codex projects\newbiz2-skill-repo\references\release-checklist.md)
+- [release-checklist.md](C:\codex projects\newbizintel-skill-repo\references\release-checklist.md)
 
 ## Known duplication to reduce next
 
-`newbiz2` is now modular in orchestration, but it still deliberately duplicates stable machinery from `newbizintel`.
+`newbizintel` is now modular in orchestration, but it still deliberately duplicates stable machinery from `newbizintel-legacy`.
 
 The highest-value duplication still present is:
 
@@ -375,7 +375,7 @@ The next refactor should reduce duplication only in a way that preserves repo po
 Use the Python QA path as the cross-platform portability smoke test before sharing the repo:
 
 ```bash
-python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.json
 ```
 
 On Windows, the legacy PowerShell audit can also catch machine-specific path dependencies:
@@ -391,29 +391,30 @@ From the repo root, use the Python runner by default.
 Windows:
 
 ```powershell
-py .\scripts\newbiz2.py run --mode full --data-path .\examples\report-data.sample.json
-py .\scripts\newbiz2.py run --mode research-only --data-path .\examples\report-data.sample.json
-py .\scripts\newbiz2.py run --mode render-stack --data-path .\examples\report-data.sample.json
-py .\scripts\newbiz2.py run --mode research-only --data-path .\examples\report-data.sample.json --research-mode live-summary --research-summary-path .\examples\research-summary.json
-py .\scripts\newbiz2.py qa --data-path .\examples\report-data.sample.json
+py .\scripts\newbiz2.py run --mode full --data-path .\examples\report-data.json
+py .\scripts\newbiz2.py run --mode research-only --data-path .\examples\report-data.json
+py .\scripts\newbiz2.py run --mode render-stack --data-path .\examples\report-data.json
+py .\scripts\newbiz2.py run --mode research-only --data-path .\examples\report-data.json --research-mode live-summary --research-summary-path .\examples\research-summary.json
+py .\scripts\newbiz2.py qa --data-path .\examples\report-data.json
 ```
 
 macOS or other Unix-like shells:
 
 ```bash
-python3 ./scripts/newbiz2.py run --mode full --data-path ./examples/report-data.sample.json
-python3 ./scripts/newbiz2.py run --mode research-only --data-path ./examples/report-data.sample.json
-python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.sample.json
-python3 ./scripts/newbiz2.py run --mode research-only --data-path ./examples/report-data.sample.json --research-mode live-summary --research-summary-path ./examples/research-summary.json
-python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.sample.json
+python3 ./scripts/newbiz2.py run --mode full --data-path ./examples/report-data.json
+python3 ./scripts/newbiz2.py run --mode research-only --data-path ./examples/report-data.json
+python3 ./scripts/newbiz2.py run --mode render-stack --data-path ./examples/report-data.json
+python3 ./scripts/newbiz2.py run --mode research-only --data-path ./examples/report-data.json --research-mode live-summary --research-summary-path ./examples/research-summary.json
+python3 ./scripts/newbiz2.py qa --data-path ./examples/report-data.json
 ```
 
 The PowerShell runner remains available for Windows compatibility:
 
 ```powershell
-.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.sample.json -Mode full
-.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.sample.json -Mode research-only
-.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.sample.json -Mode render-stack
-.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.sample.json -Mode research-only -ResearchMode live-summary -ResearchSummaryPath .\examples\research-summary.json
+.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.json -Mode full
+.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.json -Mode research-only
+.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.json -Mode render-stack
+.\scripts\run_newbiz2.ps1 -DataPath .\examples\report-data.json -Mode research-only -ResearchMode live-summary -ResearchSummaryPath .\examples\research-summary.json
 .\scripts\fixtures\run_univers_live_summary_proof.ps1
 ```
+

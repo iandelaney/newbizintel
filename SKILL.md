@@ -1,11 +1,11 @@
 ---
-name: newbiz2
-description: Modular successor to newbizintel. Use when you want the same broad new-business intelligence workflow, but routed through smaller task skills coordinated by one orchestrator so research, assets, art, render, QA, and deploy can be run independently or resumed cleanly.
+name: newbizintel
+description: Supported default workflow for new-business intelligence. Use when you want research, assets, art, render, QA, and deploy coordinated through smaller resumable task skills instead of one monolithic run.
 ---
 
-# NewBiz2
+# NewBizIntel
 
-Use `newbiz2-orchestrator` first.
+Use the modular orchestrator path first.
 
 This root skill is only the entrypoint and routing policy. It should not absorb the whole workflow back into one monolith.
 
@@ -172,7 +172,7 @@ The Executive Summary must read like board-ready synthesis, not research notes.
 - Render `Content Strategy Recommendations` after `Creative Campaign Ideas`. The content recommendations and asset ideas should be read as the channel/content expression of the strategy and campaign territories, not as a disconnected plan that precedes them.
 - Appendix sources must be verifiable without turning the section into a sea of blue links. Render each source label as normal text followed by a compact hyperlinked `[link]` marker when a URL is available, and prefer the richer `appendix.source_map` labels over bare `appendix.sources_reviewed` URLs.
 - Keep the gating discipline. Modularization must not lower the evidence or QA standard.
-- Keep `newbiz2` self-contained and cleanly shareable with colleagues.
+- Keep `newbizintel` self-contained and cleanly shareable with colleagues.
 - Do not introduce hidden dependencies on sibling folders or local workspace-only helper paths.
 - Do not require PowerShell or a separate Slides skill on macOS. Python plus optional Node is acceptable; PPTX must still have a bundled fallback when optional render dependencies are absent.
 - Treat Creative Campaign artwork as a delivery-grade asset, not decoration. Production reports must use bundled final raster artwork marked `final-raster-artwork`; local scaffold, placeholder, unverified, missing, undersized, or non-raster campaign art is a fail condition.

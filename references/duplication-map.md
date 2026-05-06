@@ -1,12 +1,12 @@
 # Duplication Map
 
-This file records the intentional overlap between `newbizintel` and `newbiz2`.
+This file records the intentional overlap between legacy `newbizintel` machinery and the active modular `newbizintel` workflow.
 
 The rule for now is:
 
 - keep `newbizintel` stable
-- keep `newbiz2` modular
-- keep `newbiz2` self-contained and colleague-shareable
+- keep the modular workflow self-contained and colleague-shareable
+- keep the active path modular
 - reduce duplication only when the Univers gold-path regression fixture still passes afterwards
 - never replace duplication with a hidden local sibling dependency
 
@@ -14,7 +14,7 @@ The rule for now is:
 
 ### Render stack
 
-Copied into `newbiz2`:
+Copied into the modular workflow:
 
 - `scripts\render\render_report.ps1`
 - `scripts\render\export_report_bundle.ps1`
@@ -30,7 +30,7 @@ Why duplicated:
 
 ### QA stack
 
-Copied into `newbiz2`:
+Copied into the modular workflow:
 
 - `scripts\qa\audit_presentation_layer.ps1`
 - `scripts\qa\smoke_test_bundle.ps1`
@@ -44,7 +44,7 @@ Why duplicated:
 
 ### Templates
 
-Copied into `newbiz2`:
+Copied into the modular workflow:
 
 - `templates\report-template.html`
 - `templates\report-data.template.json`
@@ -56,13 +56,13 @@ Why duplicated:
 
 ### Campaign-art fallback
 
-Copied into `newbiz2`:
+Copied into the modular workflow:
 
 - `scripts\campaign-art\generate_campaign_illustrations.py`
 
 Why duplicated:
 
-- `newbiz2` owns the modular campaign-art stage even when premium raster art is handled outside the fallback generator
+- The active modular workflow owns the campaign-art stage even when premium raster art is handled outside the fallback generator
 - colleagues should receive one portable repo, not a repo plus an undocumented local helper tree
 
 ## Safe order for reducing duplication
