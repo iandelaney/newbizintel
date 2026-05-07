@@ -1,9 +1,9 @@
 ---
-name: newbizintel
-description: Supported default workflow for new-business intelligence. Use when you want research, assets, art, render, QA, and deploy coordinated through smaller resumable task skills instead of one monolithic run.
+name: newbizintel-dev
+description: Development worktree variant of the supported newbizintel workflow. Use when working inside the canonical repo itself and you want the same modular orchestration without colliding with the installed production skill name.
 ---
 
-# NewBizIntel
+# NewBizIntel Dev
 
 Use the modular orchestrator path first.
 
