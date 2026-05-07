@@ -9,10 +9,6 @@ if ([string]::IsNullOrWhiteSpace($ProofRoot)) {
     $ProofRoot = $env:NEWBIZINTEL_PROOF_ROOT
 }
 
-if ([string]::IsNullOrWhiteSpace($ProofRoot)) {
-    $ProofRoot = $env:NEWBIZ2_PROOF_ROOT
-}
-
 $outputRoot = & (Join-Path $PSScriptRoot 'resolve_output_root.ps1')
 $workspaceRoot = Split-Path -Parent $outputRoot
 

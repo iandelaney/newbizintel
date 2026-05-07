@@ -64,7 +64,6 @@ def rebuild_runtime(target: Path, packages):
     }
     marker_payload = json.dumps(marker, indent=2) + "\n"
     (staging_root / ".newbizintel-runtime.json").write_text(marker_payload, encoding="utf-8")
-    (staging_root / ".newbiz2-runtime.json").write_text(marker_payload, encoding="utf-8")
 
     if backup.exists():
         shutil.rmtree(backup)

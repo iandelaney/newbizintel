@@ -467,7 +467,7 @@ function Get-WikimediaSearchLogoCandidates {
         $search = [System.Uri]::EscapeDataString("$term logo")
         $apiUrl = "https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=8&gsrsearch=$search&prop=imageinfo&iiprop=url|mime|size"
         try {
-            $response = Invoke-WebRequest -Uri $apiUrl -UseBasicParsing -TimeoutSec 20 -Headers @{ 'User-Agent' = 'newbiz2-logo-acquisition/1.0' }
+    $response = Invoke-WebRequest -Uri $apiUrl -UseBasicParsing -TimeoutSec 20 -Headers @{ 'User-Agent' = 'newbizintel-logo-acquisition/1.0' }
             $payload = $response.Content | ConvertFrom-Json
             if ($null -eq $payload.query -or $null -eq $payload.query.pages) { continue }
 

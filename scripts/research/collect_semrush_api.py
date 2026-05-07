@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Collect compact SEMrush API evidence for NewBiz2 reports.
+"""Collect compact SEMrush API evidence for NewBizIntel reports.
 
 The script reads the API key from an environment variable and never writes it to
 disk. Output is a small evidence workpack suitable for review or merging into a
-NewBiz2 research summary.
+NewBizIntel research summary.
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def root_domain(value: str) -> str:
 
 def semrush_get(params: dict[str, str], timeout: int = 45) -> dict[str, Any]:
     url = f"{API_URL}?{urllib.parse.urlencode(params)}"
-    request = urllib.request.Request(url, headers={"User-Agent": "newbiz2-semrush-collector/1.0"})
+    request = urllib.request.Request(url, headers={"User-Agent": "newbizintel-semrush-collector/1.0"})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             body = response.read().decode("utf-8-sig", errors="replace")
@@ -183,7 +183,7 @@ def build_requests(domain: str, database: str, key: str, limits: dict[str, int])
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Collect SEMrush API evidence for a NewBiz2 report.")
+    parser = argparse.ArgumentParser(description="Collect SEMrush API evidence for a NewBizIntel report.")
     parser.add_argument("--data", help="Path to report-data.json")
     parser.add_argument("--domain", help="Domain or URL to query")
     parser.add_argument("--database", default="uk", choices=["uk", "us"], help="SEMrush regional database")

@@ -1,9 +1,9 @@
 ---
 name: newbizintel-qa
-description: Run presentation checks, smoke tests, and gate verification for newbiz2 outputs. Use when rendered outputs need to be validated before delivery or deployment.
+description: Run presentation checks, smoke tests, and gate verification for newbizintel outputs. Use when rendered outputs need to be validated before delivery or deployment.
 ---
 
-# NewBiz2 QA
+# NewBizIntel QA
 
 Own:
 

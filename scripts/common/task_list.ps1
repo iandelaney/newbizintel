@@ -188,7 +188,7 @@ function Set-NewBizTaskStatus {
     Ensure-NewBizTaskList -State $State
     $task = @($State.task_list | Where-Object { [string]$_.key -eq $Key }) | Select-Object -First 1
     if (-not $task) {
-        throw "Unknown NewBiz2 task-list key: $Key"
+    throw "Unknown NewBizIntel task-list key: $Key"
     }
 
     $task.status = $Status

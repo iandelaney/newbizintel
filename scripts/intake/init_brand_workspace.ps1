@@ -64,7 +64,7 @@ $brandAssetPath = Join-Path $brandPath 'slide-assets'
 
 if ((Test-Path -LiteralPath $templatePath) -and (-not (Test-Path -LiteralPath $brandDataPath))) {
     if ([string]::IsNullOrWhiteSpace($normalizedWebsite)) {
-        throw 'A real -Website is required when creating a new NewBiz2 brand workspace.'
+    throw 'A real -Website is required when creating a new NewBizIntel brand workspace.'
     }
 
     $template = Get-Content -LiteralPath $templatePath -Raw | ConvertFrom-Json

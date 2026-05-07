@@ -1,6 +1,6 @@
 # Hybrid Parallel And Agentic Workflow
 
-`newbiz2` should use deterministic parallel jobs where the task is repeatable and
+`newbizintel` should use deterministic parallel jobs where the task is repeatable and
 side-effect safe, and agentic workers only where judgement improves quality.
 
 ## Deterministic Parallel Jobs

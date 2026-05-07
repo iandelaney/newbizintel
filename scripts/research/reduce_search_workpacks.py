@@ -348,7 +348,7 @@ def build_influential_news(results: list[dict], brand_name: str, workpack_summar
         "confidence_score": 70 if len(final) >= 5 and len(candidates) >= 12 else 50,
         "confidence_rationale": "Confidence is based on broad cheap-search coverage, explicit candidate scoring, source diversity checks, and dated source URLs.",
         "limitations": [
-            "Cheap Tavily Search may miss paywalled, syndicated, or social-only coverage; live NewBiz2 runs should use Tavily Research as the final reputation quality layer."
+        "Cheap Tavily Search may miss paywalled, syndicated, or social-only coverage; live NewBizIntel runs should use Tavily Research as the final reputation quality layer."
         ],
     }
     return final, ranking

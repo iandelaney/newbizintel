@@ -22,7 +22,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $resolvedCodexRoot = [System.IO.Path]::GetFullPath((Get-DefaultCodexRoot -Override $CodexRoot))
 $companionRoot = Join-Path $repoRoot 'companion-skills'
 $configExample = Join-Path $repoRoot 'codex-config.example.toml'
-$snippetProbeDir = Join-Path $resolvedCodexRoot '.newbiz2-probe'
+$snippetProbeDir = Join-Path $resolvedCodexRoot '.newbizintel-probe'
 $snippetProbe = Join-Path $snippetProbeDir 'write-test.tmp'
 
 $checks = @()

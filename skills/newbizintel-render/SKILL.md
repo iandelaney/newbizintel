@@ -1,9 +1,9 @@
 ---
 name: newbizintel-render
-description: Render HTML, portable HTML, PPTX, and bundle outputs for newbiz2 from the canonical report-data.json payload. Use when structured report data is ready and delivery artifacts need to be refreshed.
+description: Render HTML, portable HTML, PPTX, and bundle outputs for newbizintel from the canonical report-data.json payload. Use when structured report data is ready and delivery artifacts need to be refreshed.
 ---
 
-# NewBiz2 Render
+# NewBizIntel Render
 
 Own:
 

@@ -145,7 +145,7 @@ def load_prompt_manifest(asset_dir: Path, brand_slug: str) -> dict[str, dict[str
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Import final raster campaign artwork into newbiz2 report data."
+        description="Import final raster campaign artwork into newbizintel report data."
     )
     parser.add_argument("--data", required=True, help="Path to report-data.json")
     parser.add_argument("--source-dir", help="Directory containing generated image files")

@@ -9,11 +9,11 @@ from pathlib import Path
 from typing import Any
 
 
-RENDERER_FINGERPRINT_PREFIX = "NEWBIZ2_RENDERER_FINGERPRINT:"
+RENDERER_FINGERPRINT_PREFIX = "NEWBIZINTEL_RENDERER_FINGERPRINT:"
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Render the NewBiz2 rich HTML report without PowerShell.")
+    parser = argparse.ArgumentParser(description="Render the NewBizIntel rich HTML report without PowerShell.")
     parser.add_argument("--data", "--data-path", dest="data_path", required=True)
     parser.add_argument("--template", "--template-path", dest="template_path")
     parser.add_argument("--output", "--output-path", dest="output_path")

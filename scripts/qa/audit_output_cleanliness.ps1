@@ -26,7 +26,7 @@ foreach ($name in $forbiddenNames) {
 
 $warnings = @()
 if ($forbidden.Count -gt 0) {
-    $warnings += ("Output root contains non-canonical NewBiz2 sibling artifact folders: {0}" -f (@($forbidden | ForEach-Object { $_.name }) -join ', '))
+    $warnings += ("Output root contains non-canonical NewBizIntel sibling artifact folders: {0}" -f (@($forbidden | ForEach-Object { $_.name }) -join ', '))
 }
 
 $ok = -not ($Strict -and $forbidden.Count -gt 0)

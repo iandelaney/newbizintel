@@ -1,6 +1,6 @@
 {
   "mode": "bootstrap-from-report-data",
-  "data_path": "C:\\codex projects\\newbiz2-skill-repo\\examples\\report-data.json",
+  "data_path": "C:\\codex projects\\newbizintel-skill-repo\\examples\\report-data.json",
   "brand_name": "Example Brand",
   "brand_website": "https://www.acme.com/",
   "competitors": [
@@ -199,7 +199,7 @@
     },
     "query_plan": {
       "ok": true,
-      "data": "C:\\codex projects\\newbiz2-skill-repo\\examples\\report-data.json",
+      "data": "C:\\codex projects\\newbizintel-skill-repo\\examples\\report-data.json",
       "domain": "acme.com",
       "provider": "Composio MCP",
       "backup_provider": "Jina AI",

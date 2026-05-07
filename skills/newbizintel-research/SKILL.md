@@ -1,9 +1,9 @@
 ---
 name: newbizintel-research
-description: Gather current-web, competitor, news, reputation, source, and SEO evidence for the modular newbiz2 workflow, using direct APIs where available. Use direct SEMrush API first, Composio-backed SEMrush as backup, Jina/direct web as current-web fallback, and clearly labelled Similarweb evidence when SEMrush is blocked or quota-limited.
+description: Gather current-web, competitor, news, reputation, source, and SEO evidence for the modular newbizintel workflow, using direct APIs where available. Use direct SEMrush API first, Composio-backed SEMrush as backup, Jina/direct web as current-web fallback, and clearly labelled Similarweb evidence when SEMrush is blocked or quota-limited.
 ---
 
-# NewBiz2 Research
+# NewBizIntel Research
 
 Own:
 
@@ -22,7 +22,7 @@ Do not render deliverables here.
 
 ## Current scaffold status
 
-The current `newbiz2` research module is wired in bootstrap mode.
+The current `newbizintel` research module is wired in bootstrap mode.
 
 That means it can:
 

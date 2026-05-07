@@ -1,9 +1,9 @@
 ---
 name: newbizintel-campaign-art
-description: Create or refresh Creative Campaign illustration prompts, manifests, placeholder assets, and final raster art for newbiz2. Use when campaign visuals need to be generated, replaced, art-directed, or validated as distinct from one another.
+description: Create or refresh Creative Campaign illustration prompts, manifests, placeholder assets, and final raster art for newbizintel. Use when campaign visuals need to be generated, replaced, art-directed, or validated as distinct from one another.
 ---
 
-# NewBiz2 Campaign Art
+# NewBizIntel Campaign Art
 
 Default to true raster artwork.
 

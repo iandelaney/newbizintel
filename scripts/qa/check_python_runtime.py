@@ -23,15 +23,13 @@ def parse_args():
 
 
 def runtime_marker(vendor_site: Path) -> dict:
-    for marker_name in (".newbizintel-runtime.json", ".newbiz2-runtime.json"):
-        marker_path = vendor_site / marker_name
-        if not marker_path.exists():
-            continue
-        try:
-            return json.loads(marker_path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-    return {}
+    marker_path = vendor_site / ".newbizintel-runtime.json"
+    if not marker_path.exists():
+        return {}
+    try:
+        return json.loads(marker_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
 
 def vendor_has_binary_extensions(vendor_site: Path) -> bool:

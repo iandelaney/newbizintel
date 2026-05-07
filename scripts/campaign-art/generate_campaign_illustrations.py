@@ -2,7 +2,7 @@
 """Generate prompt scaffolding and campaign-art contracts for creative campaigns.
 
 This script is intentionally layout-safe and deterministic enough for local bundling,
-but it is not the premium art-direction path for NewBiz2 delivery. The preferred
+but it is not the premium art-direction path for NewBizIntel delivery. The preferred
 workflow is:
 
 1. Use this script to establish the medium, prompt, filenames, and expected asset paths.
@@ -856,7 +856,7 @@ def build_premium_art_brief(
         "",
         "1. Generate one final raster image for each prompt below.",
         "2. Keep the output order aligned with the numbered prompts.",
-        "3. Import the resulting batch back into newbiz2 using the campaign-art module.",
+    "3. Import the resulting batch back into newbizintel using the campaign-art module.",
         "",
         "## Prompts",
         "",

@@ -1,6 +1,6 @@
 {
   "mode": "live-assisted",
-  "data_path": "C:/codex projects/newbiz2-skill-repo/examples/report-data.json",
+  "data_path": "C:/codex projects/newbizintel-skill-repo/examples/report-data.json",
   "brand_name": "Example Brand",
   "brand_website": "https://example.com/",
   "competitors": [
@@ -198,7 +198,7 @@
     "semrush": "quota-limited"
   },
   "notes": [
-    "Live-assisted research summary created in Codex from current-web tools and imported into newbiz2.",
+    "Live-assisted research summary created in Codex from current-web tools and imported into newbizintel.",
     "Use Composio, not Rube, for SEMrush access.",
     "Use Jina as the backup current-web layer when Tavily or SEMrush is blocked or quota-limited."
   ]

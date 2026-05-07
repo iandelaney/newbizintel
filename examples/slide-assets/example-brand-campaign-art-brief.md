@@ -15,7 +15,7 @@
 
 1. Generate one final raster image for each prompt below.
 2. Keep the output order aligned with the numbered prompts.
-3. Import the resulting batch back into newbiz2 using the campaign-art module.
+3. Import the resulting batch back into newbizintel using the campaign-art module.
 
 ## Prompts
 

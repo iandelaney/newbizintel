@@ -34,7 +34,7 @@ function printHelp() {
     [
       "Usage: node report_data_to_pptx.js --data <report-data.json> [--pptx <output.pptx>]",
       "",
-      "Creates a native PowerPoint deck from a newbiz2 report-data.json file.",
+  "Creates a native PowerPoint deck from a newbizintel report-data.json file.",
       "",
     ].join("\n")
   );

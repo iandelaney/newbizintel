@@ -1,9 +1,9 @@
 ---
 name: newbizintel-orchestrator
-description: Entry point for the modular newbiz2 workflow. Use when a user wants a full new-business intelligence run or a targeted refresh and the work should be routed across intake, research, structure, assets, campaign art, render, QA, and deploy modules rather than handled as one monolith.
+description: Entry point for the modular newbizintel workflow. Use when a user wants a full new-business intelligence run or a targeted refresh and the work should be routed across intake, research, structure, assets, campaign art, render, QA, and deploy modules rather than handled as one monolith.
 ---
 
-# NewBiz2 Orchestrator
+# NewBizIntel Orchestrator
 
 Route first. Do not default to running the entire workflow.
 

@@ -61,7 +61,7 @@ What works today:
 - `research-summary.json` can also be imported in `live-summary` mode after Codex gathers current-web evidence with Tavily or direct web methods, uses direct SEMrush API evidence first, falls back to Composio-backed SEMrush when needed, uses Jina as a current-web backup, and may use clearly labelled Similarweb evidence when SEMrush routes are blocked or quota-limited
 - `newbizintel-structure` now consumes `research-summary.json` when present and writes the live research layer back into `report-data.json` before validation
 - `run-state.json` is updated as modules complete
-- `scripts/newbizintel.py` is the default cross-platform runner for colleagues; the legacy `newbiz2` runner remains available as a compatibility shim, and the PowerShell runner remains available for Windows compatibility and legacy module wrappers
+- `scripts/newbizintel.py` is the default cross-platform runner for colleagues, and the PowerShell runner remains available for Windows compatibility and legacy module wrappers
 - HTML, portable HTML, native PPTX, and deploy handoff outputs are produced from the copied stable `newbizintel` machinery plus a PptxGenJS deck path aligned to the `slides` skill
 - the full modular chain is proven on the real Univers brand folder through `research -> structure -> assets -> campaign-art -> render -> qa -> deploy-handoff`
 - premium Creative Campaign art now defaults to prompt-driven image-generated raster artwork, with local scaffold placeholders allowed only when a report explicitly opts into scaffold mode

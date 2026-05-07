@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CODEX_ROOT="${1:-${CODEX_HOME:-${HOME:-$PWD}/.codex}}"
 COMPANION_ROOT="$REPO_ROOT/companion-skills"
 CONFIG_EXAMPLE="$REPO_ROOT/codex-config.example.toml"
-PROBE_DIR="$CODEX_ROOT/.newbiz2-probe"
+PROBE_DIR="$CODEX_ROOT/.newbizintel-probe"
 PROBE_FILE="$PROBE_DIR/write-test.tmp"
 
 check_json_escape() {
