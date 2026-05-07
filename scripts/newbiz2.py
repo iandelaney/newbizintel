@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import copy
 import hashlib
 import html
 import json
@@ -26,16 +25,68 @@ import urllib.parse
 import urllib.request
 import zipfile
 from collections import Counter
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from python_modules.common import add_event
+from python_modules.asset_helpers import asset_quality
+from python_modules.asset_helpers import create_initial_mark_from_name
+from python_modules.asset_helpers import patch_assets
+from python_modules.asset_helpers import quality_ok
+from python_modules.asset_helpers import relative_to_brand
+from python_modules.asset_helpers import square_quality_ok
+from python_modules.asset_helpers import visible_content_bbox
+from python_modules.asset_helpers import visible_logo_occupancy_ok
+from python_modules.common import brand_folder_from_data
+from python_modules.common import data_path_from_args
+from python_modules.common import is_repo_example_path
+from python_modules.intake import module_intake as intake_module_entry
+from python_modules.assets import module_assets as assets_module_entry
+from python_modules.campaign_art import module_campaign_art as campaign_art_module_entry
+from python_modules.deploy import module_deploy as deploy_module_entry
+from python_modules.deploy import module_vercel_stage as vercel_stage_module_entry
+from python_modules.common import load_state
+from python_modules.common import normalize_url
+from python_modules.common import output_root
+from python_modules.common import read_json
+from python_modules.common import reset_tasks_from
+from python_modules.research import module_research as research_module_entry
+from python_modules.qa import module_qa as qa_module_entry
+from python_modules.common import save_state
+from python_modules.common import set_gate
+from python_modules.common import set_status
+from python_modules.common import sha256
+from python_modules.common import slugify
+from python_modules.structure import module_structure as structure_module_entry
+from python_modules.common import utc_now
+from python_modules.common import write_json
+from python_modules.render import module_render as render_module_entry
+from python_modules.presentation_helpers import assert_deployable_report_html as assert_deployable_report_html_helper
+from python_modules.presentation_helpers import audit_deploy_stage as audit_deploy_stage_helper
+from python_modules.presentation_helpers import audit_presentation_html as audit_presentation_html_helper
+from python_modules.presentation_helpers import audit_rendered_html_completeness as audit_rendered_html_completeness_helper
+from python_modules.presentation_helpers import current_renderer_fingerprint as current_renderer_fingerprint_helper
+from python_modules.presentation_helpers import extract_renderer_fingerprint as extract_renderer_fingerprint_helper
+from python_modules.presentation_helpers import find_powershell as find_powershell_helper
+from python_modules.presentation_helpers import inject_task_list_into_html as inject_task_list_into_html_helper
+from python_modules.presentation_helpers import make_self_contained as make_self_contained_helper
+from python_modules.presentation_helpers import render_outputs_current as render_outputs_current_helper
+from python_modules.presentation_helpers import render_rich_html_with_powershell as render_rich_html_with_powershell_helper
+from python_modules.presentation_helpers import render_rich_html_with_python as render_rich_html_with_python_helper
+from python_modules.presentation_helpers import task_list_html as task_list_html_helper
+from python_modules.presentation_builders import build_minimal_pptx as build_minimal_pptx_helper
+from python_modules.presentation_builders import asset_src as asset_src_helper
+from python_modules.presentation_builders import card_html as card_html_helper
+from python_modules.presentation_builders import list_html as list_html_helper
+from python_modules.presentation_builders import pptx_safe_data_copy as pptx_safe_data_copy_helper
+from python_modules.presentation_builders import render_html as render_html_helper
+from python_modules.presentation_builders import source_list_html as source_list_html_helper
 
 
 SCRIPT_ROOT = Path(__file__).resolve().parent
 SKILL_ROOT = SCRIPT_ROOT.parent
 TEMPLATE_PATH = SKILL_ROOT / "templates" / "report-data.template.json"
 TEMPLATE_ASSETS = SKILL_ROOT / "templates" / "slide-assets"
-RUN_STATE_CONTRACT = SKILL_ROOT / "references" / "run-state.contract.json"
 TAVILY_REPUTATION_SCHEMA = SKILL_ROOT / "references" / "tavily-reputation-research.schema.json"
 SEMRUSH_COLLECTOR = SCRIPT_ROOT / "research" / "collect_semrush_api.py"
 REPUTATION_SOURCE_TYPES = {
@@ -130,398 +181,22 @@ FOOD_LEAKAGE_TERMS = (
     "choose meals",
 )
 
-DEFAULT_MODEL_ROUTING = {
-    "default": "gpt-5.5",
-    "orchestration": "gpt-5.5",
-    "synthesis": "gpt-5.5",
-    "final_report_writing": "gpt-5.5",
-    "qa_sensitive_judgement": "gpt-5.5",
-    "low_risk_tasks": "gpt-5.4-mini",
-    "deterministic_helpers": "gpt-5.4-mini",
-}
-
 RICH_RENDER_SCRIPT = SCRIPT_ROOT / "render" / "render_report.py"
 RICH_RENDER_TEMPLATE = SKILL_ROOT / "templates" / "report-template.html"
 RENDERER_FINGERPRINT_PREFIX = "NEWBIZINTEL_RENDERER_FINGERPRINT:"
 
-
-TASK_DEFINITIONS = [
-    {
-        "id": 1,
-        "key": "intake",
-        "title": "Intake and workspace",
-        "gates": ["gate_1_intake"],
-        "legacy_gates": [],
-        "trust_test": "Brand folder, report-data.json, and run-state.json exist.",
-    },
-    {
-        "id": 2,
-        "key": "competitor_set",
-        "title": "Competitor set",
-        "gates": ["gate_2_competitor_set"],
-        "legacy_gates": ["gate_2_competitors"],
-        "trust_test": "Competitor set is present in the research summary or report data.",
-    },
-    {
-        "id": 3,
-        "key": "current_research",
-        "title": "Current research and source map",
-        "gates": ["gate_3_current_research"],
-        "legacy_gates": ["gate_3_research"],
-        "trust_test": "Research summary exists with news, reputation/source status, and locked sets.",
-    },
-    {
-        "id": 4,
-        "key": "search_seo_evidence",
-        "title": "Search and SEO evidence",
-        "gates": ["gate_4_search_seo_evidence"],
-        "legacy_gates": ["gate_4_semrush_seo_evidence"],
-        "trust_test": "At least two SEO evidence points are available, with SEMrush status explicitly recorded as passed, partial, quota-limited, or blocked.",
-    },
-    {
-        "id": 5,
-        "key": "report_structure",
-        "title": "Report structure and data contract",
-        "gates": ["gate_5_report_structure"],
-        "legacy_gates": ["gate_4_report_data"],
-        "trust_test": "report-data.json passes schema validation, freshness is updated, and the Company Snapshot includes finance, leadership/profile links, founders, ownership/funding, and source-map evidence.",
-    },
-    {
-        "id": 6,
-        "key": "logos_and_assets",
-        "title": "Brand, competitor, and source logos",
-        "gates": ["gate_6_logos_and_assets"],
-        "legacy_gates": ["gate_5_assets", "gate_5a_source_badges", "gate_5b_required_logos"],
-        "trust_test": "Brand, competitor, and news/source logos resolve without missing or generic HTML fallbacks; the primary brand logo must come from a first-party or verified colour asset, not a monochrome Simple Icons proxy; competitor badges prefer square marks/icons, with wide or unavailable candidates converted to checked square initial-letter marks.",
-    },
-    {
-        "id": 7,
-        "key": "campaign_ideas_and_art",
-        "title": "Creative campaign ideas and artwork",
-        "gates": ["gate_7_campaign_ideas_and_art"],
-        "legacy_gates": ["gate_5b_campaign_art"],
-        "trust_test": "Campaign ideas have a developed driving idea, descriptive implementation story, and at least one vivid activation expression explaining what the brand creates, what it looks like, concrete example moments or user paths, why that shape is right, and the intended result, plus final raster artwork.",
-    },
-    {
-        "id": 8,
-        "key": "render_outputs",
-        "title": "HTML, portable HTML, and PPTX render",
-        "gates": ["gate_8_render_outputs"],
-        "legacy_gates": ["gate_6_render_outputs"],
-        "trust_test": "Rendered HTML, portable HTML, and PPTX exist and are current.",
-    },
-    {
-        "id": 9,
-        "key": "quality_review",
-        "title": "Quality, trust, and presentation QA",
-        "gates": ["gate_9_quality_review"],
-        "legacy_gates": ["gate_6a_editorial_quality"],
-        "trust_test": "Editorial, presentation, logo, campaign-art, and PPTX audits pass.",
-    },
-    {
-        "id": 10,
-        "key": "delivery_handoff",
-        "title": "Delivery handoff",
-        "gates": ["gate_10_delivery_handoff"],
-        "legacy_gates": ["gate_7_delivery"],
-        "trust_test": "Deploy handoff folder is refreshed from the latest report outputs and the user is asked whether they want a random-url Vercel deployment.",
-    },
-]
-
-
-SIMPLEICON_OVERRIDES = {
-    "advanced micro devices": "amd",
-    "amd": "amd",
-    "amd newsroom": "amd",
-    "nvidia": "nvidia",
-    "intel": "intel",
-    "arm": "arm",
-    "qualcomm": "qualcomm",
-    "broadcom": "broadcom",
-    "ocado": "ocado",
-    "univers": "universalrobots",
-    "microsoft": "microsoft",
-    "amazon": "amazon",
-    "google": "google",
-    "meta": "meta",
-    "openai": "openai",
-}
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def slugify(value: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", (value or "").lower()).strip("-")
-    if not slug:
-        raise SystemExit(f"Cannot derive a usable slug from {value!r}.")
-    return slug
-
-
-def normalize_url(value: str) -> str:
-    value = (value or "").strip()
-    if not value:
-        return ""
-    if not re.match(r"^https?://", value, re.I):
-        value = "https://" + value
-    parsed = urllib.parse.urlparse(value)
-    if not parsed.netloc:
-        raise SystemExit(f"Website {value!r} is not a valid URL or domain.")
-    return urllib.parse.urlunparse(parsed)
-
-
-def read_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def write_json(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest().upper()
-
-
 def current_renderer_fingerprint() -> str:
-    digest = hashlib.sha256()
-    for label, path in (("render_report.py", RICH_RENDER_SCRIPT), ("report-template.html", RICH_RENDER_TEMPLATE)):
-        digest.update(label.encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(path.read_bytes())
-        digest.update(b"\0")
-    return digest.hexdigest()[:16]
+    return current_renderer_fingerprint_helper(
+        rich_render_script=RICH_RENDER_SCRIPT,
+        rich_render_template=RICH_RENDER_TEMPLATE,
+    )
 
 
 def extract_renderer_fingerprint(rendered_html: str) -> str:
-    match = re.search(
-        rf"{re.escape(RENDERER_FINGERPRINT_PREFIX)}\s+([0-9a-fA-F]{{16,64}})",
+    return extract_renderer_fingerprint_helper(
         rendered_html,
+        renderer_fingerprint_prefix=RENDERER_FINGERPRINT_PREFIX,
     )
-    return (match.group(1) if match else "").lower()
-
-
-def output_root(explicit_root: str | None) -> Path:
-    if explicit_root:
-        return Path(explicit_root).expanduser().resolve()
-    env_root = os.environ.get("NEWBIZINTEL_OUTPUT_ROOT")
-    if env_root:
-        return Path(env_root).expanduser().resolve()
-    return (Path.cwd() / "output").resolve()
-
-
-def brand_folder_from_data(data_path: Path) -> Path:
-    return data_path.resolve().parent
-
-
-def data_path_from_args(args: argparse.Namespace) -> Path:
-    if getattr(args, "data_path", None):
-        return Path(args.data_path).expanduser().resolve()
-    if not getattr(args, "brand_name", None):
-        raise SystemExit("Provide --data-path or --brand-name.")
-    root = output_root(getattr(args, "brand_folder", None))
-    return root / slugify(args.brand_name) / "report-data.json"
-
-
-def default_state(brand_folder: Path) -> dict[str, Any]:
-    if RUN_STATE_CONTRACT.exists():
-        state = read_json(RUN_STATE_CONTRACT)
-    else:
-        state = {}
-    state["brand_folder"] = str(brand_folder)
-    state.setdefault("execution_model", "hybrid")
-    state.setdefault("model_routing", copy.deepcopy(DEFAULT_MODEL_ROUTING))
-    state.setdefault("hybrid_execution", {"required_fanouts": [], "required_reducers": [], "events": []})
-    state.setdefault("status", {})
-    for name in ("intake", "research", "structure", "assets", "campaign_art", "render", "qa", "deploy"):
-        state["status"].setdefault(name, "pending")
-    state.setdefault("gates", {})
-    state.setdefault("freshness", {"research_summary_hash": "", "report_data_hash": "", "stale_reason": ""})
-    state.setdefault("locked_sets", {"competitors": [], "influential_news": []})
-    state.setdefault("notes", [])
-    ensure_task_list(state)
-    return state
-
-
-def load_state(brand_folder: Path) -> dict[str, Any]:
-    path = brand_folder / "run-state.json"
-    state = read_json(path) if path.exists() else default_state(brand_folder)
-    state["brand_folder"] = str(brand_folder)
-    ensure_task_list(state)
-    return state
-
-
-def gate_status_from_aliases(state: dict[str, Any], names: list[str]) -> str:
-    statuses = [str(state.get("gates", {}).get(name)) for name in names if state.get("gates", {}).get(name)]
-    if not statuses:
-        return "pending"
-    if "failed" in statuses:
-        return "failed"
-    if "blocked" in statuses:
-        return "blocked"
-    if "quota-limited" in statuses:
-        return "quota-limited"
-    if "partial" in statuses:
-        return "partial"
-    if "in_progress" in statuses:
-        return "in_progress"
-    if all(status == "passed" for status in statuses):
-        return "passed"
-    return "pending"
-
-
-def sync_primary_gates(state: dict[str, Any]) -> None:
-    gates = state.setdefault("gates", {})
-    precedence = {
-        "failed": 6,
-        "blocked": 5,
-        "in_progress": 4,
-        "partial": 3,
-        "quota-limited": 3,
-        "passed": 2,
-        "pending": 1,
-    }
-    for definition in TASK_DEFINITIONS:
-        primary = definition["gates"][0]
-        aliases = definition.get("legacy_gates") or []
-        names = [primary, *aliases]
-        statuses = [str(gates.get(name) or "pending") for name in names if name in gates]
-        if not statuses:
-            gates[primary] = "pending"
-            continue
-        gates[primary] = max(statuses, key=lambda status: precedence.get(status, 0))
-
-
-def ensure_task_list(state: dict[str, Any]) -> None:
-    sync_primary_gates(state)
-    existing = {task.get("key"): task for task in state.get("task_list", []) if isinstance(task, dict)}
-    tasks = []
-    for definition in TASK_DEFINITIONS:
-        old = existing.get(definition["key"], {})
-        task = copy.deepcopy(definition)
-        task["status"] = "pending"
-        task["evidence"] = []
-        task["updated_at"] = old.get("updated_at")
-        tasks.append(task)
-    state["task_list"] = tasks
-
-
-def sync_task_status_from_gates(state: dict[str, Any]) -> None:
-    sync_primary_gates(state)
-    gates = state.setdefault("gates", {})
-    for task in state.get("task_list", []):
-        statuses = [gates.get(gate, "pending") for gate in task.get("gates", [])]
-        if not statuses:
-            continue
-        if "failed" in statuses:
-            next_status = "failed"
-        elif "blocked" in statuses:
-            next_status = "blocked"
-        elif "quota-limited" in statuses:
-            next_status = "quota-limited"
-        elif "partial" in statuses:
-            next_status = "partial"
-        elif "in_progress" in statuses:
-            next_status = "in_progress"
-        elif all(status == "passed" for status in statuses):
-            next_status = "passed"
-        else:
-            next_status = "pending"
-        evidence = [f"{gate}:{gates.get(gate, 'missing')}" for gate in task.get("gates", [])]
-        for gate in task.get("legacy_gates", []):
-            if gate in gates:
-                evidence.append(f"{gate}:{gates[gate]}")
-        if task.get("status") != next_status or task.get("evidence") != evidence:
-            task["status"] = next_status
-            task["evidence"] = evidence if next_status in {"in_progress", "passed", "partial", "quota-limited", "blocked", "failed"} else []
-            task["updated_at"] = utc_now()
-
-
-def save_state(brand_folder: Path, state: dict[str, Any]) -> None:
-    ensure_task_list(state)
-    sync_task_status_from_gates(state)
-    state["updated_at"] = utc_now()
-    write_json(brand_folder / "run-state.json", state)
-    tasks = sorted(state["task_list"], key=lambda item: item["id"])
-    payload = {
-        "ok": True,
-        "total": len(tasks),
-        "passed": sum(1 for task in tasks if task["status"] == "passed"),
-        "updated_at": state["updated_at"],
-        "gates": state.get("gates", {}),
-        "tasks": tasks,
-    }
-    write_json(brand_folder / "workflow-task-list.json", payload)
-    lines = [
-        "# NewBizIntel Workflow Task List",
-        "",
-        f"Passed: {payload['passed']}/{payload['total']}",
-        f"Updated: {payload['updated_at']}",
-        "",
-        "| # | Step | Status | Primary gate | Trust test |",
-        "|---:|---|---|---|---|",
-    ]
-    for task in tasks:
-        gate_text = ", ".join(task["gates"])
-        trust = str(task["trust_test"]).replace("|", "\\|")
-        lines.append(f"| {task['id']} | {task['title']} | {task['status']} | {gate_text} | {trust} |")
-    (brand_folder / "workflow-task-list.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def primary_gate_for(gate: str) -> str | None:
-    for definition in TASK_DEFINITIONS:
-        primary = definition["gates"][0]
-        if gate == primary or gate in definition.get("legacy_gates", []):
-            return primary
-    return None
-
-
-def add_event(state: dict[str, Any], event_type: str, key: str, jobs: list[str] | None = None, outputs: list[str] | None = None, notes: list[str] | None = None) -> None:
-    hybrid = state.setdefault("hybrid_execution", {})
-    hybrid.setdefault("events", []).append(
-        {
-            "timestamp": utc_now(),
-            "type": event_type,
-            "key": key,
-            "jobs": jobs or [],
-            "outputs": outputs or [],
-            "notes": notes or [],
-        }
-    )
-
-
-def set_gate(state: dict[str, Any], gate: str, status: str) -> None:
-    gates = state.setdefault("gates", {})
-    primary = primary_gate_for(gate)
-    if primary:
-        for definition in TASK_DEFINITIONS:
-            if definition["gates"][0] == primary:
-                for related_gate in [*definition.get("gates", []), *definition.get("legacy_gates", [])]:
-                    gates[related_gate] = status
-                break
-    else:
-        gates[gate] = status
-    sync_primary_gates(state)
-
-
-def set_status(state: dict[str, Any], module: str, status: str) -> None:
-    state.setdefault("status", {})[module] = status
-
-
-def reset_tasks_from(state: dict[str, Any], start_id: int) -> None:
-    gates = state.setdefault("gates", {})
-    for definition in TASK_DEFINITIONS:
-        if int(definition["id"]) < start_id:
-            continue
-        for gate in [*definition.get("gates", []), *definition.get("legacy_gates", [])]:
-            gates[gate] = "pending"
-    sync_primary_gates(state)
-
 
 def has_value(value: Any) -> bool:
     if value is None:
@@ -557,16 +232,6 @@ def as_int(value: Any) -> int | None:
 
 def normalised_source(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip()).lower()
-
-
-def is_repo_example_path(path: Path | None) -> bool:
-    if path is None:
-        return False
-    try:
-        path.resolve().relative_to((SKILL_ROOT / "examples").resolve())
-        return True
-    except ValueError:
-        return False
 
 
 def placeholder_marker_matches(value: str, marker: str) -> bool:
@@ -706,100 +371,10 @@ def is_cross_client_safe(payload: Any) -> bool:
 
 
 def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
-    errors: list[str] = []
-    sanitized_html = re.sub(
-        r"data:[^\"']+;base64,[A-Za-z0-9+/=]+",
-        "data:image/embedded",
+    return audit_rendered_html_completeness_helper(
         html_text,
-        flags=re.I,
+        placeholder_markers=PLACEHOLDER_MARKERS,
     )
-    patterns = {
-        "empty unordered list": r"<ul(?:\s[^>]*)?>\s*</ul>",
-        "empty ordered list": r"<ol(?:\s[^>]*)?>\s*</ol>",
-        "empty table cell": r"<t[dh](?:\s[^>]*)?>\s*</t[dh]>",
-        "empty article": r"<article(?:\s[^>]*)?>\s*</article>",
-        "empty card": r"<div class=\"card\">\s*(?:<strong>\s*</strong>)?\s*</div>",
-        "empty table body": r"<tbody(?:\s[^>]*)?>\s*</tbody>",
-    }
-    for label, pattern in patterns.items():
-        count = len(re.findall(pattern, sanitized_html, flags=re.I | re.S))
-        if count:
-            errors.append(f"Rendered HTML contains {count} {label} element(s).")
-    for marker, reason in PLACEHOLDER_MARKERS:
-        if marker.lower() == "replace with":
-            count = len(re.findall(re.escape(marker), sanitized_html, flags=re.I))
-        else:
-            pattern = re.compile(rf"(?<![A-Za-z0-9]){re.escape(marker)}(?![A-Za-z0-9])", re.I)
-            count = len(pattern.findall(sanitized_html))
-        if count:
-            errors.append(f"Rendered HTML contains {count} {reason} marker(s): {marker}.")
-    leaked_object_patterns = {
-        "PowerShell object literal": r"@\{[^}]+}",
-        "PowerShell type name": r"System\.Management\.Automation\.(?:PSCustomObject|PSObject)",
-        "JavaScript object placeholder": r"\[object Object\]",
-        "Python dict/list literal": r"(?:\[\s*)?\{(?:&#x27;|&quot;|'|\")\w+(?:&#x27;|&quot;|'|\")\s*:",
-    }
-    for label, pattern in leaked_object_patterns.items():
-        count = len(re.findall(pattern, sanitized_html, flags=re.I | re.S))
-        if count:
-            errors.append(
-                f"Rendered HTML contains {count} leaked {label} string(s), usually caused by rendering structured data as raw text."
-            )
-    malformed_patterns = {
-        "idea activation example list missing list-item close before next item": r'<div class="idea-activation-plan__examples">.*?</div>\s*<li\b',
-        "idea activation example list missing list-item close before list end": r'<div class="idea-activation-plan__examples">.*?</div>\s*</ul>',
-    }
-    for label, pattern in malformed_patterns.items():
-        count = len(re.findall(pattern, sanitized_html, flags=re.I | re.S))
-        if count:
-            errors.append(f"Rendered HTML contains {count} malformed {label} pattern(s).")
-    heading_pattern = re.compile(
-        r'<h(?P<level>[23])[^>]*class="[^"]*(?:category-heading|section-heading)[^"]*"[^>]*>.*?<span>(?P<title>[^<]+)</span></h[23]>(?P<body>.*?)(?=<h[23][^>]*class="[^"]*(?:category-heading|section-heading)|<div class="section-return"|</section>|</main>)',
-        re.I | re.S,
-    )
-    substantive_pattern = re.compile(
-        r'<(?:p|ul|ol|table|div|article)[^>]*>(?!\s*</(?:p|ul|ol|table|div|article)>).*?[A-Za-z0-9]',
-        re.I | re.S,
-    )
-    required_heading_word_counts = {
-        "Why Each Competitor Matters": 25,
-        "Messaging Patterns Across the Market": 18,
-        "Content Patterns Across the Market": 18,
-        "Areas Where the Brand Is Behind, Matched, or Ahead": 18,
-    }
-    for match in heading_pattern.finditer(html_text):
-        level = match.group("level")
-        title = re.sub(r"\s+", " ", match.group("title")).strip()
-        body = match.group("body") or ""
-        body_without_whitespace = re.sub(r"\s+", "", body)
-        if level == "2":
-            parent_tail = html_text[match.end():]
-            parent_end_candidates = [
-                pos for pos in (
-                    parent_tail.lower().find('<h2'),
-                    parent_tail.lower().find('<div class="section-return"'),
-                    parent_tail.lower().find('</main>'),
-                )
-                if pos >= 0
-            ]
-            parent_end = min(parent_end_candidates) if parent_end_candidates else len(parent_tail)
-            parent_body = parent_tail[:parent_end]
-            if substantive_pattern.search(parent_body):
-                continue
-        if not body_without_whitespace or not substantive_pattern.search(body):
-            errors.append(f"Rendered heading has no substantive body content: {title}.")
-            continue
-        min_words = required_heading_word_counts.get(title)
-        if min_words:
-            visible_text = re.sub(r"<[^>]+>", " ", body)
-            visible_text = html.unescape(re.sub(r"\s+", " ", visible_text)).strip()
-            word_count = len(re.findall(r"\b[\w'-]+\b", visible_text))
-            if word_count < min_words:
-                errors.append(
-                    f"Rendered heading has too little substantive content: {title} "
-                    f"({word_count} words, expected at least {min_words})."
-                )
-    return {"ok": not errors, "errors": errors}
 
 
 def calculate_reputation_influence_score(subscores: dict[str, Any]) -> int | None:
@@ -3439,110 +3014,26 @@ def validate_research_summary(summary: dict[str, Any], *, allow_examples: bool =
 
 
 def module_research(args: argparse.Namespace) -> dict[str, Any]:
-    data_path = data_path_from_args(args)
-    brand_folder = brand_folder_from_data(data_path)
-    state = load_state(brand_folder)
-    set_status(state, "research", "in_progress")
-    set_gate(state, "gate_2_competitors", "in_progress")
-    set_gate(state, "gate_3_research", "in_progress")
-    set_gate(state, "gate_3a_semrush", "in_progress")
-    set_gate(state, "gate_4_search_seo_evidence", "in_progress")
-    reset_tasks_from(state, 5)
-    for module in ("structure", "assets", "campaign_art", "render", "qa", "deploy"):
-        set_status(state, module, "pending")
-    add_event(
-        state,
-        "fanout",
-        "research.evidence_collection",
-        jobs=[
-            f"research_mode:{args.research_mode}",
-            "python_runner:newbizintel.py",
-            f"search_workpacks:{len(args.search_workpacks or [])}",
-            f"composio_semrush_available:{bool(args.composio_semrush_available)}",
-            f"jina_fallback_available:{bool(args.jina_fallback_available)}",
-        ],
-        notes=["Python runner uses isolated research-summary.json before structure updates report-data.json."],
+    return research_module_entry(
+        args,
+        data_path_from_args=data_path_from_args,
+        brand_folder_from_data=brand_folder_from_data,
+        reset_tasks_from=reset_tasks_from,
+        collect_live_search_workpacks=collect_live_search_workpacks,
+        reduce_search_workpacks=reduce_search_workpacks,
+        build_summary_from_data=build_summary_from_data,
+        apply_tavily_reputation_research=apply_tavily_reputation_research,
+        apply_semrush_direct_api=lambda data_path, brand_folder, summary: apply_semrush_direct_api(
+            data_path,
+            brand_folder,
+            summary,
+            database=args.semrush_database,
+            composio_backup_available=bool(args.composio_semrush_available),
+        ),
+        validate_research_summary=lambda summary, allow_examples: validate_research_summary(summary, allow_examples=allow_examples),
+        is_repo_example_path=is_repo_example_path,
+        sha256=sha256,
     )
-    save_state(brand_folder, state)
-
-    try:
-        if args.research_mode == "live-summary":
-            if args.research_summary_path:
-                summary = read_json(Path(args.research_summary_path).expanduser().resolve())
-            else:
-                workpacks = collect_live_search_workpacks(data_path, brand_folder)
-                add_event(state, "fanout", "research.live_search_workpacks", jobs=[str(path) for path in workpacks])
-                summary = reduce_search_workpacks(data_path, brand_folder, workpacks)
-                add_event(state, "reducer", "research.live_search_summary_draft", outputs=[str(brand_folder / "research-summary.draft.json")])
-                save_state(brand_folder, state)
-        elif args.research_mode == "workpacks":
-            workpacks = [Path(path).expanduser().resolve() for path in (args.search_workpacks or [])]
-            summary = reduce_search_workpacks(data_path, brand_folder, workpacks)
-        elif args.research_summary_path:
-            summary = read_json(Path(args.research_summary_path).expanduser().resolve())
-        else:
-            summary = build_summary_from_data(data_path)
-        if args.research_mode == "live-summary" and getattr(args, "tavily_reputation_research", True):
-            summary["required_tavily_reputation_research"] = True
-            summary, reputation_research_path = apply_tavily_reputation_research(data_path, brand_folder, summary)
-            if reputation_research_path:
-                add_event(state, "fanout", "research.tavily_reputation_research", jobs=[str(reputation_research_path)])
-                add_event(state, "reducer", "research.tavily_reputation_reducer", outputs=[str(reputation_research_path)])
-                save_state(brand_folder, state)
-        if args.research_mode == "live-summary":
-            summary, semrush_path = apply_semrush_direct_api(
-                data_path,
-                brand_folder,
-                summary,
-                database=args.semrush_database,
-                composio_backup_available=bool(args.composio_semrush_available),
-            )
-            if semrush_path:
-                add_event(state, "fanout", "research.semrush_direct_api", jobs=[str(semrush_path)])
-                add_event(state, "reducer", "research.search_seo_evidence_reducer", outputs=[str(semrush_path)])
-                save_state(brand_folder, state)
-    except SystemExit:
-        set_status(state, "research", "failed")
-        set_gate(state, "gate_2_competitors", "failed")
-        set_gate(state, "gate_3_research", "failed")
-        set_gate(state, "gate_3a_semrush", "failed")
-        set_gate(state, "gate_4_search_seo_evidence", "failed")
-        save_state(brand_folder, state)
-        raise
-    except Exception as exc:
-        set_status(state, "research", "failed")
-        set_gate(state, "gate_2_competitors", "failed")
-        set_gate(state, "gate_3_research", "failed")
-        set_gate(state, "gate_3a_semrush", "failed")
-        set_gate(state, "gate_4_search_seo_evidence", "failed")
-        save_state(brand_folder, state)
-        raise SystemExit(f"Research acquisition/reduction failed: {exc}") from exc
-    validation = validate_research_summary(summary, allow_examples=is_repo_example_path(data_path))
-    if not validation["ok"]:
-        set_status(state, "research", "failed")
-        set_gate(state, "gate_2_competitors", "failed")
-        set_gate(state, "gate_3_research", "failed")
-        set_gate(state, "gate_3a_semrush", "failed")
-        set_gate(state, "gate_4_search_seo_evidence", "failed")
-        save_state(brand_folder, state)
-        raise SystemExit("Research summary validation failed: " + "; ".join(validation["errors"]))
-
-    summary_path = brand_folder / "research-summary.json"
-    write_json(summary_path, summary)
-    add_event(state, "reducer", "research.summary_reducer", outputs=[str(summary_path)])
-    state.setdefault("freshness", {})["research_summary_hash"] = sha256(summary_path)
-    state.setdefault("locked_sets", {})["competitors"] = summary.get("locked_sets", {}).get("competitors", [])
-    state.setdefault("locked_sets", {})["influential_news"] = summary.get("locked_sets", {}).get("influential_news", [])
-    status = summary.get("status", {})
-    research_statuses = [status.get(key, "pending") for key in ("competitor_discovery", "recent_news", "reputation_public_web", "source_gathering")]
-    research_status = "failed" if "failed" in research_statuses else "blocked" if "blocked" in research_statuses else "pending" if "pending" in research_statuses else "passed"
-    set_status(state, "research", research_status)
-    set_gate(state, "gate_2_competitors", status.get("competitor_discovery", "pending"))
-    set_gate(state, "gate_3_research", research_status)
-    set_gate(state, "gate_3a_semrush", status.get("semrush", "quota-limited"))
-    set_gate(state, "gate_4_search_seo_evidence", status.get("search_seo", "pending"))
-    save_state(brand_folder, state)
-    return {"module": "research", "data": str(data_path), "brand_folder": str(brand_folder), "research_summary": str(summary_path), "validation": validation}
 
 
 def merge_research_into_data(data: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any]:
@@ -3589,746 +3080,6 @@ def module_structure(args: argparse.Namespace) -> dict[str, Any]:
     set_gate(state, "gate_4_report_data", "passed")
     save_state(brand_folder, state)
     return {"module": "structure", "data": str(data_path), "brand_folder": str(brand_folder), "validation": validation}
-
-
-def relative_to_brand(path: Path, brand_folder: Path) -> str:
-    try:
-        return path.resolve().relative_to(brand_folder.resolve()).as_posix()
-    except ValueError:
-        return str(path.resolve())
-
-
-def asset_quality(path: Path) -> dict[str, Any]:
-    result = {"exists": path.exists(), "valid_image": False, "width": 0, "height": 0, "bytes": 0, "format": path.suffix.lower().lstrip("."), "reason": ""}
-    if not path.exists():
-        result["reason"] = "missing"
-        return result
-    result["bytes"] = path.stat().st_size
-    if result["bytes"] < 128:
-        result["reason"] = "too few bytes"
-        return result
-    if path.suffix.lower() == ".svg":
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        if "<svg" not in text.lower():
-            result["reason"] = "invalid svg"
-            return result
-        result["valid_image"] = True
-        result["width"] = 256
-        result["height"] = 256
-        return result
-    try:
-        from PIL import Image
-
-        with Image.open(path) as image:
-            result["width"], result["height"] = image.size
-            result["valid_image"] = result["width"] > 0 and result["height"] > 0
-    except Exception as exc:
-        result["reason"] = f"unreadable image: {exc}"
-    return result
-
-
-def quality_ok(path: Path, minimum: int = 64) -> bool:
-    quality = asset_quality(path)
-    return bool(quality["exists"] and quality["valid_image"] and quality["width"] >= minimum and quality["height"] >= minimum)
-
-
-def square_quality_ok(path: Path, minimum: int = 96) -> bool:
-    quality = asset_quality(path)
-    if not bool(quality["exists"] and quality["valid_image"] and quality["width"] >= minimum and quality["height"] >= minimum):
-        return False
-    if not quality["height"]:
-        return False
-    aspect_ratio = quality["width"] / quality["height"]
-    return 0.75 <= aspect_ratio <= 1.33
-
-
-def visible_content_bbox(path: Path, threshold: int = 18) -> tuple[int, int, int, int] | None:
-    try:
-        from PIL import Image
-
-        with Image.open(path) as image:
-            image = image.convert("RGBA")
-            width, height = image.size
-            corners = [
-                image.getpixel((0, 0)),
-                image.getpixel((width - 1, 0)),
-                image.getpixel((0, height - 1)),
-                image.getpixel((width - 1, height - 1)),
-            ]
-            background = tuple(sorted(corners)[len(corners) // 2])
-            left, top, right, bottom = width, height, -1, -1
-            for y in range(height):
-                for x in range(width):
-                    pixel = image.getpixel((x, y))
-                    alpha_delta = abs(pixel[3] - background[3])
-                    colour_delta = max(abs(pixel[i] - background[i]) for i in range(3))
-                    if pixel[3] > 20 and (alpha_delta > threshold or colour_delta > threshold):
-                        left = min(left, x)
-                        top = min(top, y)
-                        right = max(right, x + 1)
-                        bottom = max(bottom, y + 1)
-            if right < left or bottom < top:
-                alpha_bbox = image.getchannel("A").getbbox()
-                return alpha_bbox
-            return (left, top, right, bottom)
-    except Exception:
-        return None
-
-
-def visible_logo_occupancy_ok(path: Path, minimum_span: float = 0.38) -> bool:
-    quality = asset_quality(path)
-    if not quality["exists"] or not quality["valid_image"] or not quality["width"] or not quality["height"]:
-        return False
-    bbox = visible_content_bbox(path)
-    if not bbox:
-        return False
-    content_width = bbox[2] - bbox[0]
-    content_height = bbox[3] - bbox[1]
-    return max(content_width / quality["width"], content_height / quality["height"]) >= minimum_span
-
-
-def has_distinct_square_background(path: Path) -> bool:
-    quality = asset_quality(path)
-    if not quality["exists"] or not quality["valid_image"] or not quality["width"] or not quality["height"]:
-        return False
-    if not square_quality_ok(path):
-        return False
-    try:
-        from PIL import Image
-
-        with Image.open(path) as image:
-            image = image.convert("RGBA")
-            width, height = image.size
-            sample_points = [
-                (0, 0),
-                (width - 1, 0),
-                (0, height - 1),
-                (width - 1, height - 1),
-                (width // 2, height // 2),
-            ]
-            filled = 0
-            for point in sample_points:
-                red, green, blue, alpha = image.getpixel(point)
-                if alpha > 220 and min(abs(red - 255), abs(green - 255), abs(blue - 255)) > 24:
-                    filled += 1
-            return filled >= 3
-    except Exception:
-        return False
-
-
-def normalize_svg_size(text: str) -> str:
-    if re.search(r"<svg\b[^>]*\bwidth=", text, re.I):
-        text = re.sub(r'(<svg\b[^>]*?)\swidth=["\'][^"\']+["\']', r'\1 width="256"', text, count=1, flags=re.I)
-    else:
-        text = re.sub(r"<svg\b", '<svg width="256"', text, count=1, flags=re.I)
-    if re.search(r"<svg\b[^>]*\bheight=", text, re.I):
-        text = re.sub(r'(<svg\b[^>]*?)\sheight=["\'][^"\']+["\']', r'\1 height="256"', text, count=1, flags=re.I)
-    else:
-        text = re.sub(r"<svg\b", '<svg height="256"', text, count=1, flags=re.I)
-    return text
-
-
-def download(url: str, destination: Path, timeout: int = 25) -> bool:
-    try:
-        request = urllib.request.Request(url, headers={"User-Agent": "newbizintel-python-runner/1.0"})
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            content = response.read()
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if destination.suffix.lower() == ".svg":
-            content = normalize_svg_size(content.decode("utf-8", errors="ignore")).encode("utf-8")
-        destination.write_bytes(content)
-        return True
-    except Exception:
-        return False
-
-
-def absolute_url(base_url: str, value: str) -> str:
-    value = html.unescape((value or "").strip().strip("'\""))
-    if not value:
-        return ""
-    if value.startswith("//"):
-        parsed = urllib.parse.urlparse(normalize_url(base_url))
-        return f"{parsed.scheme}:{value}"
-    return urllib.parse.urljoin(normalize_url(base_url), value)
-
-
-def discover_site_logo_candidates(website: str) -> list[str]:
-    """Find first-party logo candidates from page metadata before using generic icon services."""
-    if not website:
-        return []
-    try:
-        url = normalize_url(website)
-        request = urllib.request.Request(url, headers={"User-Agent": "newbizintel-python-runner/1.0"})
-        with urllib.request.urlopen(request, timeout=25) as response:
-            text = response.read(1_500_000).decode("utf-8", errors="ignore")
-    except Exception:
-        return []
-    candidates: list[str] = []
-
-    def add(value: str) -> None:
-        candidate = absolute_url(website, value)
-        if candidate and candidate not in candidates and re.search(r"\.(?:png|jpe?g|webp|svg|ico)(?:[?#].*)?$", candidate, re.I):
-            candidates.append(candidate)
-
-    for match in re.finditer(r'<meta\b[^>]*(?:property|name)=["\'](?:og:image|twitter:image|thumbnail)["\'][^>]*content=["\']([^"\']+)["\']', text, re.I):
-        add(match.group(1))
-    for match in re.finditer(r'<meta\b[^>]*content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\'](?:og:image|twitter:image|thumbnail)["\']', text, re.I):
-        add(match.group(1))
-    for match in re.finditer(r'<link\b[^>]*rel=["\'][^"\']*(?:icon|apple-touch-icon|preload)[^"\']*["\'][^>]*(?:href|imagesrcset)=["\']([^"\']+)["\']', text, re.I):
-        values = [part.strip().split()[0] for part in match.group(1).split(",")]
-        for value in values:
-            add(value)
-    for match in re.finditer(r'<img\b[^>]*(?:src|data-src)=["\']([^"\']*(?:logo|brand)[^"\']*\.(?:png|jpe?g|webp|svg))["\']', text, re.I):
-        add(match.group(1))
-    for match in re.finditer(r'"logo"\s*:\s*"([^"]+)"', text, re.I):
-        add(match.group(1))
-    for match in re.finditer(r'https?://[^"\'<>\s]+(?:logo|Logo|favicon|FavIcon)[^"\'<>\s]*\.(?:png|jpe?g|webp|svg|ico)', text):
-        add(match.group(0))
-    def score(candidate: str) -> tuple[int, int]:
-        lower = candidate.lower()
-        priority = 0
-        if any(token in lower for token in ("seoimages", "social-", "social_", "/social/", "share-", "share_", "/share/")):
-            priority += 120
-        if "lockup" in lower:
-            priority -= 60
-        if "logo_square" in lower or "square" in lower:
-            priority -= 40
-        if "primary" in lower:
-            priority -= 35
-        if "brand" in lower:
-            priority -= 20
-        if "pan-logo" in lower or "nav-logo" in lower:
-            priority -= 45
-        if "logo" in lower:
-            priority -= 20
-        if "favicon" in lower or "apple-touch" in lower:
-            priority += 80
-        if "og:image" in lower or "thumbnail" in lower:
-            priority += 20
-        return (priority, len(candidate))
-
-    return sorted(candidates, key=score)
-
-
-def icon_slug(name: str, website: str = "") -> str:
-    clean = re.sub(r"[^a-z0-9 ]+", " ", (name or "").lower()).strip()
-    if clean in SIMPLEICON_OVERRIDES:
-        return SIMPLEICON_OVERRIDES[clean]
-    if website:
-        host = urllib.parse.urlparse(website).netloc.lower().replace("www.", "")
-        first = host.split(".")[0]
-        if first:
-            return SIMPLEICON_OVERRIDES.get(first, first)
-    return slugify(clean or name)
-
-
-def acquire_logo(
-    name: str,
-    website: str,
-    destination: Path,
-    candidates: list[str] | None = None,
-    *,
-    allow_simpleicons: bool = True,
-) -> tuple[bool, str]:
-    urls = list(candidates or [])
-    if not urls:
-        for sibling in [
-            destination.with_suffix(".png"),
-            destination.with_suffix(".jpg"),
-            destination.with_suffix(".jpeg"),
-            destination.with_suffix(".webp"),
-        ]:
-            if sibling.exists() and quality_ok(sibling):
-                return True, "local-raster"
-        if destination.exists() and destination.suffix.lower() != ".svg" and quality_ok(destination):
-            return True, "local"
-    slug = icon_slug(name, website)
-    if website:
-        parsed = urllib.parse.urlparse(normalize_url(website))
-        origin = f"{parsed.scheme}://{parsed.netloc}"
-        urls.extend(
-            [
-                f"{origin}/apple-touch-icon.png",
-                f"{origin}/favicon-512x512.png",
-                f"{origin}/favicon-256x256.png",
-                f"{origin}/favicon-192x192.png",
-                f"{origin}/favicon.png",
-                f"https://www.google.com/s2/favicons?sz=256&domain_url={urllib.parse.quote(origin)}",
-            ]
-        )
-    if allow_simpleicons:
-        urls.append(f"https://cdn.simpleicons.org/{urllib.parse.quote(slug)}/000000")
-    for url in urls:
-        suffix = ".svg" if "simpleicons.org" in url else Path(urllib.parse.urlparse(url).path).suffix.lower() or ".png"
-        if suffix not in {".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"}:
-            suffix = ".png"
-        target = destination.with_suffix(suffix)
-        if download(url, target) and quality_ok(target):
-            return True, url
-        if target.exists() and target != destination:
-            target.unlink(missing_ok=True)
-    if destination.exists() and quality_ok(destination):
-        return True, "local-svg"
-    return False, "no candidate passed quality check"
-
-
-def acquire_square_logo(name: str, website: str, asset_dir: Path, slug: str) -> tuple[bool, str]:
-    stems = [f"{slug}-mark", f"{slug}-favicon", f"{slug}-initial-mark", slug]
-    for stem in stems:
-        for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
-            candidate = asset_dir / f"{stem}{suffix}"
-            if candidate.exists() and square_quality_ok(candidate) and visible_logo_occupancy_ok(candidate):
-                return True, "local-square"
-    if not website:
-        return False, "no website for square logo acquisition"
-    parsed = urllib.parse.urlparse(normalize_url(website))
-    origin = f"{parsed.scheme}://{parsed.netloc}"
-    urls = [
-        f"{origin}/apple-touch-icon.png",
-        f"{origin}/apple-touch-icon-precomposed.png",
-        f"{origin}/favicon-512x512.png",
-        f"{origin}/favicon-256x256.png",
-        f"{origin}/favicon-192x192.png",
-        f"{origin}/favicon-180x180.png",
-        f"{origin}/favicon-128x128.png",
-        f"{origin}/favicon.png",
-        f"https://www.google.com/s2/favicons?sz=256&domain_url={urllib.parse.quote(origin)}",
-        f"https://www.google.com/s2/favicons?sz=128&domain_url={urllib.parse.quote(origin)}",
-    ]
-    for url in urls:
-        suffix = Path(urllib.parse.urlparse(url).path).suffix.lower() or ".png"
-        if suffix not in {".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"}:
-            suffix = ".png"
-        target = asset_dir / f"{slug}-mark{suffix}"
-        if download(url, target) and square_quality_ok(target) and visible_logo_occupancy_ok(target):
-            return True, url
-        if target.exists():
-            target.unlink(missing_ok=True)
-    return False, "no square logo candidate passed quality check"
-
-
-def create_square_badge_from_logo(source: Path, destination: Path, canvas_size: int = 256) -> bool:
-    if not source.exists() or not quality_ok(source):
-        return False
-    try:
-        from PIL import Image, ImageChops
-
-        with Image.open(source) as image:
-            image = image.convert("RGBA")
-            bbox = visible_content_bbox(source)
-            if not bbox:
-                alpha_bbox = image.getchannel("A").getbbox()
-                if alpha_bbox:
-                    bbox = alpha_bbox
-                else:
-                    background = Image.new("RGBA", image.size, image.getpixel((0, 0)))
-                    diff = ImageChops.difference(image, background)
-                    bbox = diff.getbbox()
-            cropped = image.crop(bbox) if bbox else image
-
-            if not cropped.width or not cropped.height:
-                return False
-            max_content = int(canvas_size * 0.86)
-            scale = min(max_content / cropped.width, max_content / cropped.height)
-            resized = cropped.resize((max(1, int(cropped.width * scale)), max(1, int(cropped.height * scale))), Image.LANCZOS)
-            canvas = Image.new("RGBA", (canvas_size, canvas_size), (255, 255, 255, 0))
-            x = (canvas_size - resized.width) // 2
-            y = (canvas_size - resized.height) // 2
-            canvas.alpha_composite(resized, (x, y))
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            canvas.save(destination)
-            return square_quality_ok(destination)
-    except Exception:
-        return False
-
-
-def create_initial_mark_from_logo(source: Path, destination: Path, label: str = "", canvas_size: int = 256) -> bool:
-    """Create a square mark by isolating the first visible letter from a wide wordmark."""
-    if not source.exists() or not quality_ok(source):
-        return False
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-
-        with Image.open(source) as image:
-            image = image.convert("RGBA")
-            bbox = visible_content_bbox(source)
-            if not bbox:
-                bbox = image.getchannel("A").getbbox()
-            if not bbox:
-                return False
-
-            width, height = image.size
-            corners = [
-                image.getpixel((0, 0)),
-                image.getpixel((width - 1, 0)),
-                image.getpixel((0, height - 1)),
-                image.getpixel((width - 1, height - 1)),
-            ]
-            background = tuple(sorted(corners)[len(corners) // 2])
-            left, top, right, bottom = bbox
-
-            def is_logo_ink(pixel: tuple[int, int, int, int]) -> bool:
-                red, green, blue, alpha = pixel
-                if alpha <= 20:
-                    return False
-                if red > 245 and green > 245 and blue > 245:
-                    return False
-                return max(red, green, blue) - min(red, green, blue) > 18 or min(red, green, blue) < 210
-
-            ink_left, ink_top, ink_right, ink_bottom = width, height, -1, -1
-            colour_counts: Counter[tuple[int, int, int]] = Counter()
-            for y in range(top, bottom):
-                for x in range(left, right):
-                    pixel = image.getpixel((x, y))
-                    if is_logo_ink(pixel):
-                        ink_left = min(ink_left, x)
-                        ink_top = min(ink_top, y)
-                        ink_right = max(ink_right, x + 1)
-                        ink_bottom = max(ink_bottom, y + 1)
-                        colour_counts[(pixel[0] // 16 * 16, pixel[1] // 16 * 16, pixel[2] // 16 * 16)] += 1
-            if ink_right >= ink_left and ink_bottom >= ink_top:
-                left, top, right, bottom = ink_left, ink_top, ink_right, ink_bottom
-            content_height = max(bottom - top, 1)
-
-            initial_source = label or source.stem
-            initial_match = re.search(r"[A-Za-z0-9]", initial_source)
-            if initial_match and colour_counts:
-                initial = initial_match.group(0).upper()
-                colour = colour_counts.most_common(1)[0][0]
-                canvas = Image.new("RGBA", (canvas_size, canvas_size), (255, 255, 255, 0))
-                draw = ImageDraw.Draw(canvas)
-                font_paths = [
-                    Path("C:/Windows/Fonts/arialbd.ttf"),
-                    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-                    Path("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
-                ]
-                font = None
-                for font_path in font_paths:
-                    if font_path.exists():
-                        font = ImageFont.truetype(str(font_path), int(canvas_size * 0.72))
-                        break
-                if font is None:
-                    try:
-                        font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(canvas_size * 0.72))
-                    except Exception:
-                        font = ImageFont.load_default()
-                text_box = draw.textbbox((0, 0), initial, font=font)
-                text_width = text_box[2] - text_box[0]
-                text_height = text_box[3] - text_box[1]
-                x = (canvas_size - text_width) // 2 - text_box[0]
-                y = (canvas_size - text_height) // 2 - text_box[1]
-                draw.text((x, y), initial, font=font, fill=(colour[0], colour[1], colour[2], 255))
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                canvas.save(destination)
-                if square_quality_ok(destination) and visible_logo_occupancy_ok(destination, minimum_span=0.42):
-                    return True
-
-            # Detect the first letter from the upper body of the mark. This avoids
-            # long underlines or baselines making a whole word look like one object.
-            scan_top = top
-            scan_bottom = min(bottom, top + max(1, int(content_height * 0.78)))
-            min_pixels = max(1, int((scan_bottom - scan_top) * 0.025))
-            column_has_content: list[bool] = []
-            for x in range(left, right):
-                count = 0
-                for y in range(scan_top, scan_bottom):
-                    pixel = image.getpixel((x, y))
-                    alpha_delta = abs(pixel[3] - background[3])
-                    colour_delta = max(abs(pixel[i] - background[i]) for i in range(3))
-                    if is_logo_ink(pixel) and (alpha_delta > 18 or colour_delta > 18):
-                        count += 1
-                column_has_content.append(count >= min_pixels)
-
-            runs: list[tuple[int, int]] = []
-            run_start: int | None = None
-            gap = 0
-            max_gap = max(2, int((right - left) * 0.015))
-            for index, has_content in enumerate(column_has_content):
-                if has_content:
-                    if run_start is None:
-                        run_start = index
-                    gap = 0
-                elif run_start is not None:
-                    gap += 1
-                    if gap > max_gap:
-                        runs.append((run_start, index - gap + 1))
-                        run_start = None
-                        gap = 0
-            if run_start is not None:
-                runs.append((run_start, len(column_has_content)))
-
-            runs = [(left + start, left + end) for start, end in runs if end - start >= 3]
-            if runs:
-                crop_left, crop_right = runs[0]
-            else:
-                target_width = min(right - left, max(content_height, int((right - left) * 0.18)))
-                crop_left, crop_right = left, left + target_width
-            if crop_right - crop_left > content_height * 1.35:
-                crop_right = min(right, crop_left + max(8, int((right - left) * 0.12)))
-
-            pad_x = max(4, int((crop_right - crop_left) * 0.18))
-            pad_y = max(4, int(content_height * 0.12))
-            crop_box = (
-                max(0, crop_left - pad_x),
-                max(0, top - pad_y),
-                min(width, crop_right + pad_x),
-                min(height, bottom + pad_y),
-            )
-            cropped = image.crop(crop_box)
-            if not cropped.width or not cropped.height:
-                return False
-
-            max_content = int(canvas_size * 0.82)
-            scale = min(max_content / cropped.width, max_content / cropped.height)
-            resized = cropped.resize((max(1, int(cropped.width * scale)), max(1, int(cropped.height * scale))), Image.LANCZOS)
-            canvas = Image.new("RGBA", (canvas_size, canvas_size), (255, 255, 255, 0))
-            x = (canvas_size - resized.width) // 2
-            y = (canvas_size - resized.height) // 2
-            canvas.alpha_composite(resized, (x, y))
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            canvas.save(destination)
-            return square_quality_ok(destination) and visible_logo_occupancy_ok(destination, minimum_span=0.42)
-    except Exception:
-        return False
-
-
-def palette_from_label(label: str) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
-    palettes = [
-        ((11, 92, 74), (255, 255, 255)),
-        ((15, 59, 112), (255, 255, 255)),
-        ((118, 68, 20), (255, 247, 230)),
-        ((124, 35, 68), (255, 242, 248)),
-        ((55, 86, 38), (248, 255, 238)),
-        ((74, 58, 123), (247, 244, 255)),
-        ((25, 82, 97), (235, 253, 255)),
-        ((119, 45, 19), (255, 245, 238)),
-    ]
-    digest = hashlib.sha256(label.encode("utf-8", errors="ignore")).digest()
-    return palettes[digest[0] % len(palettes)]
-
-
-def create_initial_mark_from_name(label: str, destination: Path, canvas_size: int = 256) -> bool:
-    """Create a deterministic square mark when acquired candidate assets are unusable."""
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-
-        initial_match = re.search(r"[A-Za-z0-9]", label or "")
-        initial = initial_match.group(0).upper() if initial_match else "?"
-        background, foreground = palette_from_label(label or initial)
-        image = Image.new("RGBA", (canvas_size, canvas_size), (*background, 255))
-        draw = ImageDraw.Draw(image)
-        font = None
-        for font_path in [
-            Path("C:/Windows/Fonts/arialbd.ttf"),
-            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-            Path("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
-        ]:
-            if font_path.exists():
-                font = ImageFont.truetype(str(font_path), int(canvas_size * 0.68))
-                break
-        if font is None:
-            try:
-                font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(canvas_size * 0.68))
-            except Exception:
-                font = ImageFont.load_default()
-        draw.rounded_rectangle((6, 6, canvas_size - 6, canvas_size - 6), radius=48, fill=(*background, 255))
-        draw.rounded_rectangle((14, 14, canvas_size - 14, canvas_size - 14), radius=38, outline=(*foreground, 72), width=4)
-        text_box = draw.textbbox((0, 0), initial, font=font)
-        text_width = text_box[2] - text_box[0]
-        text_height = text_box[3] - text_box[1]
-        x = (canvas_size - text_width) // 2 - text_box[0]
-        y = (canvas_size - text_height) // 2 - text_box[1] - 2
-        draw.text((x, y), initial, font=font, fill=(*foreground, 255))
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        image.save(destination, format="PNG", optimize=True)
-        return square_quality_ok(destination) and visible_logo_occupancy_ok(destination, minimum_span=0.42)
-    except Exception:
-        return False
-
-
-def create_tight_logo_asset(source: Path, destination: Path, padding: int = 8) -> bool:
-    if not source.exists() or not quality_ok(source):
-        return False
-    try:
-        from PIL import Image
-
-        bbox = visible_content_bbox(source)
-        if not bbox:
-            return False
-        with Image.open(source) as image:
-            image = image.convert("RGBA")
-            left = max(0, bbox[0] - padding)
-            top = max(0, bbox[1] - padding)
-            right = min(image.width, bbox[2] + padding)
-            bottom = min(image.height, bbox[3] + padding)
-            cropped = image.crop((left, top, right, bottom))
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            cropped.save(destination)
-            return quality_ok(destination, minimum=24) and visible_logo_occupancy_ok(destination, minimum_span=0.62)
-    except Exception:
-        return False
-
-
-def preferred_logo_asset(asset_dir: Path, stem: str, prefer_square: bool = False) -> Path | None:
-    if prefer_square:
-        base = re.sub(r"-(logo|mark|favicon)$", "", stem)
-        for candidate_stem in (f"{base}-mark", f"{base}-favicon", f"{base}-initial-mark", base, stem):
-            for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
-                candidate = asset_dir / f"{candidate_stem}{suffix}"
-                if candidate.exists() and square_quality_ok(candidate) and visible_logo_occupancy_ok(candidate):
-                    return candidate
-    for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
-        candidate = asset_dir / f"{stem}{suffix}"
-        if candidate.exists() and quality_ok(candidate):
-            return candidate
-    matches = sorted(asset_dir.glob(f"{stem}.*"))
-    return matches[0] if matches else None
-
-
-def source_looks_like_share_card(source: str) -> bool:
-    lower = (source or "").lower()
-    return any(token in lower for token in ("seoimages", "social-", "social_", "/social/", "share-", "share_", "/share/"))
-
-
-def brand_logo_manifest_entry(name: str, asset: str, source: str, ok: bool, brand_folder: Path) -> dict[str, Any]:
-    entry: dict[str, Any] = {"name": name, "asset": asset, "ok": ok, "resolution_source": source}
-    asset_path = (brand_folder / asset).resolve() if asset and not Path(asset).is_absolute() else Path(asset)
-    quality = asset_quality(asset_path) if asset else {"exists": False, "valid_image": False, "width": 0, "height": 0, "bytes": 0, "format": "", "reason": "missing"}
-    entry["quality"] = quality
-    if source and "simpleicons.org" in source.lower():
-        entry["ok"] = False
-        entry["error"] = "Primary brand logo used Simple Icons monochrome proxy rather than a first-party brand asset."
-    elif source in {"local-svg", "local"} and asset_path.suffix.lower() == ".svg":
-        svg_text = asset_path.read_text(encoding="utf-8", errors="ignore") if asset_path.exists() else ""
-        if "simpleicons" in svg_text.lower() or re.search(r'fill=["\']#?000(?:000)?["\']', svg_text, re.I):
-            entry["ok"] = False
-            entry["error"] = "Primary brand logo appears to be a monochrome SVG proxy; use a first-party colour logo."
-    elif not quality.get("valid_image"):
-        entry["ok"] = False
-        entry["error"] = f"Primary brand logo asset is invalid: {quality.get('reason') or 'unknown quality failure'}."
-    elif quality.get("format") != "svg" and (quality.get("width", 0) < 200 or quality.get("height", 0) < 60):
-        entry["ok"] = False
-        entry["error"] = f"Primary brand logo raster is too small ({quality.get('width')}x{quality.get('height')}); use a dedicated asset at least 200px wide and 60px tall."
-    elif source_looks_like_share_card(source):
-        entry["ok"] = False
-        entry["error"] = "Primary brand logo used a social/share image instead of a dedicated first-party logo asset."
-    elif quality.get("format") != "svg" and not visible_logo_occupancy_ok(asset_path, minimum_span=0.58):
-        entry["ok"] = False
-        entry["error"] = "Primary brand logo does not occupy enough of the asset frame to stay readable in report badges."
-    return entry
-
-
-def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, Any], dict[str, Any]]:
-    asset_dir = brand_folder / "slide-assets"
-    asset_dir.mkdir(parents=True, exist_ok=True)
-    manifest: dict[str, Any] = {"ok": True, "asset_directory": str(asset_dir), "brand": {}, "competitors": [], "news_sources": [], "errors": []}
-
-    brand = data.setdefault("brand", {})
-    brand_name = brand.get("name", "brand")
-    brand_slug = brand.get("slug") or slugify(brand_name)
-    brand["slug"] = brand_slug
-    brand_logo = asset_dir / f"{brand_slug}-logo.svg"
-    brand_candidates = discover_site_logo_candidates(str(brand.get("website", "")))
-    ok, source = acquire_logo(brand_name, brand.get("website", ""), brand_logo, candidates=brand_candidates, allow_simpleicons=False)
-    if ok:
-        brand_asset = None
-        source_path = Path(urllib.parse.urlparse(source).path)
-        source_suffix = source_path.suffix.lower() if source_path.suffix else ""
-        if source_suffix in {".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"}:
-            exact_brand_asset = asset_dir / f"{brand_slug}-logo{source_suffix}"
-            if exact_brand_asset.exists() and quality_ok(exact_brand_asset):
-                brand_asset = exact_brand_asset
-        if brand_asset is None:
-            brand_asset = preferred_logo_asset(asset_dir, f"{brand_slug}-logo")
-        brand["logo_url"] = relative_to_brand(brand_asset, brand_folder) if brand_asset else ""
-        brand["mark_url"] = brand["logo_url"]
-    else:
-        manifest["ok"] = False
-        manifest["errors"].append(f"{brand_name} brand logo failed: {source}")
-    manifest["brand"] = brand_logo_manifest_entry(brand_name, brand.get("logo_url", ""), source, ok, brand_folder)
-    if not manifest["brand"].get("ok"):
-        manifest["ok"] = False
-        manifest["errors"].append(f"{brand_name} brand logo failed: {manifest['brand'].get('error') or source}")
-
-    for index, row in enumerate(data.get("competitive_landscape", {}).get("table", [])):
-        name = row.get("competitor") or row.get("name") or f"competitor-{index + 1}"
-        website = row.get("website", "")
-        slug = slugify(name)
-        square_ok, square_source = acquire_square_logo(name, website, asset_dir, slug)
-        logo_path = asset_dir / f"{slug}-logo.svg"
-        ok, source = (square_ok, square_source) if square_ok else acquire_logo(name, website, logo_path)
-        asset = ""
-        if ok:
-            logo_asset = preferred_logo_asset(asset_dir, f"{slug}-logo", prefer_square=True)
-            if logo_asset and not square_quality_ok(logo_asset):
-                generated_square = asset_dir / f"{slug}-mark.png"
-                if create_square_badge_from_logo(logo_asset, generated_square):
-                    logo_asset = generated_square
-                    source = f"{source}; generated-square-badge-from-wordmark"
-            if logo_asset:
-                quality = asset_quality(logo_asset)
-                bbox = visible_content_bbox(logo_asset)
-                if bbox and quality.get("width") and quality.get("height"):
-                    content_width = bbox[2] - bbox[0]
-                    content_height = bbox[3] - bbox[1]
-                    content_aspect = content_width / max(content_height, 1)
-                    content_height_share = content_height / max(int(quality["height"]), 1)
-                    if not has_distinct_square_background(logo_asset) and (content_aspect >= 1.6 or content_height_share < 0.45):
-                        initial_asset = asset_dir / f"{slug}-initial-mark.png"
-                        if create_initial_mark_from_logo(logo_asset, initial_asset, label=name):
-                            logo_asset = initial_asset
-                            source = f"{source}; initial-letter-mark-from-wordmark"
-            asset = relative_to_brand(logo_asset, brand_folder) if logo_asset else ""
-            row["logo_url"] = asset
-            row["competitor_logo_url"] = asset
-            row["badge_url"] = asset
-            row["logo_resolution_source"] = source
-        else:
-            initial_asset = asset_dir / f"{slug}-initial-mark.png"
-            if create_initial_mark_from_name(name, initial_asset):
-                ok = True
-                source = f"{source}; deterministic-square-initial-mark-after-candidate-failure"
-                asset = relative_to_brand(initial_asset, brand_folder)
-                row["logo_url"] = asset
-                row["competitor_logo_url"] = asset
-                row["badge_url"] = asset
-                row["logo_resolution_source"] = source
-                row["logo_asset_kind"] = "deterministic-square-initial-mark"
-            else:
-                manifest["ok"] = False
-                manifest["errors"].append(f"{name} competitor logo failed: {source}")
-        manifest["competitors"].append({"index": index, "name": name, "asset": asset, "ok": ok, "resolution_source": source, "asset_kind": row.get("logo_asset_kind", "acquired-or-derived-logo") if ok else "missing"})
-
-    for index, item in enumerate(data.get("brand_reputation", {}).get("influential_news", [])):
-        source_name = item.get("source") or brand_name
-        source_url = item.get("url") or brand.get("website", "")
-        slug = slugify(source_name)
-        if source_name.lower().strip() in {brand_name.lower().strip(), f"{brand_name.lower().strip()} newsroom"}:
-            asset = brand.get("logo_url", "")
-            ok = bool(asset)
-            resolution = "brand-logo"
-        else:
-            logo_path = asset_dir / f"{slug}-news.svg"
-            ok, resolution = acquire_logo(source_name, source_url, logo_path)
-            logo_asset = preferred_logo_asset(asset_dir, f"{slug}-news")
-            asset = relative_to_brand(logo_asset, brand_folder) if ok and logo_asset else ""
-        if ok:
-            item["source_logo_url"] = asset
-            item["publisher_logo_url"] = asset
-        else:
-            fallback_asset = asset_dir / f"{slug}-source-initial-mark.png"
-            if create_initial_mark_from_name(source_name, fallback_asset):
-                ok = True
-                resolution = f"{resolution}; deterministic-square-initial-mark-after-candidate-failure"
-                asset = relative_to_brand(fallback_asset, brand_folder)
-                item["source_logo_url"] = asset
-                item["publisher_logo_url"] = asset
-                item["source_logo_asset_kind"] = "deterministic-square-initial-mark"
-            else:
-                manifest["ok"] = False
-                manifest["errors"].append(f"{source_name} source logo failed: {resolution}")
-        manifest["news_sources"].append({"index": index, "source": source_name, "asset": asset, "ok": ok, "resolution_source": resolution, "asset_kind": item.get("source_logo_asset_kind", "acquired-or-derived-logo") if ok else "missing"})
-    return data, manifest
 
 
 def module_assets(args: argparse.Namespace) -> dict[str, Any]:
@@ -4404,40 +3155,12 @@ def run_python_script(script: Path, args: list[str]) -> dict[str, Any]:
 
 
 def render_outputs_current(data_path: Path, brand_folder: Path) -> dict[str, Any]:
-    html_path = brand_folder / "newbizintel-report.html"
-    portable_html = brand_folder / "archive" / "newbizintel-report-portable.html"
-    pptx_path = brand_folder / "newbizintel-report.pptx"
-    outputs = [html_path, portable_html, pptx_path]
-    errors: list[str] = []
-    expected_fingerprint = current_renderer_fingerprint()
-    if not data_path.exists():
-        errors.append("report-data.json is missing.")
-    else:
-        data_mtime = data_path.stat().st_mtime
-        for path in outputs:
-            if not path.exists():
-                errors.append(f"{path.name} is missing.")
-                continue
-            if path.stat().st_mtime + 1e-6 < data_mtime:
-                errors.append(f"{path.name} is older than report-data.json.")
-        for html_candidate in (html_path, portable_html):
-            if not html_candidate.exists():
-                continue
-            rendered_text = html_candidate.read_text(encoding="utf-8", errors="ignore")
-            embedded_fingerprint = extract_renderer_fingerprint(rendered_text)
-            if not embedded_fingerprint:
-                errors.append(f"{html_candidate.name} is missing the renderer fingerprint and must be rebuilt.")
-            elif embedded_fingerprint != expected_fingerprint:
-                errors.append(
-                    f"{html_candidate.name} was rendered by an older renderer/template build "
-                    f"({embedded_fingerprint} != {expected_fingerprint})."
-                )
-    return {
-        "ok": not errors,
-        "errors": errors,
-        "outputs": [str(path) for path in outputs],
-        "expected_renderer_fingerprint": expected_fingerprint,
-    }
+    return render_outputs_current_helper(
+        data_path,
+        brand_folder,
+        current_renderer_fingerprint=current_renderer_fingerprint,
+        extract_renderer_fingerprint=extract_renderer_fingerprint,
+    )
 
 
 def reconcile_render_gate_from_outputs(state: dict[str, Any], data_path: Path, brand_folder: Path) -> bool:
@@ -4661,141 +3384,19 @@ def audit_campaign_art(data_path: Path) -> dict[str, Any]:
 
 
 def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, Any]:
-    html_path = brand_folder / "newbizintel-report.html"
-    errors: list[str] = []
-    warnings: list[str] = []
-    if not html_path.exists():
-        return {"ok": False, "errors": [f"HTML report missing: {html_path}"], "warnings": warnings}
-
-    size = html_path.stat().st_size
-    text = html_path.read_text(encoding="utf-8", errors="ignore")
-    expected_fingerprint = current_renderer_fingerprint()
-    embedded_fingerprint = extract_renderer_fingerprint(text)
-    if not embedded_fingerprint:
-        errors.append("Rendered HTML is missing the current renderer fingerprint and must be rebuilt.")
-    elif embedded_fingerprint != expected_fingerprint:
-        errors.append(
-            "Rendered HTML was produced by an older renderer/template build "
-            f"({embedded_fingerprint} != {expected_fingerprint})."
-        )
-    completeness_audit = audit_rendered_html_completeness(text)
-    if not completeness_audit["ok"]:
-        errors.extend(completeness_audit.get("errors", []))
-    if size < 100_000:
-        errors.append(f"HTML report is too small for the rich presentation layer ({size} bytes).")
-    data = read_json(data_path)
-    for label in ("Competitive Landscape", "SEO Audit", "Brand Reputation", "Creative Campaign Ideas"):
-        if label not in text:
-            errors.append(f"HTML report is missing required section: {label}")
-    rich_markers = (
-        'class="toc"',
-        'class="section-heading"',
-        "Department Opportunity Signals",
-        "Messaging Assessment",
-        "Reputation Implications and Recommended Actions",
-        "Content Strategy Recommendations",
+    return audit_presentation_html_helper(
+        brand_folder,
+        data_path,
+        current_renderer_fingerprint=current_renderer_fingerprint,
+        extract_renderer_fingerprint=extract_renderer_fingerprint,
+        audit_rendered_html_completeness=audit_rendered_html_completeness,
+        read_json=read_json,
+        square_quality_ok=square_quality_ok,
+        asset_quality=asset_quality,
+        visible_logo_occupancy_ok=visible_logo_occupancy_ok,
+        has_value=has_value,
+        audit_cross_client_leakage=audit_cross_client_leakage,
     )
-    missing_rich_markers = [marker for marker in rich_markers if marker not in text]
-    if "Generated by newbizintel modular runner" in text or missing_rich_markers:
-        errors.append("HTML report was produced by the skeletal Python fallback renderer.")
-    if re.search(r'class="[^"]*competitor-badge--fallback', text):
-        errors.append("Competitor logos fell back to initials in rendered HTML.")
-    if re.search(r'<div class="publisher-badge"><span>', text):
-        errors.append("News/source logos fell back to text badges in rendered HTML.")
-    if re.search(r'<span class="publisher-badge[^"]*">\s*<img[^>]+src="https?://[^"]*favicon', text, flags=re.I):
-        errors.append("News/source logos are still using remote favicon URLs in rendered HTML.")
-    if re.search(r'class="[^"]*brand-logo-slot--fallback', text):
-        errors.append("Brand logo fell back to initials in rendered HTML.")
-    if not re.search(r'<link[^>]+rel="icon"[^>]+href="(?:assets|slide-assets)/', text, flags=re.I):
-        errors.append("Rendered HTML is missing a local favicon link.")
-    if "Department Opportunity Map" in text:
-        errors.append("Department Opportunity Map is redundant and must not be rendered.")
-    usp = data.get("usp_ksp_review", {})
-    if isinstance(usp, dict):
-        usp_rows = usp.get("rows", [])
-        if isinstance(usp_rows, list) and len(usp_rows) >= 3:
-            rendered_claims = 0
-            for row in usp_rows:
-                if not isinstance(row, dict):
-                    continue
-                claim_type = str(row.get("claim_type") or "").strip()
-                proof_feedback = str(row.get("proof_feedback") or "").strip()
-                if claim_type and claim_type in text:
-                    rendered_claims += 1
-                elif proof_feedback and proof_feedback in text:
-                    rendered_claims += 1
-            if rendered_claims < 3:
-                errors.append("USP/KSP rendered section is incomplete: structured claim/proof rows were not rendered into the HTML presentation.")
-        verdict = usp.get("overall_verdict", {})
-        if isinstance(verdict, dict) and has_value(verdict.get("headline")) and str(verdict.get("headline")) not in text:
-            errors.append("USP/KSP rendered section is incomplete: overall verdict is missing from the HTML presentation.")
-    signal_start = text.find("Department Opportunity Signals")
-    signal_end = text.find("Most Likely Workstreams", signal_start)
-    signal_section = text[signal_start:signal_end] if signal_start >= 0 and signal_end > signal_start else ""
-    if signal_section and re.search(r'(?:Value:|<span class="opportunity-chip)', signal_section, flags=re.I):
-        errors.append("Department Opportunity Signals cards must describe target-brand opportunities, not value labels or lead/status chips.")
-
-    leakage_audit = audit_cross_client_leakage({"report_data": data, "rendered_html": text}, root_label="presentation_html")
-    if not leakage_audit["ok"]:
-        errors.extend(leakage_audit.get("errors", []))
-    appendix = data.get("appendix", {})
-    if isinstance(appendix, dict):
-        appendix_sources = appendix.get("source_map") or appendix.get("sources_reviewed") or []
-        appendix_source_count = 0
-        if isinstance(appendix_sources, list):
-            for item in appendix_sources:
-                if isinstance(item, dict):
-                    url = str(item.get("url") or item.get("source_url") or "").strip()
-                else:
-                    url = str(item or "").strip()
-                if re.match(r"^https?://", url, flags=re.I):
-                    appendix_source_count += 1
-        if appendix_source_count:
-            appendix_link_count = len(re.findall(r'class="source-ref"[^>]*>\[link\]</a>', text))
-            if appendix_link_count < appendix_source_count:
-                errors.append(
-                    f"Appendix sources must render compact [link] markers for every source URL "
-                    f"({appendix_link_count}/{appendix_source_count} found)."
-                )
-    generated_competitor_logos: list[str] = []
-    non_square_competitor_logos: list[str] = []
-    for row in data.get("competitive_landscape", {}).get("table", []):
-        name = row.get("competitor") or row.get("name") or "Unnamed competitor"
-        for value in (row.get("logo_url"), row.get("competitor_logo_url"), row.get("badge_url"), row.get("mark_url")):
-            if value and re.search(r"-pptx-logo\.(?:png|jpe?g|webp|svg)$", str(value), flags=re.I):
-                generated_competitor_logos.append(f"{name}: {value}")
-                break
-        selected = row.get("logo_url") or row.get("competitor_logo_url") or row.get("badge_url") or row.get("mark_url")
-        if selected:
-            selected_path = data_path.parent / str(selected)
-            if selected_path.exists() and not square_quality_ok(selected_path):
-                quality = asset_quality(selected_path)
-                non_square_competitor_logos.append(
-                    f"{name}: {selected} ({quality.get('width')}x{quality.get('height')})"
-                )
-            elif selected_path.exists() and not visible_logo_occupancy_ok(selected_path):
-                quality = asset_quality(selected_path)
-                non_square_competitor_logos.append(
-                    f"{name}: {selected} has too little visible logo content ({quality.get('width')}x{quality.get('height')})"
-                )
-        else:
-            non_square_competitor_logos.append(f"{name}: missing")
-    if generated_competitor_logos:
-        errors.append(
-            "Competitor logos use generated PPTX text-card fallbacks instead of acquired logo assets: "
-            + "; ".join(generated_competitor_logos)
-        )
-    if non_square_competitor_logos:
-        errors.append(
-            "Competitor logos must use square marks/icons or generated square badges, not wide wordmarks: "
-            + "; ".join(non_square_competitor_logos)
-        )
-
-    image_count = len(re.findall(r"<img\b", text, flags=re.I))
-    if image_count < 8:
-        warnings.append(f"Rendered HTML has a low image count ({image_count}); check logos and campaign artwork.")
-
-    return {"ok": not errors, "errors": errors, "warnings": warnings, "html": str(html_path), "bytes": size, "image_count": image_count}
 
 
 def module_campaign_art(args: argparse.Namespace) -> dict[str, Any]:
@@ -4861,519 +3462,80 @@ def module_campaign_art(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def asset_src(data_path: Path, value: str) -> str:
-    if not value:
-        return ""
-    if re.match(r"^https?://", value, re.I) or value.startswith("data:"):
-        return value
-    path = (data_path.parent / value).resolve()
-    try:
-        return path.relative_to(data_path.parent.resolve()).as_posix()
-    except ValueError:
-        return path.as_uri()
+    return asset_src_helper(data_path, value)
 
 
 def card_html(title: str, body: str) -> str:
-    return f"<article class='card'><h3>{html.escape(str(title or ''))}</h3><p>{html.escape(str(body or ''))}</p></article>"
+    return card_html_helper(title, body)
 
 
 def list_html(items: list[Any]) -> str:
-    return "<ul>" + "".join(f"<li>{html.escape(str(item))}</li>" for item in items if has_value(item)) + "</ul>"
+    return list_html_helper(items, has_value=has_value)
 
 
 def source_list_html(items: list[Any]) -> str:
-    rows: list[str] = []
-    for item in items:
-        if isinstance(item, dict):
-            url = str(item.get("url") or item.get("source_url") or "").strip()
-            label = str(item.get("label") or item.get("title") or item.get("source") or url).strip()
-        else:
-            url = str(item or "").strip()
-            label = url
-        if not label:
-            continue
-        link = ""
-        if re.match(r"^https?://", url, flags=re.I):
-            link = f' <a class="source-ref" href="{html.escape(url)}" target="_blank" rel="noopener noreferrer">[link]</a>'
-        rows.append(f"<li>{html.escape(label)}{link}</li>")
-    return "<ul>" + "".join(rows) + "</ul>" if rows else ""
+    return source_list_html_helper(items)
 
 
 def render_html(data_path: Path, output_path: Path | None = None) -> Path:
-    data = read_json(data_path)
-    brand = data.get("brand", {})
-    output_path = output_path or data_path.parent / "newbizintel-report.html"
-    logo = asset_src(data_path, brand.get("logo_url", "") or brand.get("mark_url", ""))
-    title = f"{brand.get('name', 'Brand')} New Business Intelligence Report"
-    sections: list[str] = []
-    sections.append(
-        f"""
-        <section class="hero">
-          <div class="brand-logo">{f'<img src="{html.escape(logo)}" alt="{html.escape(brand.get("name", ""))} logo">' if logo else html.escape((brand.get("name") or "NB")[:2].upper())}</div>
-          <div>
-<p class="eyebrow">NewBizIntel report</p>
-            <h1>{html.escape(title)}</h1>
-            <p>{html.escape(data.get("cover", {}).get("summary", ""))}</p>
-            <p class="muted">{html.escape(data.get("report_meta", {}).get("purpose", ""))}</p>
-          </div>
-        </section>
-        """
+    return render_html_helper(
+        data_path,
+        output_path,
+        read_json=read_json,
+        campaign_section=campaign_section,
+        reputation_subscore_summary=reputation_subscore_summary,
+        has_value=has_value,
+        inject_task_list_into_html=inject_task_list_into_html,
     )
-    snapshot_items = data.get("company_snapshot", {}).get("items", [])
-    if snapshot_items:
-        snapshot = data.get("company_snapshot", {})
-
-        def snapshot_rows(items: Any) -> str:
-            if not isinstance(items, list):
-                return ""
-            rows: list[str] = []
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                label = item.get("label") or item.get("name") or ""
-                role = item.get("role") or ""
-                value = item.get("value") or ""
-                source = item.get("source_url") or item.get("url") or ""
-                source_html = f' <a href="{html.escape(str(source))}">[link]</a>' if source else ""
-                label_html = html.escape(str(label))
-                if role:
-                    label_html += f"<br><small>{html.escape(str(role))}</small>"
-                rows.append(f"<tr><th>{label_html}</th><td>{html.escape(str(value))}{source_html}</td></tr>")
-            return "".join(rows)
-
-        snapshot_tables = [
-            ("Snapshot", snapshot_rows(snapshot_items)),
-            ("Finance and Scale", snapshot_rows(snapshot.get("finance_stats"))),
-            ("Leadership", snapshot_rows(snapshot.get("leadership"))),
-            ("Founders", snapshot_rows(snapshot.get("founders"))),
-            ("Ownership and Funding", snapshot_rows(snapshot.get("ownership_funding"))),
-            ("Sources", snapshot_rows(snapshot.get("source_map"))),
-        ]
-        body = "".join(f"<h3>{html.escape(title)}</h3><table>{rows}</table>" for title, rows in snapshot_tables if rows)
-        sections.append(f"<section><h2>Company Snapshot</h2>{body}</section>")
-    exec_cards = data.get("executive_summary", {}).get("cards", [])
-    if exec_cards:
-        sections.append("<section><h2>Executive Summary</h2><div class='grid'>" + "".join(card_html(card.get("title"), card.get("body")) for card in exec_cards) + "</div></section>")
-    agency = data.get("agency_opportunity", {})
-    if agency:
-        lead = agency.get("lead_offering", {})
-        sections.append(
-            f"<section><h2>Agency Opportunity</h2><p class='score'>Score: {html.escape(str(agency.get('score', '')))}</p><p>{html.escape(str(agency.get('summary', '')))}</p>"
-            f"<div class='card'><h3>{html.escape(str(lead.get('name', 'Lead offering')))}</h3><p><strong>Lead department:</strong> {html.escape(str(lead.get('lead_department', '')))}</p><p>{html.escape(str(lead.get('verdict', '')))}</p></div></section>"
-        )
-    competitors = data.get("competitive_landscape", {}).get("table", [])
-    if competitors:
-        cards = []
-        for row in competitors:
-            name = row.get("competitor") or row.get("name")
-            logo_url = asset_src(data_path, row.get("logo_url", "") or row.get("badge_url", ""))
-            cards.append(f"<article class='logo-card'>{f'<img src={html.escape(json.dumps(logo_url))} alt={html.escape(json.dumps(str(name) + ' logo'))}>' if logo_url else ''}<h3>{html.escape(str(name))}</h3><p>{html.escape(str(row.get('implication') or row.get('why_it_matters') or ''))}</p></article>")
-        sections.append("<section><h2>Competitive Landscape</h2><div class='grid'>" + "".join(cards) + "</div></section>")
-    seo = data.get("seo_audit", {})
-    if seo:
-        seo_evidence = []
-        for key in ("semrush_evidence", "similarweb_evidence", "search_evidence"):
-            values = seo.get(key, [])
-            if isinstance(values, list):
-                seo_evidence.extend(values)
-        sections.append(
-            "<section><h2>SEO Audit and Search Evidence</h2><div class='grid'>"
-            + "".join(card_html(item.get("title"), item.get("body")) for item in seo_evidence)
-            + "</div></section>"
-        )
-    news = data.get("brand_reputation", {}).get("influential_news", [])
-    if news:
-        items = []
-        for item in news:
-            source_logo = asset_src(data_path, item.get("source_logo_url", "") or item.get("publisher_logo_url", ""))
-            score = item.get("influence_score", "")
-            rank_reason = item.get("rank_reason") or item.get("why_it_matters", "")
-            subscore_summary = reputation_subscore_summary(item.get("influence_subscores"))
-            items.append(f"<article class='news'>{f'<img src={html.escape(json.dumps(source_logo))} alt={html.escape(json.dumps(str(item.get('source', 'source')) + ' logo'))}>' if source_logo else ''}<p class='eyebrow'>{html.escape(str(item.get('date', '')))} | {html.escape(str(item.get('source', '')))} | Influence {html.escape(str(score))}</p><h3>{html.escape(str(item.get('headline', '')))}</h3><p><strong>Why it ranked:</strong> {html.escape(str(rank_reason))}</p>{f'<p class=\"muted\"><strong>Score basis:</strong> {html.escape(subscore_summary)}</p>' if subscore_summary else ''}<p>{html.escape(str(item.get('why_it_matters', '')))}</p></article>")
-        sections.append("<section><h2>Brand Reputation</h2>" + "".join(items) + "</section>")
-    opportunities = data.get("opportunities", {})
-    timelines = opportunities.get("timelines", []) if isinstance(opportunities, dict) else []
-    marketing_strategy = opportunities.get("marketing_strategy", {}) if isinstance(opportunities, dict) else {}
-    if timelines:
-        strategy_intro = ""
-        if isinstance(marketing_strategy, dict) and marketing_strategy.get("strategy"):
-            strategy_intro = (
-                f"<div class='card'><p class='eyebrow'>Recommended marketing strategy</p>"
-                f"<h3>{html.escape(str(marketing_strategy.get('headline') or 'Marketing strategy'))}</h3>"
-                f"<p>{html.escape(str(marketing_strategy.get('strategy')))}</p>"
-                f"<p><strong>Why:</strong> {html.escape(str(marketing_strategy.get('why_it_matters', '')))}</p></div>"
-            )
-        sections.append("<section><h2>30 / 60 / 90 Day Plan</h2>" + strategy_intro + "<div class='grid'>" + "".join(card_html(item.get("title"), " ".join(item.get("items", []))) for item in timelines) + "</div></section>")
-    campaigns = campaign_section(data).get("ideas", [])
-    if campaigns:
-        blocks = []
-        for idea in campaigns:
-            image = asset_src(data_path, idea.get("illustration_url", ""))
-            activation_plan = idea.get("activation_plan", [])
-            if isinstance(activation_plan, dict):
-                activation_plan = activation_plan.get("order_of_precedence", [])
-            driving_idea = idea.get("driving_idea") or idea.get("concept", "")
-            implementation_story = idea.get("implementation_story") or idea.get("activation", "")
-            shape_items = []
-            for plan in activation_plan if isinstance(activation_plan, list) else []:
-                if not isinstance(plan, dict):
-                    continue
-                name = html.escape(str(plan.get("name", "")))
-                creates = html.escape(str(plan.get("creates") or plan.get("primary_goal", "")))
-                looks_like = html.escape(str(plan.get("looks_like") or plan.get("narrative", "")))
-                why = html.escape(str(plan.get("why_this_format", "")))
-                result = html.escape(str(plan.get("intended_result", "")))
-                detail_parts = []
-                if creates:
-                    detail_parts.append(f"<p><strong>What the brand creates:</strong> {creates}</p>")
-                if looks_like:
-                    detail_parts.append(f"<p><strong>What it looks like:</strong> {looks_like}</p>")
-                if why:
-                    detail_parts.append(f"<p><strong>Why this shape:</strong> {why}</p>")
-                if result:
-                    detail_parts.append(f"<p><strong>Intended result:</strong> {result}</p>")
-                if name and detail_parts:
-                    shape_items.append(f"<li><strong>{name}</strong>{''.join(detail_parts)}</li>")
-            blocks.append(
-                f"<article class='campaign'>{f'<img src={html.escape(json.dumps(image))} alt=\"\">' if image else ''}<div><p class='eyebrow'>Creative campaign idea</p><h3>{html.escape(str(idea.get('title', '')))}</h3>"
-                f"<p><strong>Driving idea:</strong> {html.escape(str(driving_idea))}</p><p><strong>Implementation:</strong> {html.escape(str(implementation_story))}</p>"
-                f"{'<p><strong>How the campaign takes shape</strong></p><ol>' + ''.join(shape_items) + '</ol>' if shape_items else ''}</div></article>"
-            )
-        sections.append("<section><h2>Creative Campaign Ideas</h2>" + "".join(blocks) + "</section>")
-    content_strategy = data.get("content_strategy", {})
-    if isinstance(content_strategy, dict) and (
-        content_strategy.get("cards") or content_strategy.get("priority_opportunities") or content_strategy.get("example_ideas")
-    ):
-        content_blocks = "".join(card_html(item.get("title"), item.get("body")) for item in content_strategy.get("cards", []) if isinstance(item, dict))
-        content_blocks += list_html(content_strategy.get("priority_opportunities", []))
-        content_blocks += list_html(content_strategy.get("example_ideas", []))
-        if content_strategy.get("response_to_findings"):
-            content_blocks += f"<p>{html.escape(str(content_strategy.get('response_to_findings')))}</p>"
-        sections.append("<section><h2>Content Strategy Recommendations</h2>" + content_blocks + "</section>")
-    appendix = data.get("appendix", {})
-    if isinstance(appendix, dict):
-        appendix_sources = appendix.get("source_map") or appendix.get("sources_reviewed") or []
-        appendix_blocks = ""
-        if appendix_sources:
-            appendix_blocks += "<h3>Sources Reviewed</h3>" + source_list_html(appendix_sources)
-        appendix_blocks += list_html(appendix.get("missing_data", []))
-        appendix_blocks += list_html(appendix.get("assumptions_and_confidence_notes", []))
-        if appendix_blocks:
-            sections.append("<section><h2>Appendix</h2>" + appendix_blocks + "</section>")
-    css = """
-    :root{--ink:#09213b;--muted:#5d6b7a;--line:#d8e2ec;--panel:#f7fafc;--accent:#153a5b}
-    *{box-sizing:border-box} body{margin:0;font-family:Aptos,Segoe UI,Arial,sans-serif;color:var(--ink);background:#f4f7fa;line-height:1.55}
-    main{max-width:1120px;margin:0 auto;padding:36px 22px 80px}.hero,.card,.logo-card,.news,.campaign,section{background:white;border:1px solid var(--line);border-radius:20px;box-shadow:0 18px 42px rgba(15,23,42,.06)}
-    section{padding:28px;margin:24px 0}.hero{display:flex;gap:24px;padding:32px;margin-bottom:28px;background:linear-gradient(135deg,#fff,#edf5fb)}
-    h1{font-size:44px;line-height:1.05;margin:.1em 0}h2{font-size:30px;margin:0 0 18px}h3{margin:.1em 0 .35em}.muted{color:var(--muted)}.eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:12px;font-weight:800;color:#53657a}
-    .brand-logo{width:108px;height:108px;flex:0 0 108px;border-radius:26px;border:1px solid var(--line);display:grid;place-items:center;background:#fff;padding:18px;font-weight:900;font-size:28px}.brand-logo img,.logo-card img,.news img{max-width:100%;max-height:76px;object-fit:contain}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.card,.logo-card,.news{padding:18px}.score{display:inline-block;padding:8px 12px;background:#edf5fb;border-radius:999px;font-weight:800}
-    table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--line);padding:10px;vertical-align:top}th{width:28%}.campaign{display:grid;grid-template-columns:minmax(260px,42%) 1fr;gap:26px;padding:18px;margin:18px 0}.campaign img{width:100%;height:100%;max-height:760px;object-fit:cover;border-radius:16px}@media(max-width:760px){.hero,.campaign{grid-template-columns:1fr;display:grid}h1{font-size:34px}}
-    .source-ref{display:inline-block;margin-left:.35em;font-size:.88em;font-weight:700;white-space:nowrap}
-    """
-    html_text = f"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{html.escape(title)}</title><style>{css}</style></head><body><main>{''.join(sections)}</main></body></html>"
-    output_path.write_text(html_text, encoding="utf-8")
-    inject_task_list_into_html(output_path, data_path.parent)
-    return output_path
 
 
 def task_list_html(brand_folder: Path) -> str:
-    task_path = brand_folder / "workflow-task-list.json"
-    if not task_path.exists():
-        return ""
-    payload = read_json(task_path)
-    rows = []
-    for task in payload.get("tasks", []):
-        rows.append(
-            "<tr>"
-            f"<td>{html.escape(str(task.get('id', '')))}</td>"
-            f"<td>{html.escape(str(task.get('title', '')))}</td>"
-            f"<td><strong>{html.escape(str(task.get('status', '')))}</strong></td>"
-            f"<td>{html.escape(', '.join(task.get('gates', [])))}</td>"
-            "</tr>"
-        )
-    return (
-        "<section id=\"newbizintel-workflow-task-list\" class=\"newbizintel-task-list\">"
-        "<h2>Workflow Task List</h2>"
-        f"<p class=\"score\">Passed: {html.escape(str(payload.get('passed', 0)))}/{html.escape(str(payload.get('total', 10)))}</p>"
-        f"<p class=\"note\">Updated: {html.escape(str(payload.get('updated_at', 'not recorded')))}</p>"
-        "<table><thead><tr><th>#</th><th>Step</th><th>Status</th><th>Primary gate</th></tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody></table>"
-        "</section>"
-    )
+    return task_list_html_helper(brand_folder, read_json=read_json)
 
 
 def inject_task_list_into_html(html_path: Path, brand_folder: Path) -> None:
-    if not html_path.exists():
-        return
-    section = task_list_html(brand_folder)
-    if not section:
-        return
-    text = html_path.read_text(encoding="utf-8")
-    pattern = re.compile(r"<section id=\"newbizintel-workflow-task-list\".*?</section>", re.S)
-    original_text = text
-    if pattern.search(text):
-        text = pattern.sub(section, text, count=1)
-    elif "</main>" in text:
-        text = text.replace("</main>", section + "</main>")
-    elif "</body>" in text:
-        text = text.replace("</body>", section + "</body>")
-    else:
-        text = text + section
-    if ("<html" in original_text.lower() or "<!doctype" in original_text.lower()) and (
-        "</html>" not in text.lower() or len(text) < max(4096, int(len(original_text) * 0.5))
-    ):
-        raise SystemExit(f"Refusing to inject task list because it would corrupt full report HTML: {html_path}")
-    html_path.write_text(text, encoding="utf-8")
+    return inject_task_list_into_html_helper(
+        html_path,
+        brand_folder,
+        task_list_html=task_list_html,
+    )
 
 
 def assert_deployable_report_html(html_path: Path) -> None:
-    if not html_path.exists():
-        raise SystemExit(f"Report HTML does not exist: {html_path}")
-    text = html_path.read_text(encoding="utf-8", errors="replace")
-    completeness_audit = audit_rendered_html_completeness(text)
-    if not completeness_audit["ok"]:
-        raise SystemExit(
-            "Refusing deployment handoff because rendered HTML failed presentation completeness checks. "
-            f"Path: {html_path}; errors: {'; '.join(completeness_audit.get('errors', []))}"
-        )
-    lowered = text.lower()
-    required_markers = (
-        "<html",
-        "</html>",
-        "new business intelligence",
-        "creative campaign ideas",
-        'class="toc"',
-        'class="section-heading"',
-        "department opportunity signals",
-        "messaging assessment",
-        "content strategy recommendations",
+    return assert_deployable_report_html_helper(
+        html_path,
+        audit_rendered_html_completeness=audit_rendered_html_completeness,
     )
-    missing = [marker for marker in required_markers if marker not in lowered]
-    if missing or len(text) < 100000:
-        raise SystemExit(
-            "Refusing deployment handoff because the HTML does not look like a complete NewBizIntel report. "
-            f"Path: {html_path}; bytes: {len(text)}; missing markers: {', '.join(missing) or 'none'}"
-        )
 
 
 def audit_deploy_stage(stage_root: Path) -> dict[str, Any]:
-    errors: list[str] = []
-    warnings: list[str] = []
-    stage_index = stage_root / "index.html"
-    if not stage_index.exists():
-        return {
-            "ok": False,
-            "errors": [f"Deploy stage is missing index.html: {stage_index}"],
-            "warnings": warnings,
-            "stage_root": str(stage_root),
-            "asset_count": 0,
-            "checked_assets": [],
-        }
-
-    text = stage_index.read_text(encoding="utf-8", errors="ignore")
-    expected_fingerprint = current_renderer_fingerprint()
-    embedded_fingerprint = extract_renderer_fingerprint(text)
-    if not embedded_fingerprint:
-        errors.append("Deploy stage HTML is missing the current renderer fingerprint.")
-    elif embedded_fingerprint != expected_fingerprint:
-        errors.append(
-            "Deploy stage HTML was produced by an older renderer/template build "
-            f"({embedded_fingerprint} != {expected_fingerprint})."
-        )
-    completeness = audit_rendered_html_completeness(text)
-    if not completeness["ok"]:
-        errors.extend(f"stage_html: {error}" for error in completeness.get("errors", []))
-
-    required_markers = (
-        "Competitor positioning in search",
-        "Keyword opportunity groups",
-        "brand-logo-slot",
-        "competitor-badge",
-        "publisher-badge",
-        'rel="icon"',
+    return audit_deploy_stage_helper(
+        stage_root,
+        current_renderer_fingerprint=current_renderer_fingerprint,
+        extract_renderer_fingerprint=extract_renderer_fingerprint,
+        audit_rendered_html_completeness=audit_rendered_html_completeness,
+        asset_quality=asset_quality,
     )
-    for marker in required_markers:
-        if marker not in text:
-            errors.append(f"Deploy stage HTML is missing required marker: {marker}")
-
-    if re.search(r'class="[^"]*brand-logo-slot--fallback', text):
-        errors.append("Deploy stage HTML fell back to initials for the main brand logo.")
-    if re.search(r'class="[^"]*competitor-badge--fallback', text):
-        errors.append("Deploy stage HTML fell back to initials for one or more competitor logos.")
-    if "publisher-badge--missing" in text or re.search(r'<div class="publisher-badge"><span>', text):
-        errors.append("Deploy stage HTML fell back to missing/text publisher badges.")
-    if re.search(r'<span class="publisher-badge[^"]*">\s*<img[^>]+src="https?://[^"]*favicon', text, flags=re.I):
-        errors.append("Deploy stage HTML is still using remote favicon URLs for publisher badges.")
-    if not re.search(r'<link[^>]+rel="icon"[^>]+href="(?:assets|slide-assets)/', text, flags=re.I):
-        errors.append("Deploy stage HTML is missing a local favicon link.")
-
-    asset_paths = sorted(
-        {
-            match
-            for match in re.findall(r'(?:src|href)=["\']((?:slide-assets|assets)/[^"\']+)["\']', text, flags=re.I)
-            if not match.lower().startswith(("http://", "https://", "data:"))
-        }
-    )
-    checked_assets: list[str] = []
-    missing_assets: list[str] = []
-    invalid_assets: list[str] = []
-    image_exts = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif"}
-    for rel_path in asset_paths:
-        asset_path = stage_root / rel_path.replace("/", os.sep)
-        checked_assets.append(rel_path)
-        if not asset_path.exists() or not asset_path.is_file():
-            missing_assets.append(rel_path)
-            continue
-        try:
-            size = asset_path.stat().st_size
-        except OSError:
-            invalid_assets.append(f"{rel_path}: unreadable")
-            continue
-        if size <= 0:
-            invalid_assets.append(f"{rel_path}: empty file")
-            continue
-        if asset_path.suffix.lower() in image_exts:
-            quality = asset_quality(asset_path)
-            if not quality.get("exists"):
-                invalid_assets.append(f"{rel_path}: asset_quality could not read file")
-                continue
-            if asset_path.suffix.lower() != ".svg" and quality.get("width") and quality.get("height"):
-                if quality["width"] < 16 or quality["height"] < 16:
-                    invalid_assets.append(
-                        f"{rel_path}: image too small ({quality['width']}x{quality['height']})"
-                    )
-
-    if missing_assets:
-        errors.append(f"Deploy stage is missing referenced assets: {missing_assets}")
-    if invalid_assets:
-        errors.append(f"Deploy stage has invalid referenced assets: {invalid_assets}")
-    if not asset_paths:
-        errors.append("Deploy stage HTML does not reference any local slide-assets or assets files.")
-
-    return {
-        "ok": not errors,
-        "errors": errors,
-        "warnings": warnings,
-        "stage_root": str(stage_root),
-        "asset_count": len(asset_paths),
-        "checked_assets": checked_assets,
-        "missing_assets": missing_assets,
-        "invalid_assets": invalid_assets,
-    }
 
 
 def make_text_logo_png(label: str, output_path: Path) -> None:
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-    except Exception as exc:
-        raise SystemExit(f"Pillow is required for PPTX-safe raster logo fallback: {exc}")
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    image = Image.new("RGBA", (512, 256), (255, 255, 255, 0))
-    draw = ImageDraw.Draw(image)
-    text = (label or "NB").strip()[:28]
-    font = None
-    for size in (86, 72, 60, 48, 40):
-        try:
-            font = ImageFont.truetype("arial.ttf", size=size)
-        except Exception:
-            font = ImageFont.load_default()
-        bbox = draw.textbbox((0, 0), text, font=font)
-        if (bbox[2] - bbox[0]) < 440:
-            break
-    bbox = draw.textbbox((0, 0), text, font=font)
-    x = (512 - (bbox[2] - bbox[0])) / 2
-    y = (256 - (bbox[3] - bbox[1])) / 2 - 4
-    draw.rounded_rectangle((8, 8, 504, 248), radius=36, fill=(255, 255, 255, 255), outline=(216, 226, 236, 255), width=3)
-    draw.text((x, y), text, fill=(9, 33, 59, 255), font=font)
-    image.save(output_path, format="PNG", optimize=True)
+    from python_modules.presentation_builders import make_text_logo_png as _make_text_logo_png
+    return _make_text_logo_png(label, output_path)
 
 
 def pptx_safe_logo_asset(data_path: Path, value: str | None) -> str:
-    if not value:
-        return ""
-    candidate = Path(str(value))
-    if not candidate.is_absolute():
-        candidate = data_path.parent / candidate
-    if not candidate.exists():
-        return ""
-    if candidate.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".wmf"}:
-        return relative_to_brand(candidate, data_path.parent)
-    if candidate.suffix.lower() == ".svg":
-        for suffix in (".png", ".jpg", ".jpeg", ".webp"):
-            companion = candidate.with_suffix(suffix)
-            if companion.exists():
-                return relative_to_brand(companion, data_path.parent)
-    return ""
+    from python_modules.presentation_builders import pptx_safe_logo_asset as _pptx_safe_logo_asset
+    return _pptx_safe_logo_asset(data_path, value, relative_to_brand=relative_to_brand)
 
 
 def pptx_safe_data_copy(data_path: Path) -> Path:
-    data = read_json(data_path)
-    asset_dir = data_path.parent / "slide-assets"
-    brand = data.setdefault("brand", {})
-    brand_name = brand.get("name", "Brand")
-    brand_slug = brand.get("slug") or slugify(brand_name)
-    brand_logo = pptx_safe_logo_asset(data_path, brand.get("logo_url")) or pptx_safe_logo_asset(data_path, brand.get("mark_url"))
-    if brand_logo:
-        brand["logo_url"] = brand_logo
-    else:
-        brand_png = asset_dir / f"{brand_slug}-pptx-logo.png"
-        make_text_logo_png(brand_name, brand_png)
-        brand["logo_url"] = relative_to_brand(brand_png, data_path.parent)
-    brand["mark_url"] = brand["logo_url"]
-
-    for row in data.get("competitive_landscape", {}).get("table", []):
-        name = row.get("competitor") or row.get("name")
-        if not name:
-            continue
-        rel = ""
-        for field in ("logo_url", "competitor_logo_url", "badge_url", "mark_url"):
-            rel = pptx_safe_logo_asset(data_path, row.get(field))
-            if rel:
-                break
-        if not rel:
-            png = asset_dir / f"{slugify(name)}-pptx-logo.png"
-            make_text_logo_png(name, png)
-            rel = relative_to_brand(png, data_path.parent)
-        row["logo_url"] = rel
-        row["competitor_logo_url"] = rel
-        row["badge_url"] = rel
-
-    for item in data.get("brand_reputation", {}).get("influential_news", []):
-        source = item.get("source") or brand_name
-        if source.lower().strip() in {brand_name.lower().strip(), f"{brand_name.lower().strip()} newsroom"}:
-            rel = brand["logo_url"]
-        else:
-            rel = pptx_safe_logo_asset(data_path, item.get("publisher_logo_url")) or pptx_safe_logo_asset(data_path, item.get("source_logo_url")) or pptx_safe_logo_asset(data_path, item.get("logo_url"))
-            if not rel:
-                png = asset_dir / f"{slugify(source)}-pptx-logo.png"
-                make_text_logo_png(source, png)
-                rel = relative_to_brand(png, data_path.parent)
-        item["source_logo_url"] = rel
-        item["publisher_logo_url"] = rel
-
-    opportunities = data.get("opportunities")
-    if isinstance(opportunities, list):
-        data["opportunities"] = {
-            "timelines": [
-                {
-                    "title": "30 Days",
-                    "items": [str(item.get("title") or item.get("body") or item) for item in opportunities[:3]],
-                },
-                {
-                    "title": "60 Days",
-                    "items": [str(item.get("body") or item.get("title") or item) for item in opportunities[1:4]],
-                },
-                {
-                    "title": "90 Days",
-                    "items": [str(item.get("body") or item.get("title") or item) for item in opportunities[2:5]],
-                },
-            ]
-        }
-
-    temp_path = data_path.parent / ".newbizintel-pptx-data.json"
-    write_json(temp_path, data)
-    return temp_path
+    return pptx_safe_data_copy_helper(
+        data_path,
+        read_json=read_json,
+        write_json=write_json,
+        relative_to_brand=relative_to_brand,
+        slugify=slugify,
+    )
 
 
 def pptx_text_shape(shape_id: int, x: int, y: int, cx: int, cy: int, text: str, size: int = 2400, bold: bool = False, color: str = "09213B") -> str:
@@ -5416,229 +3578,64 @@ def pptx_rels_xml(target: str) -> str:
 
 
 def build_minimal_pptx(data_path: Path, output_path: Path) -> None:
-    data = read_json(data_path)
-    brand = data.get("brand", {}).get("name", "Brand")
-    slides: list[tuple[str, list[str]]] = []
-    slides.append((f"{brand} New Business Intelligence", [data.get("cover", {}).get("summary", ""), data.get("report_meta", {}).get("purpose", "")]))
-    slides.append(("Executive Summary", [card.get("body", "") for card in data.get("executive_summary", {}).get("cards", [])[:6]]))
-    agency = data.get("agency_opportunity", {})
-    slides.append(("Agency Opportunity", [agency.get("summary", ""), agency.get("score_summary", ""), agency.get("lead_offering", {}).get("verdict", "")]))
-    slides.append(("Competitive Landscape", [f"{row.get('competitor') or row.get('name')}: {row.get('implication') or row.get('why_it_matters') or ''}" for row in data.get("competitive_landscape", {}).get("table", [])[:6]]))
-    seo = data.get("seo_audit", {})
-    seo_evidence = []
-    if isinstance(seo, dict):
-        for key in ("semrush_evidence", "similarweb_evidence", "search_evidence"):
-            values = seo.get(key, [])
-            if isinstance(values, list):
-                seo_evidence.extend(values)
-    slides.append(("SEO Audit and Search Evidence", [item.get("body", "") for item in seo_evidence[:6]]))
-    slides.append(("Brand Reputation", [f"{item.get('headline', '')} ({item.get('influence_score', '')}): {item.get('rank_reason') or item.get('why_it_matters', '')}" for item in data.get("brand_reputation", {}).get("influential_news", [])[:6]]))
-    opportunities = data.get("opportunities", {})
-    if isinstance(opportunities, dict):
-        roadmap = []
-        strategy = opportunities.get("marketing_strategy", {})
-        if isinstance(strategy, dict) and strategy.get("strategy"):
-            roadmap.append(f"Strategy: {strategy.get('strategy')}")
-        roadmap.extend(f"{block.get('title', '')}: {'; '.join(block.get('items', []))}" for block in opportunities.get("timelines", [])[:3])
-    elif isinstance(opportunities, list):
-        roadmap = [f"{item.get('title', '')}: {item.get('body', '')}" for item in opportunities[:4]]
-    else:
-        roadmap = []
-    slides.append(("30 / 60 / 90 Day Plan", roadmap))
-    campaigns = campaign_section(data).get("ideas", [])
-    slides.append(("Creative Campaign Ideas", [f"{idea.get('title', '')}: {idea.get('concept', '')}" for idea in campaigns[:6]]))
-    content_strategy = data.get("content_strategy", {})
-    if isinstance(content_strategy, dict):
-        content_bullets = [card.get("body", "") for card in content_strategy.get("cards", [])[:4] if isinstance(card, dict)]
-        content_bullets.extend(str(item) for item in content_strategy.get("priority_opportunities", [])[:3])
-        slides.append(("Content Strategy Recommendations", content_bullets))
-
-    slide_count = len(slides)
-    content_overrides = "\n".join(f'<Override PartName="/ppt/slides/slide{i}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>' for i in range(1, slide_count + 1))
-    slide_ids = "\n".join(f'<p:sldId id="{255 + i}" r:id="rId{i + 1}"/>' for i in range(1, slide_count + 1))
-    rels = "\n".join(f'<Relationship Id="rId{i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide{i}.xml"/>' for i in range(1, slide_count + 1))
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as pptx:
-        pptx.writestr("[Content_Types].xml", f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
-  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
-  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
-  <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
-  <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
-  <Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
-  {content_overrides}
-</Types>""")
-        pptx.writestr("_rels/.rels", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
-  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
-</Relationships>""")
-        pptx.writestr("docProps/app.xml", f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>NewBizIntel Python Runner</Application><Slides>{slide_count}</Slides></Properties>""")
-        pptx.writestr("docProps/core.xml", f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>{html.escape(brand)} NewBizIntel Report</dc:title><dc:creator>NewBizIntel</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">{utc_now()}</dcterms:created></cp:coreProperties>""")
-        pptx.writestr("ppt/presentation.xml", f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
-  <p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:sldIdLst>{slide_ids}</p:sldIdLst>
-  <p:sldSz cx="12192000" cy="6858000" type="screen16x9"/><p:notesSz cx="6858000" cy="9144000"/>
-</p:presentation>""")
-        pptx.writestr("ppt/_rels/presentation.xml.rels", f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>{rels}</Relationships>""")
-        pptx.writestr("ppt/slideMasters/slideMaster1.xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst><p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles></p:sldMaster>""")
-        pptx.writestr("ppt/slideMasters/_rels/slideMaster1.xml.rels", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/></Relationships>""")
-        pptx.writestr("ppt/slideLayouts/slideLayout1.xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld></p:sldLayout>""")
-        pptx.writestr("ppt/slideLayouts/_rels/slideLayout1.xml.rels", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>""")
-        pptx.writestr("ppt/theme/theme1.xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="NewBizIntel"><a:themeElements><a:clrScheme name="NewBizIntel"><a:dk1><a:srgbClr val="09213B"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="153A5B"/></a:dk2><a:lt2><a:srgbClr val="F7FAFC"/></a:lt2><a:accent1><a:srgbClr val="153A5B"/></a:accent1><a:accent2><a:srgbClr val="3AA7A3"/></a:accent2><a:accent3><a:srgbClr val="D28B26"/></a:accent3><a:accent4><a:srgbClr val="5D6B7A"/></a:accent4><a:accent5><a:srgbClr val="10263B"/></a:accent5><a:accent6><a:srgbClr val="D8E2EC"/></a:accent6><a:hlink><a:srgbClr val="153A5B"/></a:hlink><a:folHlink><a:srgbClr val="153A5B"/></a:folHlink></a:clrScheme><a:fontScheme name="NewBizIntel"><a:majorFont><a:latin typeface="Aptos Display"/></a:majorFont><a:minorFont><a:latin typeface="Aptos"/></a:minorFont></a:fontScheme><a:fmtScheme name="NewBizIntel"><a:fillStyleLst/><a:lnStyleLst/><a:effectStyleLst/><a:bgFillStyleLst/></a:fmtScheme></a:themeElements></a:theme>""")
-        for i, (slide_title, bullets) in enumerate(slides, start=1):
-            pptx.writestr(f"ppt/slides/slide{i}.xml", pptx_slide_xml(slide_title, bullets, i))
-            pptx.writestr(f"ppt/slides/_rels/slide{i}.xml.rels", pptx_rels_xml("../slideLayouts/slideLayout1.xml"))
+    return build_minimal_pptx_helper(
+        data_path,
+        output_path,
+        read_json=read_json,
+        utc_now=utc_now,
+        campaign_section=campaign_section,
+    )
 
 
 def make_self_contained(html_path: Path, data_path: Path, output_path: Path) -> None:
-    script = SCRIPT_ROOT / "render" / "make_html_self_contained.py"
-    run_python_script(script, ["--html", str(html_path), "--data", str(data_path), "--output", str(output_path)])
+    return make_self_contained_helper(
+        html_path,
+        data_path,
+        output_path,
+        script_root=SCRIPT_ROOT,
+        run_python_script=run_python_script,
+    )
 
 
 def find_powershell() -> str | None:
-    explicit = os.environ.get("NEWBIZINTEL_PWSH")
-    candidates = [
-        explicit,
-        shutil.which("pwsh"),
-        shutil.which("pwsh.exe"),
-        r"C:\Program Files\PowerShell\7\pwsh.exe" if os.name == "nt" else None,
-    ]
-    for candidate in candidates:
-        if candidate and Path(candidate).exists():
-            return candidate
-    return None
+    return find_powershell_helper()
 
 
 def render_rich_html_with_powershell(data_path: Path, output_path: Path) -> Path:
-    pwsh = find_powershell()
-    if not pwsh:
-        raise RuntimeError(
-            "Rich HTML renderer requires PowerShell until the presentation renderer is fully ported to Python."
-        )
-    script = SCRIPT_ROOT / "render" / "render_report.ps1"
-    if not script.exists():
-        raise RuntimeError(f"Rich HTML renderer script is missing: {script}")
-    cmd = [
-        pwsh,
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        str(script),
-        "-DataPath",
-        str(data_path),
-        "-OutputPath",
-        str(output_path),
-        "-SkipValidation",
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip()
-        raise RuntimeError(f"Rich HTML renderer failed with exit code {result.returncode}. {detail}")
-    try:
-        payload = json.loads(result.stdout.strip().splitlines()[-1])
-    except Exception as exc:
-        raise RuntimeError(f"Rich HTML renderer returned non-JSON output: {result.stdout[:500]}") from exc
-    rendered = Path(payload.get("html") or output_path)
-    if not rendered.exists():
-        raise RuntimeError(f"Rich HTML renderer did not create output: {rendered}")
-    return rendered
+    return render_rich_html_with_powershell_helper(
+        data_path,
+        output_path,
+        script_root=SCRIPT_ROOT,
+        find_powershell=find_powershell,
+    )
 
 
 def render_rich_html_with_python(data_path: Path, output_path: Path) -> Path:
-    script = SCRIPT_ROOT / "render" / "render_report.py"
-    if not script.exists():
-        raise RuntimeError(f"Python rich HTML renderer script is missing: {script}")
-    result = run_python_script(
-        script,
-        ["--data", str(data_path), "--output", str(output_path), "--skip-validation"],
+    return render_rich_html_with_python_helper(
+        data_path,
+        output_path,
+        script_root=SCRIPT_ROOT,
+        run_python_script=run_python_script,
     )
-    rendered = Path(result.get("html") or output_path)
-    if not rendered.exists():
-        raise RuntimeError(f"Python rich HTML renderer did not create output: {rendered}")
-    return rendered
 
 
 def module_render(args: argparse.Namespace) -> dict[str, Any]:
-    data_path = data_path_from_args(args)
-    brand_folder = brand_folder_from_data(data_path)
-    state = load_state(brand_folder)
-    set_status(state, "render", "in_progress")
-    set_gate(state, "gate_8_render_outputs", "in_progress")
-    set_gate(state, "gate_6_render_outputs", "in_progress")
-    save_state(brand_folder, state)
-    validation = validate_report_data(data_path)
-    if not validation["ok"]:
-        set_status(state, "render", "failed")
-        set_gate(state, "gate_8_render_outputs", "failed")
-        set_gate(state, "gate_6_render_outputs", "failed")
-        save_state(brand_folder, state)
-        raise SystemExit("Render blocked by report-data validation: " + "; ".join(validation["errors"]))
-    html_path = brand_folder / "newbizintel-report.html"
-    try:
-        html_path = render_rich_html_with_python(data_path, html_path)
-    except Exception as exc:
-        if os.environ.get("NEWBIZINTEL_ALLOW_POWERSHELL_RENDER_FALLBACK", "") == "1":
-            html_path = render_rich_html_with_powershell(data_path, html_path)
-        elif os.environ.get("NEWBIZINTEL_ALLOW_SKELETAL_RENDER", "") == "1":
-            html_path = render_html(data_path, html_path)
-        else:
-            set_status(state, "render", "failed")
-            set_gate(state, "gate_8_render_outputs", "failed")
-            set_gate(state, "gate_6_render_outputs", "failed")
-            save_state(brand_folder, state)
-            raise SystemExit(
-                "Render blocked because the Python rich presentation renderer did not run. "
-                "Refusing to use the legacy PowerShell renderer unless NEWBIZINTEL_ALLOW_POWERSHELL_RENDER_FALLBACK=1. "
-                f"Root cause: {exc}"
-            )
-    inject_task_list_into_html(html_path, brand_folder)
-    try:
-        assert_deployable_report_html(html_path)
-    except SystemExit:
-        set_status(state, "render", "failed")
-        set_gate(state, "gate_6_render_outputs", "failed")
-        set_gate(state, "gate_8_render_outputs", "failed")
-        save_state(brand_folder, state)
-        raise
-    archive_dir = brand_folder / "archive"
-    archive_dir.mkdir(parents=True, exist_ok=True)
-    portable_html = archive_dir / "newbizintel-report-portable.html"
-    make_self_contained(html_path, data_path, portable_html)
-    try:
-        assert_deployable_report_html(portable_html)
-    except SystemExit:
-        set_status(state, "render", "failed")
-        set_gate(state, "gate_6_render_outputs", "failed")
-        set_gate(state, "gate_8_render_outputs", "failed")
-        save_state(brand_folder, state)
-        raise
-    pptx_path = brand_folder / "newbizintel-report.pptx"
-    pptx_warning = ""
-    try:
-        pptx_data_path = pptx_safe_data_copy(data_path)
-        run_python_script(SCRIPT_ROOT / "render" / "report_data_to_pptx.py", ["--data", str(pptx_data_path), "--pptx", str(pptx_path)])
-    except SystemExit as exc:
-        pptx_warning = str(exc)
-        build_minimal_pptx(data_path, pptx_path)
-    if not pptx_path.exists():
-        set_status(state, "render", "failed")
-        set_gate(state, "gate_8_render_outputs", "failed")
-        set_gate(state, "gate_6_render_outputs", "failed")
-        save_state(brand_folder, state)
-        raise SystemExit("PPTX output was not created. " + pptx_warning)
-    shutil.copy2(html_path, brand_folder / "index.html")
-    shutil.copy2(pptx_path, archive_dir / pptx_path.name)
-    set_status(state, "render", "passed")
-    set_gate(state, "gate_8_render_outputs", "passed")
-    set_gate(state, "gate_6_render_outputs", "passed")
-    save_state(brand_folder, state)
-    return {"module": "render", "data": str(data_path), "brand_folder": str(brand_folder), "bundle": {"html": str(html_path), "pptx": str(pptx_path), "archive": {"directory": str(archive_dir), "html": str(portable_html), "pptx": str(archive_dir / pptx_path.name)}}}
+    return render_module_entry(
+        args,
+        script_root=SCRIPT_ROOT,
+        data_path_from_args=data_path_from_args,
+        brand_folder_from_data=brand_folder_from_data,
+        validate_report_data=validate_report_data,
+        render_rich_html_with_python=render_rich_html_with_python,
+        render_rich_html_with_powershell=render_rich_html_with_powershell,
+        render_html=render_html,
+        inject_task_list_into_html=inject_task_list_into_html,
+        assert_deployable_report_html=assert_deployable_report_html,
+        make_self_contained=make_self_contained,
+        pptx_safe_data_copy=pptx_safe_data_copy,
+        run_python_script=run_python_script,
+        build_minimal_pptx=build_minimal_pptx,
+    )
 
 
 def audit_task_list(data_path: Path) -> dict[str, Any]:
@@ -5669,100 +3666,21 @@ def audit_task_list(data_path: Path) -> dict[str, Any]:
     return {"ok": not errors, "errors": errors, "passed": sum(1 for task in tasks if task["status"] == "passed"), "total": 10, "tasks": tasks}
 
 
-def audit_hybrid(state: dict[str, Any]) -> dict[str, Any]:
-    events = state.get("hybrid_execution", {}).get("events", [])
-    seen = {(event.get("type"), event.get("key")) for event in events}
-    required = [
-        ("fanout", "research.evidence_collection"),
-        ("reducer", "research.summary_reducer"),
-        ("reducer", "structure.report_data_reducer"),
-        ("fanout", "assets.logo_acquisition"),
-        ("fanout", "assets.source_badges"),
-        ("reducer", "assets.asset_manifest_reducer"),
-        ("fanout", "campaign_art.prep"),
-        ("reducer", "campaign_art.asset_manifest_reducer"),
-    ]
-    missing = [f"{kind}:{key}" for kind, key in required if (kind, key) not in seen]
-    return {"ok": not missing, "missing": missing}
-
-
 def module_qa(args: argparse.Namespace) -> dict[str, Any]:
-    data_path = data_path_from_args(args)
-    brand_folder = brand_folder_from_data(data_path)
-    state = load_state(brand_folder)
-    changed = False
-    if reconcile_structure_gate_from_data(state, data_path):
-        changed = True
-    if reconcile_campaign_art_gate_from_audit(state, data_path):
-        changed = True
-    if reconcile_render_gate_from_outputs(state, data_path, brand_folder):
-        changed = True
-    if changed:
-        save_state(brand_folder, state)
-    set_status(state, "qa", "in_progress")
-    if state.get("status", {}).get("deploy") != "passed":
-        set_status(state, "deploy", "pending")
-    set_gate(state, "gate_9_quality_review", "in_progress")
-    set_gate(state, "gate_6a_editorial_quality", "in_progress")
-    if state.get("gates", {}).get("gate_10_delivery_handoff") != "passed" and state.get("gates", {}).get("gate_7_delivery") != "passed":
-        set_gate(state, "gate_10_delivery_handoff", "pending")
-        set_gate(state, "gate_7_delivery", "pending")
-    add_event(state, "fanout", "qa.initial_audits", jobs=["report-data", "task-list", "hybrid", "logos", "campaign-art", "outputs"])
-    save_state(brand_folder, state)
-    latest_stage_audit: dict[str, Any] = {"ok": True, "warnings": ["Deploy stage has not been prepared yet."], "errors": []}
-    latest_handoff_path = brand_folder / "vercel-random-handoff-latest.json"
-    if latest_handoff_path.exists():
-        try:
-            latest_handoff = read_json(latest_handoff_path)
-            deploy_path = Path(str(latest_handoff.get("deploy_path") or ""))
-            if deploy_path.exists() and deploy_path.is_dir():
-                latest_stage_audit = audit_deploy_stage(deploy_path)
-            else:
-                latest_stage_audit = {"ok": False, "errors": [f"Latest Vercel stage path is missing: {deploy_path}"], "warnings": []}
-        except Exception as exc:
-            latest_stage_audit = {"ok": False, "errors": [f"Could not audit latest Vercel stage: {exc}"], "warnings": []}
-    checks = {
-        "report_data": validate_report_data(data_path),
-        "hybrid": audit_hybrid(state),
-        "campaign_art": audit_campaign_art(data_path),
-        "required_logos": read_json(brand_folder / "required-logo-manifest.json") if (brand_folder / "required-logo-manifest.json").exists() else {"ok": False, "errors": ["required-logo-manifest.json missing"]},
-        "source_badges": read_json(brand_folder / "source-badge-manifest.json") if (brand_folder / "source-badge-manifest.json").exists() else {"ok": False, "errors": ["source-badge-manifest.json missing"]},
-        "presentation_html": audit_presentation_html(brand_folder, data_path),
-        "deploy_stage": latest_stage_audit,
-        "outputs": {
-            "ok": (brand_folder / "newbizintel-report.html").exists() and (brand_folder / "archive" / "newbizintel-report-portable.html").exists() and (brand_folder / "newbizintel-report.pptx").exists(),
-            "html": str(brand_folder / "newbizintel-report.html"),
-            "portable_html": str(brand_folder / "archive" / "newbizintel-report-portable.html"),
-            "pptx": str(brand_folder / "newbizintel-report.pptx"),
-        },
-    }
-    errors = []
-    for name, result in checks.items():
-        if not result.get("ok"):
-            errors.append(f"{name}: {result.get('errors') or result.get('missing') or 'not ok'}")
-    if errors:
-        set_status(state, "qa", "failed")
-        set_gate(state, "gate_9_quality_review", "failed")
-        set_gate(state, "gate_6a_editorial_quality", "failed")
-        save_state(brand_folder, state)
-        checks["task_list"] = audit_task_list(data_path)
-        write_json(brand_folder / "qa-results.json", checks)
-        raise SystemExit("QA failed: " + "; ".join(errors))
-    add_event(state, "reducer", "qa.bundle_reducer", outputs=[str(brand_folder / "qa-results.json")])
-    set_status(state, "qa", "passed")
-    set_gate(state, "gate_9_quality_review", "passed")
-    set_gate(state, "gate_6a_editorial_quality", "passed")
-    save_state(brand_folder, state)
-    checks["task_list"] = audit_task_list(data_path)
-    html_path = brand_folder / "newbizintel-report.html"
-    index_path = brand_folder / "index.html"
-    inject_task_list_into_html(html_path, brand_folder)
-    if html_path.exists():
-        shutil.copy2(html_path, index_path)
-    elif index_path.exists():
-        inject_task_list_into_html(index_path, brand_folder)
-    write_json(brand_folder / "qa-results.json", checks)
-    return {"module": "qa", "data": str(data_path), "brand_folder": str(brand_folder), "checks": checks}
+    return qa_module_entry(
+        args,
+        data_path_from_args=data_path_from_args,
+        brand_folder_from_data=brand_folder_from_data,
+        reconcile_structure_gate_from_data=reconcile_structure_gate_from_data,
+        reconcile_campaign_art_gate_from_audit=reconcile_campaign_art_gate_from_audit,
+        reconcile_render_gate_from_outputs=reconcile_render_gate_from_outputs,
+        validate_report_data=validate_report_data,
+        audit_campaign_art=audit_campaign_art,
+        audit_presentation_html=audit_presentation_html,
+        audit_deploy_stage=audit_deploy_stage,
+        audit_task_list=audit_task_list,
+        inject_task_list_into_html=inject_task_list_into_html,
+    )
 
 
 def vercel_deploy_prompt(data_path: Path, brand_folder: Path) -> dict[str, Any]:
@@ -5894,34 +3812,82 @@ def module_vercel_stage(args: argparse.Namespace) -> dict[str, Any]:
 def run_mode(args: argparse.Namespace) -> dict[str, Any]:
     results: dict[str, Any] = {"mode": args.mode}
     if args.mode in {"full", "research-only", "render-stack"}:
-        results["intake"] = module_intake(args)
+        results["intake"] = intake_module_entry(args, template_path=TEMPLATE_PATH, template_assets=TEMPLATE_ASSETS)
         args.data_path = results["intake"]["data"]
     if args.mode in {"full", "research-only"}:
         results["research"] = module_research(args)
         args.research_summary_path = results["research"]["research_summary"]
     if args.mode in {"full", "render-stack"}:
         if args.mode == "render-stack" and not getattr(args, "data_path", None):
-            results["intake"] = module_intake(args)
+            results["intake"] = intake_module_entry(args, template_path=TEMPLATE_PATH, template_assets=TEMPLATE_ASSETS)
             args.data_path = results["intake"]["data"]
-        results["structure"] = module_structure(args)
-        results["assets"] = module_assets(args)
-        results["campaign_art"] = module_campaign_art(args)
+        results["structure"] = structure_module_entry(
+            args,
+            data_path_from_args=data_path_from_args,
+            brand_folder_from_data=brand_folder_from_data,
+            merge_research_into_data=merge_research_into_data,
+            build_structured_report_data=build_structured_report_data,
+            validate_report_data=validate_report_data,
+            sha256=sha256,
+        )
+        results["assets"] = assets_module_entry(
+            args,
+            data_path_from_args=data_path_from_args,
+            brand_folder_from_data=brand_folder_from_data,
+            patch_assets=patch_assets,
+        )
+        results["campaign_art"] = campaign_art_module_entry(
+            args,
+            script_root=SCRIPT_ROOT,
+            data_path_from_args=data_path_from_args,
+            brand_folder_from_data=brand_folder_from_data,
+            run_python_script=run_python_script,
+            apply_manifest=apply_manifest,
+            audit_campaign_art=audit_campaign_art,
+        )
         results["render"] = module_render(args)
         results["qa"] = module_qa(args)
     if args.mode == "qa-only":
         results["qa"] = module_qa(args)
     if args.mode == "deploy-handoff":
-        results["deploy"] = module_deploy(args)
+        results["deploy"] = deploy_module_entry(
+            args,
+            data_path_from_args=data_path_from_args,
+            brand_folder_from_data=brand_folder_from_data,
+            assert_deployable_report_html=assert_deployable_report_html,
+            inject_task_list_into_html=inject_task_list_into_html,
+            vercel_deploy_prompt=vercel_deploy_prompt,
+        )
     if args.mode == "art-refresh":
-        results["campaign_art"] = module_campaign_art(args)
+        results["campaign_art"] = campaign_art_module_entry(
+            args,
+            script_root=SCRIPT_ROOT,
+            data_path_from_args=data_path_from_args,
+            brand_folder_from_data=brand_folder_from_data,
+            run_python_script=run_python_script,
+            apply_manifest=apply_manifest,
+            audit_campaign_art=audit_campaign_art,
+        )
         results["render"] = module_render(args)
         results["qa"] = module_qa(args)
     if args.mode == "assets-refresh":
-        results["assets"] = module_assets(args)
+        results["assets"] = assets_module_entry(
+            args,
+            data_path_from_args=data_path_from_args,
+            brand_folder_from_data=brand_folder_from_data,
+            patch_assets=patch_assets,
+        )
         results["render"] = module_render(args)
         results["qa"] = module_qa(args)
     if args.mode == "full":
-        results["deploy"] = module_deploy(args)
+        results["deploy"] = deploy_module_entry(
+            args,
+            data_path_from_args=data_path_from_args,
+            brand_folder_from_data=brand_folder_from_data,
+            assert_deployable_report_html=assert_deployable_report_html,
+            inject_task_list_into_html=inject_task_list_into_html,
+            vercel_deploy_prompt=vercel_deploy_prompt,
+        )
     return results
 
 
@@ -5957,15 +3923,47 @@ def main() -> None:
         raise SystemExit(2)
     dispatch = {
         "run": run_mode,
-        "intake": module_intake,
+        "intake": lambda args: intake_module_entry(args, template_path=TEMPLATE_PATH, template_assets=TEMPLATE_ASSETS),
         "research": module_research,
-        "structure": module_structure,
-        "assets": module_assets,
-        "campaign-art": module_campaign_art,
+        "structure": lambda args: structure_module_entry(
+            args,
+            data_path_from_args=data_path_from_args,
+            brand_folder_from_data=brand_folder_from_data,
+            merge_research_into_data=merge_research_into_data,
+            build_structured_report_data=build_structured_report_data,
+            validate_report_data=validate_report_data,
+            sha256=sha256,
+        ),
+        "assets": lambda args: assets_module_entry(
+            args,
+            data_path_from_args=data_path_from_args,
+            brand_folder_from_data=brand_folder_from_data,
+            patch_assets=patch_assets,
+        ),
+        "campaign-art": lambda args: campaign_art_module_entry(
+            args,
+            script_root=SCRIPT_ROOT,
+            data_path_from_args=data_path_from_args,
+            brand_folder_from_data=brand_folder_from_data,
+            run_python_script=run_python_script,
+            apply_manifest=apply_manifest,
+            audit_campaign_art=audit_campaign_art,
+        ),
         "render": module_render,
         "qa": module_qa,
-        "deploy": module_deploy,
-        "vercel-stage": module_vercel_stage,
+        "deploy": lambda args: deploy_module_entry(
+            args,
+            data_path_from_args=data_path_from_args,
+            brand_folder_from_data=brand_folder_from_data,
+            assert_deployable_report_html=assert_deployable_report_html,
+            inject_task_list_into_html=inject_task_list_into_html,
+            vercel_deploy_prompt=vercel_deploy_prompt,
+        ),
+        "vercel-stage": lambda args: vercel_stage_module_entry(
+            args,
+            data_path_from_args=data_path_from_args,
+            prepare_random_vercel_stage=prepare_random_vercel_stage,
+        ),
     }
     result = dispatch[args.command](args)
     print(json.dumps(result, indent=2, ensure_ascii=False))

@@ -35,7 +35,7 @@ $ignoredPathFragments = @(
 
 $findings = @()
 
-Get-ChildItem -LiteralPath $resolvedRepoRoot -File -Recurse | ForEach-Object {
+Get-ChildItem -LiteralPath $resolvedRepoRoot -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
     $path = $_.FullName
     if ((Split-Path -Leaf $path) -in @('source-badge-manifest.json', 'required-logo-manifest.json')) {
         return

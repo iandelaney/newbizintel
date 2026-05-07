@@ -1,6 +1,6 @@
 {
   "mode": "live-assisted",
-  "data_path": "C:/codex projects/newbizintel-skill-repo/examples/report-data.json",
+  "data_path": "./examples/report-data.json",
   "brand_name": "Example Brand",
   "brand_website": "https://example.com/",
   "competitors": [

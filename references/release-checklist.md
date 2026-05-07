@@ -4,14 +4,14 @@ Use this checklist before sharing `newbizintel` with colleagues or publishing it
 
 ## Required
 
-- Run [audit_portability.ps1](C:\codex projects\newbizintel-skill-repo\scripts\qa\audit_portability.ps1) and confirm `ok: true`
-- Run [smoke_test_install.ps1](C:\codex projects\newbizintel-skill-repo\scripts\qa\smoke_test_install.ps1) and confirm `ok: true`
+- Run `scripts\qa\audit_portability.ps1` and confirm `ok: true`
+- Run `scripts\qa\smoke_test_install.ps1` and confirm `ok: true`
 - Run a sample gated proof with the cross-platform Python runner:
-  - [newbizintel.py](C:\codex projects\newbizintel-skill-repo\scripts\newbizintel.py)
+  - `scripts\newbizintel.py`
   - `run --mode render-stack --data-path .\examples\report-data.json`
   - `qa --data-path .\examples\report-data.json`
 - On Windows, run a sample full gated proof with the legacy PowerShell runner:
-  - [run_newbizintel.ps1](C:\codex projects\newbizintel-skill-repo\scripts\run_newbizintel.ps1)
+  - `scripts\run_newbizintel.ps1`
   - `-DataPath .\examples\report-data.json -Mode full`
 - Confirm the QA smoke test still uses the hybrid parallel path, with deterministic jobs only writing isolated audit outputs before render.
 - Confirm `scripts\qa\audit_task_list.ps1` passes and reports the 10 primary workflow steps in order.
@@ -32,9 +32,9 @@ Use this checklist before sharing `newbizintel` with colleagues or publishing it
 
 - Run the latest gold-path proof if the real-brand inputs are available.
   - Prefer the current target brand, such as `WebOps`, when a maintained local bundle exists.
-  - [run_univers_live_summary_proof.ps1](C:\codex projects\newbizintel-skill-repo\scripts\fixtures\run_univers_live_summary_proof.ps1) remains the repo's maintained live-summary proof script until a newer named proof replaces it.
-- Keep disposable proof artifacts outside the delivery output root. Use [resolve_proof_root.ps1](C:\codex projects\newbizintel-skill-repo\scripts\common\resolve_proof_root.ps1) rather than creating sibling folders such as `output\skill-runs`.
-- Optionally run [audit_output_cleanliness.ps1](C:\codex projects\newbizintel-skill-repo\scripts\qa\audit_output_cleanliness.ps1) to identify historical proof or handoff folders that should be quarantined after operator approval.
+  - `scripts\fixtures\run_univers_live_summary_proof.ps1` remains the repo's maintained live-summary proof script until a newer named proof replaces it.
+- Keep disposable proof artifacts outside the delivery output root. Use `scripts\common\resolve_proof_root.ps1` rather than creating sibling folders such as `output\skill-runs`.
+- Optionally run `scripts\qa\audit_output_cleanliness.ps1` to identify historical proof or handoff folders that should be quarantined after operator approval.
 - Review `references\duplication-map.md` before extracting shared code
 - Recheck installer and config wording if MCP setup changed
 
