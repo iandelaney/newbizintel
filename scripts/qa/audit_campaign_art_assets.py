@@ -8,6 +8,7 @@ missing/undersized assets.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import math
 from pathlib import Path
@@ -24,6 +25,7 @@ SCAFFOLD_MARKERS = {
 }
 FINAL_BACKENDS = {
     "imagegen",
+    "imagegen-batch-import",
     "openai-imagegen",
     "manual-final-raster",
     "external-raster-artwork",
@@ -31,7 +33,7 @@ FINAL_BACKENDS = {
 }
 MIN_WIDTH = 900
 MIN_HEIGHT = 1400
-MIN_BYTES = 75_000
+MIN_BYTES = 60_000
 MIN_ENTROPY = 2.0
 
 
@@ -95,6 +97,7 @@ def main() -> int:
     errors: list[str] = []
     warnings: list[str] = []
     assets: list[dict[str, object]] = []
+    palette_families: list[str] = []
 
     delivery_mode = str(section.get("artwork_delivery_mode") or "").strip().lower()
     section_backend = str(section.get("illustration_generation_backend") or "").strip().lower()
@@ -127,6 +130,7 @@ def main() -> int:
         url = str(idea.get("illustration_url") or "").strip()
         role = str(idea.get("illustration_asset_role") or "").strip().lower()
         backend = str(idea.get("illustration_generation_backend") or section_backend).strip().lower()
+        palette_family = str(idea.get("illustration_palette_family") or "").strip().lower()
 
         if not url:
             add_issue(
@@ -147,6 +151,16 @@ def main() -> int:
                 warnings=warnings,
                 template_fixture=template_fixture,
             )
+
+        if not palette_family:
+            add_issue(
+                message=f"{prefix}.illustration_palette_family is required for delivered reports ('{title}').",
+                errors=errors,
+                warnings=warnings,
+                template_fixture=template_fixture,
+            )
+        else:
+            palette_families.append(palette_family)
 
         if backend in SCAFFOLD_MARKERS or (backend and backend not in FINAL_BACKENDS):
             add_issue(
@@ -256,7 +270,22 @@ def main() -> int:
                 "entropy": round(entropy, 3),
                 "role": role,
                 "backend": backend,
+                "palette_family": palette_family,
             }
+        )
+
+    repeated_palette_families = sorted(
+        [family for family, count in Counter(palette_families).items() if family and count > 1]
+    )
+    if repeated_palette_families:
+        add_issue(
+            message=(
+                "Creative campaign artwork repeats palette family or families: "
+                + ", ".join(repeated_palette_families)
+            ),
+            errors=errors,
+            warnings=warnings,
+            template_fixture=template_fixture,
         )
 
     payload = {

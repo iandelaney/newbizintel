@@ -347,10 +347,24 @@ def audit_presentation_html(
 
 
 def task_list_html(brand_folder: Path, *, read_json: Any) -> str:
+    run_state_path = brand_folder / "run-state.json"
     task_path = brand_folder / "workflow-task-list.json"
-    if not task_path.exists():
-        return ""
-    payload = read_json(task_path)
+    payload: dict[str, Any] = {}
+    if run_state_path.exists():
+        state = read_json(run_state_path)
+        tasks = state.get("task_list", []) if isinstance(state, dict) else []
+        if isinstance(tasks, list) and tasks:
+            passed = sum(1 for task in tasks if str(task.get("status") or "").strip().lower() == "passed")
+            payload = {
+                "tasks": tasks,
+                "passed": passed,
+                "total": len(tasks),
+                "updated_at": state.get("updated_at", "not recorded"),
+            }
+    if not payload:
+        if not task_path.exists():
+            return ""
+        payload = read_json(task_path)
     rows = []
     for task in payload.get("tasks", []):
         rows.append(

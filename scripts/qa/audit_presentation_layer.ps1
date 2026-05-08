@@ -88,6 +88,25 @@ function Test-CssClassCoverage {
     return $false
 }
 
+function Get-DomainStem {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return ""
+    }
+
+    try {
+        $uri = [System.Uri]$Value
+        $hostName = $uri.Host.ToLowerInvariant()
+    }
+    catch {
+        $hostName = $Value.ToLowerInvariant()
+    }
+
+    $hostName = $hostName -replace '^www\.', ''
+    return $hostName
+}
+
 function Get-ClassMatches {
     param(
         [string]$SourceHtml
@@ -262,6 +281,48 @@ if ($data) {
         Add-Issue -Bucket 'errors' -Message ("News source logos include the generic news.png badge. Count: {0}." -f $genericNewsBadgeCount)
     }
 
+    $brandDomain = Get-DomainStem -Value ([string]$data.brand.website)
+    foreach ($newsItem in @($data.brand_reputation.influential_news)) {
+        if ($null -eq $newsItem) {
+            continue
+        }
+        $sourceName = [string]$newsItem.source
+        $sourceType = [string]$newsItem.source_type
+        $sourceDomain = Get-DomainStem -Value ([string]$newsItem.url)
+        $ownedSource = $false
+        if ($sourceType -match '^(?i)owned_newsroom$') {
+            $ownedSource = $true
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace($sourceName)) {
+            $lowerSourceName = $sourceName.ToLowerInvariant()
+            $brandName = ([string]$data.brand.name).ToLowerInvariant()
+            if (($brandName -and $lowerSourceName.Contains($brandName)) -or $lowerSourceName.Contains('blog') -or $lowerSourceName.Contains('press') -or $lowerSourceName.Contains('newsroom')) {
+                $ownedSource = $true
+            }
+        }
+        if (-not $ownedSource -and $brandDomain -and $sourceDomain -and $sourceDomain -eq $brandDomain) {
+            Add-Issue -Bucket 'errors' -Message ("Influential news source '{0}' points to the brand-owned domain instead of the named publisher." -f $sourceName)
+        }
+        $sourceAsset = [string]($newsItem.source_logo_url)
+        if (-not $ownedSource -and $sourceAsset -match '(?i)source-initial-mark') {
+            Add-Issue -Bucket 'errors' -Message ("Influential news source '{0}' fell back to a generic initial-mark badge instead of a recognisable publisher asset." -f $sourceName)
+        }
+        if (-not $ownedSource -and -not [string]::IsNullOrWhiteSpace($sourceAsset) -and $sourceAsset.EndsWith('.svg', [System.StringComparison]::OrdinalIgnoreCase)) {
+            try {
+                $assetPath = Join-Path (Split-Path -Parent $resolvedDataPath) $sourceAsset
+                if (Test-Path -LiteralPath $assetPath) {
+                    $svgText = (Get-Content -LiteralPath $assetPath -Raw).ToLowerInvariant()
+                    $brandName = ([string]$data.brand.name).ToLowerInvariant()
+                    if ($brandName -and $svgText.Contains($brandName)) {
+                        Add-Issue -Bucket 'errors' -Message ("Influential news source '{0}' is using an SVG badge that still identifies as the brand asset." -f $sourceName)
+                    }
+                }
+            }
+            catch {
+            }
+        }
+    }
+
     $brandLogoUrl = $data.brand.logo_url
     $brandMarkUrl = $data.brand.mark_url
     $hasBrandFallback = $html -match 'class="[^"]*\bbrand-logo-slot--fallback\b'
@@ -269,6 +330,40 @@ if ($data) {
     $script:audit.checks.brand_logo_fallback = $hasBrandFallback
     if ($hasBrandFallback -or -not $usesBrandLogoImage) {
         Add-Issue -Bucket 'errors' -Message 'Brand logo fell back to initials or is absent from the report header.'
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$brandMarkUrl) -and $html -notmatch [regex]::Escape([string]$brandMarkUrl)) {
+        Add-Issue -Bucket 'errors' -Message 'Rendered report header did not use the available brand mark asset.'
+    }
+    $brandMarkResolutionSource = [string]$data.brand.mark_resolution_source
+    if ($brandMarkResolutionSource -match '(?i)no square logo candidate passed quality check') {
+        Add-Issue -Bucket 'errors' -Message 'Brand mark resolution fell back without finding a proper square mark asset.'
+    }
+    if (
+        -not [string]::IsNullOrWhiteSpace([string]$brandMarkUrl) -and
+        -not [string]::IsNullOrWhiteSpace([string]$brandLogoUrl) -and
+        ([string]$brandMarkUrl -eq [string]$brandLogoUrl) -and
+        ([string]$brandMarkUrl -notmatch '(?i)(mark|favicon|initial)')
+    ) {
+        Add-Issue -Bucket 'errors' -Message 'Brand mark is reusing the main wordmark asset instead of a distinct square mark.'
+    }
+
+    $placeholderPatterns = @(
+        'source pending',
+        'should be confirmed',
+        'record whether',
+        'record known funding',
+        'must be drawn from',
+        'identify likely stakeholder groups',
+        'treated in this report as a brand'
+    )
+    foreach ($pattern in $placeholderPatterns) {
+        if ($html -match [regex]::Escape($pattern)) {
+            Add-Issue -Bucket 'errors' -Message ("Rendered HTML still contains placeholder snapshot language: {0}" -f $pattern)
+        }
+    }
+
+    if ($html -match '<span class="eyebrow">Built from report findings</span></div></div>') {
+        Add-Issue -Bucket 'errors' -Message 'Opportunities section rendered an empty Built from report findings panel.'
     }
 }
 

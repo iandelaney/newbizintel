@@ -3,7 +3,8 @@ param(
     [string]$PptxPath,
 
     [int]$MinSlideCount = 6,
-    [int]$MinSizeKb = 100
+    [int]$MinSizeKb = 100,
+    [int]$MinRichSlideCount = 12
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +17,8 @@ $errors = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
 $slideNames = @()
 $mediaNames = @()
+$applicationName = ''
+$fallbackSignatureDetected = $false
 
 if ($file.Length -lt ($MinSizeKb * 1024)) {
     $errors.Add(("PPTX file is smaller than expected ({0} KB). Minimum: {1} KB." -f ([Math]::Round($file.Length / 1024, 1)), $MinSizeKb))
@@ -33,8 +36,34 @@ try {
     $slideNames = @($entryNames | Where-Object { $_ -match '^ppt/slides/slide\d+\.xml$' } | Sort-Object)
     $mediaNames = @($entryNames | Where-Object { $_ -match '^ppt/media/' } | Sort-Object)
 
+    $appEntry = $zip.GetEntry('docProps/app.xml')
+    if ($null -ne $appEntry) {
+        $reader = New-Object System.IO.StreamReader($appEntry.Open())
+        try {
+            $appXml = $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+        }
+        $match = [regex]::Match($appXml, '<Application>(.*?)</Application>')
+        if ($match.Success) {
+            $applicationName = $match.Groups[1].Value.Trim()
+        }
+    }
+    else {
+        $warnings.Add('PPTX package is missing docProps/app.xml, so fallback-signature detection could not run.')
+    }
+
     if ($slideNames.Count -lt $MinSlideCount) {
         $errors.Add("PPTX should contain at least $MinSlideCount slides. Current count: $($slideNames.Count)")
+    }
+
+    $fallbackSignatureDetected = $applicationName -eq 'NewBizIntel Python Runner'
+    if ($fallbackSignatureDetected) {
+        $errors.Add('PPTX matches the fallback deck signature (`NewBizIntel Python Runner`) instead of the intended rich renderer output.')
+    }
+    elseif ($slideNames.Count -lt $MinRichSlideCount) {
+        $errors.Add("PPTX appears shorter than the expected rich deck ($($slideNames.Count) slides found; expected at least $MinRichSlideCount).")
     }
 
     if ($mediaNames.Count -eq 0) {
@@ -62,5 +91,8 @@ if ($errors.Count -gt 0) {
     size_kb = [Math]::Round($file.Length / 1024, 1)
     slide_count = $slideNames.Count
     media_count = $mediaNames.Count
+    application = $applicationName
+    fallback_signature_detected = $fallbackSignatureDetected
+    rich_deck_likely = (-not $fallbackSignatureDetected) -and ($slideNames.Count -ge $MinRichSlideCount)
     warnings = @($warnings)
 } | ConvertTo-Json -Depth 4 -Compress

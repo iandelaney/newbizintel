@@ -15,6 +15,7 @@ record of any placeholder assets created here.
 from __future__ import annotations
 
 import argparse
+import colorsys
 import json
 import math
 import random
@@ -829,6 +830,10 @@ def relative_asset_path(asset_dir: Path, path: Path) -> str:
     return path.relative_to(asset_dir.parent).as_posix()
 
 
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest().upper()
+
+
 def build_premium_art_brief(
     *,
     brand_name: str,
@@ -920,8 +925,166 @@ def motif_key(title: str, concept: str, medium: str = "") -> str:
     return "generic"
 
 
+def palette_hex_values(palette: dict | None) -> list[str]:
+    if not isinstance(palette, dict):
+        return []
+    return [
+        str(value)
+        for value in palette.values()
+        if isinstance(value, str) and value.startswith("#") and len(value) == 7
+    ]
+
+
+def classify_palette_family(
+    family: str,
+    slug: str,
+    medium: str,
+    style: str,
+    palette: dict | None,
+) -> str:
+    text = " ".join(part for part in (family, slug, medium, style) if part).lower()
+    if any(token in text for token in ("blueprint", "technical", "circuit", "cosmic", "infrared", "neon", "electric", "observatory")):
+        return "cool-luminous"
+    if any(token in text for token in ("sculpt", "maquette", "terrain", "botanical", "garden", "moss", "clay")):
+        return "mineral-green"
+    if any(token in text for token in ("poster", "zine", "collage", "comic", "graphic", "risograph", "silkscreen", "cubist", "xerox")):
+        return "graphic-contrast"
+    if any(token in text for token in ("ukiyo", "ink-wash", "watercolour", "impressionist", "pastel", "paper space")):
+        return "airy-pastel"
+
+    hexes = palette_hex_values(palette)
+    if not hexes:
+        return "warm-earth"
+
+    hue_scores = {"warm": 0, "cool": 0, "green": 0, "neutral": 0}
+    vivid = 0
+    dark = 0
+    light = 0
+    for value in hexes:
+        red = int(value[1:3], 16) / 255.0
+        green = int(value[3:5], 16) / 255.0
+        blue = int(value[5:7], 16) / 255.0
+        hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
+        if saturation >= 0.45:
+            vivid += 1
+        if lightness <= 0.18:
+            dark += 1
+        if lightness >= 0.82:
+            light += 1
+        if saturation <= 0.12:
+            hue_scores["neutral"] += 1
+        elif 0.10 <= hue <= 0.22:
+            hue_scores["warm"] += 1
+        elif 0.0 <= hue < 0.10 or hue > 0.92:
+            hue_scores["warm"] += 1
+        elif 0.22 < hue <= 0.46:
+            hue_scores["green"] += 1
+        elif 0.46 < hue <= 0.84:
+            hue_scores["cool"] += 1
+        else:
+            hue_scores["cool"] += 1
+
+    if hue_scores["green"] >= max(hue_scores["warm"], hue_scores["cool"]) and (light >= 2 or vivid >= 1):
+        return "mineral-green"
+    if hue_scores["cool"] >= hue_scores["warm"] + 1 and vivid >= 1:
+        return "cool-luminous"
+    if vivid >= 2 and dark >= 1 and light >= 1:
+        return "graphic-contrast"
+    if light >= max(2, len(hexes) // 2) and hue_scores["cool"] >= 1:
+        return "airy-pastel"
+    return "warm-earth"
+
+
+def classify_profile_palette_family(profile: dict) -> str:
+    return classify_palette_family(
+        str(profile.get("family") or ""),
+        str(profile.get("slug") or ""),
+        str(profile.get("medium") or ""),
+        str(profile.get("style") or ""),
+        profile.get("palette"),
+    )
+
+
+def candidate_pool_for_kind(kind: str) -> list[dict]:
+    if kind == "generic":
+        pool: list[dict] = []
+        for library_kind, items in SURPRISE_STYLE_LIBRARY.items():
+            pool.extend(dict(item, kind=library_kind) for item in items)
+        return pool
+    pool = [dict(item, kind=kind) for item in SURPRISE_STYLE_LIBRARY.get(kind, [])]
+    if pool:
+        return pool
+    fallback_pool: list[dict] = []
+    for library_kind, items in SURPRISE_STYLE_LIBRARY.items():
+        fallback_pool.extend(dict(item, kind=library_kind) for item in items)
+    return fallback_pool
+
+
+def full_surprise_pool() -> list[dict]:
+    pool: list[dict] = []
+    for library_kind, items in SURPRISE_STYLE_LIBRARY.items():
+        pool.extend(dict(item, kind=library_kind) for item in items)
+    return pool
+
+
+def select_palette_candidate_profiles(
+    kind: str,
+    primary_profile: dict,
+    *,
+    max_candidates: int = 4,
+) -> list[dict]:
+    pool = candidate_pool_for_kind(kind)
+    chosen: list[dict] = []
+    used_slugs: set[str] = set()
+    used_palette_families: set[str] = set()
+
+    primary = dict(primary_profile)
+    primary["palette_family"] = primary.get("palette_family") or classify_profile_palette_family(primary)
+    chosen.append(primary)
+    used_slugs.add(primary["slug"])
+    used_palette_families.add(primary["palette_family"])
+
+    shuffled_pool = [dict(item) for item in pool if item.get("slug") not in used_slugs]
+    random.SystemRandom().shuffle(shuffled_pool)
+    for item in shuffled_pool:
+        item["palette_family"] = classify_profile_palette_family(item)
+        if item["palette_family"] in used_palette_families:
+            continue
+        chosen.append(item)
+        used_slugs.add(item["slug"])
+        used_palette_families.add(item["palette_family"])
+        if len(chosen) >= max_candidates:
+            break
+
+    if len(chosen) < max_candidates:
+        global_pool = [dict(item) for item in full_surprise_pool() if item.get("slug") not in used_slugs]
+        random.SystemRandom().shuffle(global_pool)
+        for item in global_pool:
+            item["palette_family"] = classify_profile_palette_family(item)
+            if item["palette_family"] in used_palette_families:
+                continue
+            chosen.append(item)
+            used_slugs.add(item["slug"])
+            used_palette_families.add(item["palette_family"])
+            if len(chosen) >= max_candidates:
+                break
+
+    if len(chosen) < max_candidates:
+        for item in shuffled_pool:
+            if item.get("slug") in used_slugs:
+                continue
+            item["palette_family"] = classify_profile_palette_family(item)
+            chosen.append(item)
+            used_slugs.add(item["slug"])
+            if len(chosen) >= max_candidates:
+                break
+
+    return chosen
+
+
 def base_profile_for_kind(kind: str) -> dict:
     profile = STYLE_BY_KIND.get(kind, STYLE_BY_KIND["generic"])
+    palette = dict(profile["palette"])
     return {
         "slug": kind,
         "kind": kind,
@@ -929,7 +1092,14 @@ def base_profile_for_kind(kind: str) -> dict:
         "family": profile.get("family", kind),
         "style": profile["style"],
         "renderer": kind,
-        "palette": dict(profile["palette"]),
+        "palette": palette,
+        "palette_family": classify_palette_family(
+            profile.get("family", kind),
+            kind,
+            profile["medium"],
+            profile["style"],
+            palette,
+        ),
     }
 
 
@@ -937,6 +1107,7 @@ def build_bitmap_prompt(title: str, concept: str, profile: dict) -> str:
     palette = profile.get("palette") or {}
     palette_hint = ", ".join(str(value) for value in palette.values() if isinstance(value, str) and value.startswith("#"))
     family = profile.get("family") or profile.get("slug") or "distinct-media-family"
+    palette_family = str(profile.get("palette_family") or "distinct-palette-family").replace("-", " ")
     return (
         f"Create a tall portrait campaign illustration for '{title}'. "
         f"Use a {profile['medium']} treatment. "
@@ -944,8 +1115,10 @@ def build_bitmap_prompt(title: str, concept: str, profile: dict) -> str:
         f"Art direction: {profile['style']}. "
         f"Make the result read unmistakably as {family}, not as generic corporate vector art. "
         f"Colour direction: {palette_hint}. "
+        f"Keep the image clearly inside a {palette_family} palette family and avoid drifting into generic muddy mid-browns or ochre neutrals unless those tones are explicitly listed in the colour direction. "
         "Compose it to fill a narrow editorial column from top to bottom with a strong upper focal zone. "
         "Vary the tempo, light, and mood from other campaign ideas in the same set. "
+        "Make the palette obviously different from the other campaign ideas in the same set, not just the medium or composition. "
         "Avoid generic flat corporate vector art. "
         "Make it visually distinct from the other campaign ideas and premium in finish. "
         f"{NEGATIVE_ART_DIRECTION}"
@@ -1317,7 +1490,11 @@ def build_bitmap(profile: dict) -> Image.Image:
 
 
 def choose_profile(
-    kind: str, used_slugs: set[str], used_families: set[str], surprise_mode: bool
+    kind: str,
+    used_slugs: set[str],
+    used_families: set[str],
+    used_palette_families: set[str],
+    surprise_mode: bool,
 ) -> dict:
     if not surprise_mode:
         return base_profile_for_kind(kind)
@@ -1332,7 +1509,9 @@ def choose_profile(
     available = [
         item
         for item in pool
-        if item["slug"] not in used_slugs and item.get("family") not in used_families
+        if item["slug"] not in used_slugs
+        and item.get("family") not in used_families
+        and classify_profile_palette_family(item) not in used_palette_families
     ]
     if not available and kind != "generic":
         fallback_pool = []
@@ -1341,24 +1520,46 @@ def choose_profile(
         available = [
             item
             for item in fallback_pool
-            if item["slug"] not in used_slugs and item.get("family") not in used_families
+            if item["slug"] not in used_slugs
+            and item.get("family") not in used_families
+            and classify_profile_palette_family(item) not in used_palette_families
         ]
 
     if not available:
-        available = [item for item in pool if item["slug"] not in used_slugs]
+        available = [
+            item
+            for item in pool
+            if item["slug"] not in used_slugs and classify_profile_palette_family(item) not in used_palette_families
+        ]
 
     if not available:
         fallback_pool = []
         for library_kind, items in SURPRISE_STYLE_LIBRARY.items():
             fallback_pool.extend(dict(item, kind=library_kind) for item in items)
-        available = [item for item in fallback_pool if item["slug"] not in used_slugs]
+        available = [
+            item
+            for item in fallback_pool
+            if item["slug"] not in used_slugs and classify_profile_palette_family(item) not in used_palette_families
+        ]
+
+    if not available:
+        available = [item for item in pool if item["slug"] not in used_slugs and item.get("family") not in used_families]
+
+    if not available:
+        fallback_pool = []
+        for library_kind, items in SURPRISE_STYLE_LIBRARY.items():
+            fallback_pool.extend(dict(item, kind=library_kind) for item in items)
+        available = [item for item in fallback_pool if item["slug"] not in used_slugs and item.get("family") not in used_families]
 
     if not available:
         available = pool or [base_profile_for_kind(kind)]
 
     profile = random.SystemRandom().choice(available)
+    profile = dict(profile)
+    profile["palette_family"] = classify_profile_palette_family(profile)
     used_slugs.add(profile["slug"])
     used_families.add(profile.get("family", profile["slug"]))
+    used_palette_families.add(profile["palette_family"])
     return profile
 
 
@@ -1406,6 +1607,7 @@ def generate(
     prompt_manifest: list[dict[str, str]] = []
     used_slugs: set[str] = set()
     used_families: set[str] = set()
+    used_palette_families: set[str] = set()
 
     for idea in ideas:
         title = (idea.get("title") or "").strip()
@@ -1419,7 +1621,13 @@ def generate(
         # Old art metadata is especially dangerous when refreshing failed diversity.
         kind = motif_key(title, concept)
         if surprise_mode:
-            profile = choose_profile(kind, used_slugs, used_families, surprise_mode=True)
+            profile = choose_profile(
+                kind,
+                used_slugs,
+                used_families,
+                used_palette_families,
+                surprise_mode=True,
+            )
             medium = profile["medium"]
             prompt = build_bitmap_prompt(title, concept, profile)
         else:
@@ -1431,12 +1639,32 @@ def generate(
             if existing_style_family:
                 profile["family"] = existing_style_family
             profile["family"] = profile.get("family", kind)
+            profile["palette_family"] = classify_profile_palette_family(profile)
             prompt = idea.get("illustration_prompt") or build_bitmap_prompt(title, concept, profile)
             used_slugs.add(profile["slug"])
             used_families.add(profile.get("family", profile["slug"]))
+            used_palette_families.add(profile["palette_family"])
         prompt = enforce_prompt_contract(prompt)
         destination = output_path_for_idea(asset_dir, brand_slug, title, idea.get("illustration_url") or "")
         destination.parent.mkdir(parents=True, exist_ok=True)
+        palette_candidates = []
+        for candidate_index, candidate_profile in enumerate(
+            select_palette_candidate_profiles(kind, profile, max_candidates=4),
+            start=1,
+        ):
+            candidate_prompt = enforce_prompt_contract(build_bitmap_prompt(title, concept, candidate_profile))
+            palette_candidates.append(
+                {
+                    "variant_index": candidate_index,
+                    "style_slug": candidate_profile["slug"],
+                    "style_family": candidate_profile.get("family", candidate_profile["slug"]),
+                    "palette_family": candidate_profile.get("palette_family", "warm-earth"),
+                    "medium": candidate_profile["medium"],
+                    "prompt": candidate_prompt,
+                    "prompt_sha256": sha256_text(candidate_prompt),
+                    "candidate_filename": f"{brand_slug}-campaign-{slugify(title)}--palette-{candidate_index:02d}.png",
+                }
+            )
         prompt_manifest.append(
             {
                 "sequence": len(prompt_manifest) + 1,
@@ -1444,6 +1672,7 @@ def generate(
                 "kind": kind,
                 "style_slug": profile["slug"],
                 "style_family": profile.get("family", profile["slug"]),
+                "palette_family": profile.get("palette_family", "warm-earth"),
                 "medium": medium,
                 "delivery_target": "true-raster-artwork",
                 "generation_backend": generation_backend,
@@ -1451,6 +1680,8 @@ def generate(
                 "expected_asset_path": relative_asset_path(asset_dir, destination),
                 "expected_filename": destination.name,
                 "prompt": prompt,
+                "prompt_sha256": sha256_text(prompt),
+                "palette_candidates": palette_candidates,
             }
         )
         idea["illustration_url"] = relative_asset_path(asset_dir, destination)
@@ -1458,6 +1689,7 @@ def generate(
         idea["illustration_prompt"] = prompt
         idea["illustration_style_name"] = profile["slug"]
         idea["illustration_style_family"] = profile.get("family", profile["slug"])
+        idea["illustration_palette_family"] = profile.get("palette_family", "warm-earth")
         idea["illustration_delivery_target"] = "true-raster-artwork"
         idea["illustration_generation_backend"] = generation_backend
 
@@ -1506,6 +1738,7 @@ def generate(
         json.dumps(manifest_payload, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    prompt_manifest_sha256 = hashlib.sha256(manifest_path.read_bytes()).hexdigest().upper()
     brief_path = asset_dir / f"{brand_slug}-campaign-art-brief.md"
     brief_path.write_text(
         build_premium_art_brief(
@@ -1520,6 +1753,43 @@ def generate(
     )
     section["illustration_prompt_manifest"] = relative_asset_path(asset_dir, manifest_path)
     section["illustration_prompt_brief"] = relative_asset_path(asset_dir, brief_path)
+    batch_request_path = asset_dir / f"{brand_slug}-campaign-batch-request.json"
+    batch_request_payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "brand_name": brand_name,
+        "brand_slug": brand_slug,
+        "delivery_mode": delivery_mode,
+        "generation_backend": generation_backend,
+        "prompt_manifest_path": relative_asset_path(asset_dir, manifest_path),
+        "prompt_manifest_sha256": prompt_manifest_sha256,
+        "required_filename_policy": "exact-match",
+        "instructions": [
+            "Generate one original raster image for each idea.",
+            "Use the exact expected filenames when saving the images into a batch folder.",
+            "Copy this JSON into that batch folder as campaign-batch-manifest.json before import.",
+            "Do not mix images from unrelated brands or old prompt sets in the same batch.",
+        ],
+        "ideas": [
+            {
+                "sequence": item["sequence"],
+                "title": item["title"],
+                "expected_filename": item["expected_filename"],
+                "expected_asset_path": item["expected_asset_path"],
+                "style_slug": item["style_slug"],
+                "style_family": item["style_family"],
+                "palette_family": item.get("palette_family", "warm-earth"),
+                "medium": item["medium"],
+                "prompt_sha256": item["prompt_sha256"],
+                "palette_candidates": item.get("palette_candidates", []),
+            }
+            for item in prompt_manifest
+        ],
+    }
+    batch_request_path.write_text(
+        json.dumps(batch_request_payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    section["illustration_batch_request"] = relative_asset_path(asset_dir, batch_request_path)
     section_key = "creative_campaign_ideas" if data.get("creative_campaign_ideas") is section else "creative_campaigns"
     patches: list[dict[str, object]] = [
         {
@@ -1530,6 +1800,10 @@ def generate(
             "path": f"{section_key}.illustration_prompt_brief",
             "value": relative_asset_path(asset_dir, brief_path),
         },
+        {
+            "path": f"{section_key}.illustration_batch_request",
+            "value": relative_asset_path(asset_dir, batch_request_path),
+        },
     ]
     for index, idea in enumerate(ideas):
         for field in (
@@ -1538,6 +1812,7 @@ def generate(
             "illustration_prompt",
             "illustration_style_name",
             "illustration_style_family",
+            "illustration_palette_family",
             "illustration_delivery_target",
             "illustration_generation_backend",
             "illustration_asset_role",
@@ -1561,6 +1836,8 @@ def generate(
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "patches": patches,
                 "source_manifest": relative_asset_path(asset_dir, manifest_path),
+                "prompt_manifest_sha256": prompt_manifest_sha256,
+                "batch_request": relative_asset_path(asset_dir, batch_request_path),
             },
             indent=2,
             ensure_ascii=False,
@@ -1570,7 +1847,7 @@ def generate(
     )
     if not manifest_only:
         data_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return len(written), written, pending, manifest_path, brief_path, patch_manifest_path
+    return len(written), written, pending, manifest_path, brief_path, batch_request_path, patch_manifest_path
 
 
 def main() -> int:
@@ -1588,7 +1865,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    count, written, pending, manifest_path, brief_path, patch_manifest_path = generate(
+    count, written, pending, manifest_path, brief_path, batch_request_path, patch_manifest_path = generate(
         Path(args.data).resolve(), overwrite=args.overwrite, manifest_only=args.manifest_only
     )
     payload = {
@@ -1598,6 +1875,7 @@ def main() -> int:
         "files": [str(path) for path in written],
         "prompt_manifest": str(manifest_path),
         "prompt_brief": str(brief_path),
+        "batch_request": str(batch_request_path),
         "report_data_patch_manifest": str(patch_manifest_path),
         "overwrite": bool(args.overwrite),
         "manifest_only": bool(args.manifest_only),

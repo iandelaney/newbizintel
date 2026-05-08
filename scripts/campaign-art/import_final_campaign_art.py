@@ -26,6 +26,10 @@ def load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest().upper()
+
+
 def get_section(data: dict) -> dict:
     section = data.get("creative_campaign_ideas")
     if isinstance(section, dict):
@@ -125,7 +129,7 @@ def load_prompt_manifest(asset_dir: Path, brand_slug: str) -> dict[str, dict[str
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except Exception:
         return {}
-    prompts = payload.get("prompts", [])
+    prompts = payload.get("ideas", [])
     if not isinstance(prompts, list):
         return {}
     by_title: dict[str, dict[str, str]] = {}
@@ -138,9 +142,60 @@ def load_prompt_manifest(asset_dir: Path, brand_slug: str) -> dict[str, dict[str
         by_title[title] = {
             "illustration_style_family": str(item.get("style_family") or "").strip(),
             "illustration_style_name": str(item.get("style_slug") or "").strip(),
+            "illustration_palette_family": str(item.get("palette_family") or "").strip(),
             "illustration_medium": str(item.get("medium") or "").strip(),
         }
     return by_title
+
+
+def load_prompt_manifest_payload(asset_dir: Path, brand_slug: str) -> dict:
+    manifest_path = asset_dir / f"{brand_slug}-campaign-illustration-prompts.json"
+    if not manifest_path.exists():
+        raise SystemExit(f"Prompt manifest missing: {manifest_path}")
+    try:
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise SystemExit(f"Could not read prompt manifest {manifest_path}: {exc}") from exc
+
+
+def validate_strict_batch_manifest(source_root: Path, asset_dir: Path, brand_slug: str, target_ideas: list[tuple[int, dict]]) -> tuple[dict, dict[str, dict[str, str]]]:
+    batch_manifest_path = source_root / "campaign-batch-manifest.json"
+    if not batch_manifest_path.exists():
+        raise SystemExit(
+            f"Strict campaign-art import requires {batch_manifest_path}. Copy the generated batch request into the image batch folder before import."
+        )
+    try:
+        batch_manifest = json.loads(batch_manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise SystemExit(f"Could not read campaign batch manifest {batch_manifest_path}: {exc}") from exc
+    prompt_manifest_payload = load_prompt_manifest_payload(asset_dir, brand_slug)
+    expected_prompt_sha = sha256_file(asset_dir / f"{brand_slug}-campaign-illustration-prompts.json")
+    if str(batch_manifest.get("brand_slug") or "").strip() != brand_slug:
+        raise SystemExit(
+            f"Campaign batch manifest brand_slug mismatch. Expected {brand_slug}, found {batch_manifest.get('brand_slug')!r}."
+        )
+    if str(batch_manifest.get("prompt_manifest_sha256") or "").strip().upper() != expected_prompt_sha:
+        raise SystemExit(
+            "Campaign batch manifest does not match the current prompt manifest. "
+            f"Expected SHA {expected_prompt_sha}, found {batch_manifest.get('prompt_manifest_sha256')!r}."
+        )
+    manifest_items = batch_manifest.get("ideas")
+    if not isinstance(manifest_items, list):
+        raise SystemExit("Campaign batch manifest must include an ideas list.")
+    by_title: dict[str, dict[str, str]] = {}
+    for item in manifest_items:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        expected_filename = str(item.get("expected_filename") or "").strip()
+        if title and expected_filename:
+            by_title[title] = item
+    if len(by_title) < len(target_ideas):
+        raise SystemExit(
+            f"Campaign batch manifest does not cover all target ideas. Needed {len(target_ideas)}, found {len(by_title)}."
+        )
+    batch_manifest["_manifest_path"] = str(batch_manifest_path)
+    return batch_manifest, by_title
 
 
 def main() -> int:
@@ -211,11 +266,22 @@ def main() -> int:
         source_root = latest_generated_batch(DEFAULT_GENERATED_IMAGES_DIR)
     source_provenance = classify_source_root(source_root, data_path.parent)
 
-    source_files = select_source_images(source_root, len(target_ideas))
+    batch_manifest, batch_items_by_title = validate_strict_batch_manifest(source_root, asset_dir, brand_slug, target_ideas)
     prepared_imports: list[dict[str, object]] = []
 
-    for (index, idea), source_path in zip(target_ideas, source_files):
+    for index, idea in target_ideas:
         title = (idea.get("title") or "").strip()
+        manifest_item = batch_items_by_title.get(title)
+        if not manifest_item:
+            raise SystemExit(f"Campaign batch manifest is missing an entry for idea {title!r}.")
+        expected_filename = str(manifest_item.get("expected_filename") or "").strip()
+        if not expected_filename:
+            raise SystemExit(f"Campaign batch manifest entry for {title!r} is missing expected_filename.")
+        source_path = source_root / expected_filename
+        if not source_path.exists():
+            raise SystemExit(
+                f"Campaign batch folder {source_root} is missing expected file {expected_filename!r} for idea {title!r}."
+            )
         existing_url = idea.get("illustration_url") or ""
         destination = output_path_for_idea(asset_dir, brand_slug, title, existing_url)
         prepared_imports.append(
@@ -223,6 +289,7 @@ def main() -> int:
                 "index": index,
                 "idea": idea,
                 "title": title,
+                "manifest_item": manifest_item,
                 "source": source_path,
                 "destination": destination,
             }
@@ -254,6 +321,7 @@ def main() -> int:
         index = int(item["index"])
         idea = item["idea"]
         title = str(item["title"])
+        manifest_item = item["manifest_item"]
         source_path = item["source"]
         destination = item["destination"]
         result = normalised_by_destination[str(destination)]
@@ -265,8 +333,12 @@ def main() -> int:
         idea["illustration_import_source"] = str(source_path)
         idea["illustration_source_provenance"] = source_provenance
         idea["illustration_batch_root"] = str(source_root)
+        idea["illustration_batch_manifest"] = str(batch_manifest.get("_manifest_path") or "")
         idea["illustration_imported_at"] = datetime.now(timezone.utc).isoformat()
         idea["illustration_dimensions"] = dimensions
+        idea["illustration_expected_filename"] = str(manifest_item.get("expected_filename") or "")
+        idea["illustration_prompt_manifest_sha256"] = str(batch_manifest.get("prompt_manifest_sha256") or "").strip().upper()
+        idea["illustration_prompt_sha256"] = str(manifest_item.get("prompt_sha256") or "").strip().upper()
         style_hints = prompt_manifest_by_title.get(title, {})
         for field, value in style_hints.items():
             if value and not str(idea.get(field) or "").strip():
@@ -279,10 +351,15 @@ def main() -> int:
             "illustration_import_source",
             "illustration_source_provenance",
             "illustration_batch_root",
+            "illustration_batch_manifest",
             "illustration_imported_at",
             "illustration_dimensions",
+            "illustration_expected_filename",
+            "illustration_prompt_manifest_sha256",
+            "illustration_prompt_sha256",
             "illustration_style_family",
             "illustration_style_name",
+            "illustration_palette_family",
             "illustration_treatment",
             "illustration_medium",
         ):
@@ -320,6 +397,7 @@ def main() -> int:
         "data": str(data_path),
         "source_dir": str(source_root),
         "source_provenance": source_provenance,
+        "batch_manifest": str(batch_manifest.get("_manifest_path") or ""),
         "imported": len(imported_files),
         "titles": imported_titles,
         "files": imported_files,

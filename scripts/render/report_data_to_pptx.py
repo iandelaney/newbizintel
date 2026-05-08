@@ -1,4 +1,5 @@
 import argparse
+import importlib
 import json
 import os
 import re
@@ -19,9 +20,10 @@ def enable_vendor_site(runtime_name):
         sys.path.insert(0, str(vendor_site))
 
 
+enable_vendor_site('pptx_runtime')
 runtime_site = Path(sys.executable).resolve().parent / "Lib" / "site-packages"
 if runtime_site.exists() and str(runtime_site) not in sys.path:
-    sys.path.insert(0, str(runtime_site))
+    sys.path.append(str(runtime_site))
 
 try:
     import lxml.etree  # noqa: F401
@@ -29,16 +31,24 @@ try:
 except Exception:
     pass
 
-enable_vendor_site('pptx_runtime')
 user_site = site.getusersitepackages()
 if user_site and user_site not in sys.path:
     sys.path.append(user_site)
 
-from pptx import Presentation
-from pptx.dml.color import RGBColor
-from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE, MSO_CONNECTOR
-from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
-from pptx.util import Inches, Pt
+for module_name in [name for name in list(sys.modules) if name == "pptx" or name.startswith("pptx.")]:
+    sys.modules.pop(module_name, None)
+
+Presentation = importlib.import_module("pptx.api").Presentation
+RGBColor = importlib.import_module("pptx.dml.color").RGBColor
+_pptx_enum_shapes = importlib.import_module("pptx.enum.shapes")
+MSO_AUTO_SHAPE_TYPE = _pptx_enum_shapes.MSO_AUTO_SHAPE_TYPE
+MSO_CONNECTOR = _pptx_enum_shapes.MSO_CONNECTOR
+_pptx_enum_text = importlib.import_module("pptx.enum.text")
+MSO_ANCHOR = _pptx_enum_text.MSO_ANCHOR
+PP_ALIGN = _pptx_enum_text.PP_ALIGN
+_pptx_util = importlib.import_module("pptx.util")
+Inches = _pptx_util.Inches
+Pt = _pptx_util.Pt
 
 
 PALETTE = {
@@ -190,6 +200,15 @@ def first_card_body(cards, title_contains="", fallback_index=None):
     return ""
 
 
+def first_priority_opportunity(section):
+    opportunities = section.get("priority_opportunities") or []
+    for item in opportunities:
+        text = plain(item)
+        if text:
+            return text
+    return ""
+
+
 def section_subtitle(section, preferred_fields=None, card_titles=None, fallback_limit=220):
     section = section or {}
     for field in preferred_fields or []:
@@ -228,18 +247,22 @@ def claimed_positioning_summary(positioning):
 
 
 def competitor_risk_summary(comp):
-    status = [plain(item) for item in comp.get("status_summary", [])]
-    ahead = next((re.sub(r"^\s*Ahead:\s*", "", s, flags=re.IGNORECASE) for s in status if s.lower().startswith("ahead:")), "")
-    matched = next((re.sub(r"^\s*Matched:\s*", "", s, flags=re.IGNORECASE) for s in status if s.lower().startswith("matched:")), "")
-    behind = next((re.sub(r"^\s*Behind:\s*", "", s, flags=re.IGNORECASE) for s in status if s.lower().startswith("behind:")), "")
-
+    status = comp.get("status_summary", []) or []
     parts = []
-    if behind:
-        parts.append(f"Main competitive risk: {behind}")
-    if matched:
-        parts.append(f"Baseline market expectation: {matched}")
-    if ahead:
-        parts.append(f"Existing advantage: {ahead}")
+    for item in status[:3]:
+        if isinstance(item, dict):
+            title = plain(item.get("title"))
+            body = plain(item.get("body"))
+            if title and body:
+                parts.append(f"{title}: {body}")
+            elif body:
+                parts.append(body)
+            elif title:
+                parts.append(title)
+            continue
+        text = plain(item)
+        if text:
+            parts.append(text)
     if comp.get("validation_flags"):
         parts.append("Shortlist still needs human validation before client-facing use")
 
@@ -698,15 +721,39 @@ def base_slide(prs, brand_name, brand_slug, asset_dir, title, subtitle=None, acc
     return slide
 
 
-def add_bullet_rows(slide, items, accent="teal", left=0.96, top=2.02, width=11.0, row_height=0.94, gap=0.14, text_size=17.0):
+def add_bullet_rows(slide, items, accent="teal", left=0.96, top=2.02, width=11.0, row_height=0.94, gap=0.14, text_size=17.0, bottom=6.92):
+    usable_items = [item for item in items if item]
+    if not usable_items:
+        return
+    available_height = max(0.6, bottom - top - (gap * max(0, len(usable_items) - 1)))
+    effective_row_height = max(0.52, available_height / len(usable_items))
     y = top
-    for item in items:
+    for item in usable_items:
         lead, body = item if isinstance(item, tuple) else (None, item)
-        text = f"{lead}: {body}" if lead else body
-        add_shape(slide, MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE, left, y, width, row_height, accent_fill(accent), PALETTE["line"])
+        add_shape(slide, MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE, left, y, width, effective_row_height, accent_fill(accent), PALETTE["line"])
         add_shape(slide, MSO_AUTO_SHAPE_TYPE.OVAL, left + 0.16, y + 0.20, 0.10, 0.10, PALETTE[accent])
-        add_textbox(slide, left + 0.36, y + 0.06, width - 0.46, row_height - 0.1, [{"text": text, "size": text_size, "color": PALETTE["ink"], "fit": True}])
-        y += row_height + gap
+        paragraphs = []
+        if lead:
+            paragraphs.append({
+                "text": plain(lead),
+                "size": max(10.5, text_size - 0.4),
+                "bold": True,
+                "color": PALETTE["navy"],
+                "font": "Aptos Display",
+                "space_after": 1.5,
+                "fit": True,
+            })
+        if plain(body):
+            paragraphs.append({
+                "text": plain(body),
+                "size": max(10.0, text_size - 1.4 if lead else text_size),
+                "color": PALETTE["ink"],
+                "fit": True,
+            })
+        if not paragraphs:
+            paragraphs.append({"text": "", "size": text_size, "color": PALETTE["ink"]})
+        add_textbox(slide, left + 0.36, y + 0.06, width - 0.46, effective_row_height - 0.1, paragraphs)
+        y += effective_row_height + gap
 
 
 def add_compact_bar_chart(slide, chart, left, top, width, height, accent="blue"):
@@ -1150,11 +1197,12 @@ def build_reputation_slide(prs, data, asset_dir):
 def build_content_slide(prs, data, asset_dir):
     strategy = data["content_strategy"]
     slide = base_slide(prs, data["brand"]["name"], data["brand"].get("slug"), asset_dir, "Content Strategy", compact(strategy["response_to_findings"], 220), accent="teal", icon_key="content", brand=data["brand"])
+    priority_move = first_priority_opportunity(strategy) or strategy.get("response_to_findings") or first_card_body(strategy.get("cards") or [], fallback_index=0)
     bullets = [
         ("Themes to own", compact(strategy["cards"][0]["body"], 118)),
         ("Best formats", compact(strategy["cards"][1]["body"], 118)),
         ("Audience paths", compact(strategy["cards"][2]["body"], 118)),
-        ("Priority move", compact(strategy["cards"][3]["body"], 118)),
+        ("Priority move", compact(priority_move, 118)),
     ]
     add_bullet_rows(slide, bullets, accent="teal", row_height=0.8, text_size=14.8)
 
@@ -1262,22 +1310,26 @@ def build_roadmap_slide(prs, data, asset_dir):
 
 
 def build_close_slide(prs, data, asset_dir):
+    strategy = data.get("content_strategy") or {}
+    strategy_cards = strategy.get("cards") or []
+    immediate_next_step = first_priority_opportunity(strategy) or first_card_body(strategy_cards, "journey", fallback_index=2)
+    closing_subtitle = data["executive_summary"].get("overall_recommendation") or strategy.get("response_to_findings") or immediate_next_step
     slide = base_slide(
         prs,
         data["brand"]["name"],
         data["brand"].get("slug"),
         asset_dir,
         "Closing Takeaways",
-        compact(data["content_strategy"]["cards"][3]["body"], 220),
+        compact(closing_subtitle, 220),
         accent="teal",
         icon_key="closing",
         brand=data["brand"],
     )
     bullets = [
-        ("Positioning", compact(data["executive_summary"]["cards"][1]["body"], 155)),
+        ("Positioning", compact(first_card_body(data["executive_summary"]["cards"], "messaging", fallback_index=2), 155)),
         ("Growth lever", compact(data["executive_summary"]["cards"][5]["body"], 155)),
         ("Recommendation", compact(data["executive_summary"]["overall_recommendation"], 165)),
-        ("Immediate next step", compact(data["content_strategy"]["cards"][3]["body"], 155)),
+        ("Immediate next step", compact(immediate_next_step, 155)),
     ]
     add_bullet_rows(slide, bullets, accent="teal")
 

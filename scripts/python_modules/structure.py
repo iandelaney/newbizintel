@@ -31,7 +31,7 @@ def module_structure(
         data = merge_research_into_data(data, summary)
         data = build_structured_report_data(data, summary, brand_folder)
         write_json(data_path, data)
-    validation = validate_report_data(data_path)
+    validation = validate_report_data(data_path, phase="structure")
     if not validation["ok"]:
         set_status(state, "structure", "failed")
         set_gate(state, "gate_4_report_data", "failed")

@@ -688,6 +688,19 @@ if (-not $brandLogo) {
     $errors.Add('brand.logo_url/brand.mark_url is missing or failed image-quality validation; the report header would fall back to initials.')
 }
 
+$brandMarkCandidates = @(
+    [string]$data.brand.mark_url,
+    "slide-assets/$brandSlug-mark.png",
+    "slide-assets/$brandSlug-mark.jpg",
+    "slide-assets/$brandSlug-mark.svg",
+    "slide-assets/$brandSlug-favicon.png",
+    "slide-assets/$brandSlug-favicon.jpg",
+    "slide-assets/$brandSlug-favicon.svg",
+    "slide-assets/mark.png",
+    "slide-assets/mark.svg"
+) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+$brandMark = Find-LogoAsset -Names $brandMarkCandidates -BrandFolder $brandFolder -AssetDirectory $assetDirectory -MinimumPixels 24 -CandidateLog $candidateAudit -EntityType 'brand_mark' -EntityName "$brandName mark" -PreferSquare
+
 $competitorResults = @()
 $competitors = @($data.competitive_landscape.table)
 for ($i = 0; $i -lt $competitors.Count; $i++) {
@@ -843,6 +856,12 @@ if ($brandLogo -and -not [string]::IsNullOrWhiteSpace([string]$brandLogo.asset))
         value = [string]$brandLogo.asset
     }) | Out-Null
 }
+if ($brandMark -and -not [string]::IsNullOrWhiteSpace([string]$brandMark.asset)) {
+    $patches.Add([pscustomobject]@{
+        path = 'brand.mark_url'
+        value = [string]$brandMark.asset
+    }) | Out-Null
+}
 foreach ($competitor in @($competitorResults)) {
     if ($competitor.ok -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$competitor.asset)) {
         foreach ($fieldName in @('logo_url', 'competitor_logo_url', 'badge_url')) {
@@ -855,10 +874,12 @@ foreach ($competitor in @($competitorResults)) {
 }
 foreach ($newsSource in @($newsResults)) {
     if ($newsSource.ok -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$newsSource.asset) -and ((Split-Path -Leaf ([string]$newsSource.asset)) -ne 'news.png')) {
-        $patches.Add([pscustomobject]@{
-            path = ('brand_reputation.influential_news[{0}].publisher_logo_url' -f [int]$newsSource.index)
-            value = [string]$newsSource.asset
-        }) | Out-Null
+        foreach ($fieldName in @('publisher_logo_url', 'source_logo_url')) {
+            $patches.Add([pscustomobject]@{
+                path = ('brand_reputation.influential_news[{0}].{1}' -f [int]$newsSource.index, $fieldName)
+                value = [string]$newsSource.asset
+            }) | Out-Null
+        }
     }
 }
 $patchArray = @()

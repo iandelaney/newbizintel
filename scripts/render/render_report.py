@@ -443,7 +443,7 @@ def published_messaging_assessment(assessment: Any) -> str:
             f"</tr></thead><tbody>{''.join(rows)}</tbody></table>"
         )
     return (
-        '<div class="score messaging-assessment">'
+        '<div class="published-messaging-assessment">'
         '<span class="eyebrow">Published messaging assessment</span>'
         f"{rich(assessment.get('summary'))}{table}"
         f'<p><strong>Reputation read-across</strong> {esc(assessment.get("reputation_read_across"))}</p>'
@@ -645,7 +645,12 @@ def opportunity_strategy(strategy: Any) -> str:
     headline = strategy.get("headline") or "Recommended marketing strategy"
     body = strategy.get("strategy") or strategy.get("body") or ""
     why = strategy.get("why_it_matters") or strategy.get("why") or ""
-    threads = strategy.get("built_from_findings") or strategy.get("threads") or []
+    threads = (
+        strategy.get("built_from_findings")
+        or strategy.get("evidence_threads")
+        or strategy.get("threads")
+        or []
+    )
     return (
         '<div class="opportunity-lead opportunity-lead--strategy">'
         '<div class="opportunity-lead__hero"><div class="opportunity-lead__head">'
@@ -756,7 +761,7 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
     data_dir = data_path.parent
     brand = data.get("brand", {})
     title = f"{text(brand.get('name') or 'Brand')} New Business Intelligence Report"
-    logo = first_asset_src(data_dir, brand.get("logo_url"), brand.get("mark_url"))
+    logo = first_asset_src(data_dir, brand.get("mark_url"), brand.get("logo_url"))
     favicon = first_asset_src(data_dir, brand.get("mark_url"), brand.get("logo_url"))
     logo_html = (
         f'<div class="brand-logo-slot"><img src="{esc(logo)}" alt="{esc(brand.get("name"))} logo"></div>'

@@ -30,6 +30,37 @@ SIMPLEICON_OVERRIDES = {
     "openai": "openai",
 }
 
+GENERIC_LOGO_SOURCE_TOKENS = {
+    "logo",
+    "logos",
+    "brand",
+    "brands",
+    "logotype",
+    "wordmark",
+    "mark",
+    "icon",
+    "icons",
+    "symbol",
+    "glyph",
+    "horizontal",
+    "vertical",
+    "stacked",
+    "full",
+    "primary",
+    "secondary",
+    "colour",
+    "color",
+    "dark",
+    "light",
+    "black",
+    "white",
+    "mono",
+    "monochrome",
+    "transparent",
+    "svg",
+    "png",
+}
+
 
 def relative_to_brand(path: Path, brand_folder: Path) -> str:
     try:
@@ -65,6 +96,51 @@ def asset_quality(path: Path) -> dict[str, Any]:
     except Exception as exc:
         result["reason"] = f"unreadable image: {exc}"
     return result
+
+
+def tokenise_name(value: str) -> list[str]:
+    return [token for token in re.split(r"[^a-z0-9]+", (value or "").lower()) if len(token) >= 3]
+
+
+def source_filename_looks_mismatched(source: str, brand_name: str) -> bool:
+    if not source or not brand_name:
+        return False
+    lower_source = source.lower()
+    if "://" not in source and any(
+        marker in lower_source
+        for marker in (
+            "local-raster",
+            "local-svg",
+            "local-square",
+            "brand-logo",
+            "reused-local",
+            "generated-square-badge",
+            "promoted-small-square",
+            "replaced-suspicious-brand-logo",
+        )
+    ):
+        return False
+    source_path = Path(urllib.parse.urlparse(source).path)
+    stem_tokens = [token for token in tokenise_name(source_path.stem) if token not in GENERIC_LOGO_SOURCE_TOKENS]
+    if not stem_tokens:
+        return False
+    brand_tokens = set(tokenise_name(brand_name)) | set(tokenise_name(slugify(brand_name)))
+    if not brand_tokens:
+        return False
+    for token in stem_tokens:
+        if any(token == brand_token or token in brand_token or brand_token in token for brand_token in brand_tokens):
+            return False
+    return True
+
+
+def suspicious_brand_logo_candidate(path: Path, brand_name: str, source: str) -> bool:
+    if not path.exists():
+        return True
+    if source_filename_looks_mismatched(source, brand_name):
+        return True
+    if path.suffix.lower() == ".svg" and not svg_asset_contains_term(path, brand_name):
+        return True
+    return False
 
 
 def quality_ok(path: Path, minimum: int = 64) -> bool:
@@ -582,6 +658,28 @@ def create_initial_mark_from_name(label: str, destination: Path, canvas_size: in
         return False
 
 
+def promote_small_square_logo(source: Path, destination: Path, canvas_size: int = 256) -> bool:
+    if not source.exists() or not quality_ok(source, minimum=16):
+        return False
+    try:
+        from PIL import Image
+
+        with Image.open(source) as image:
+            image = image.convert("RGBA")
+            if abs(image.width - image.height) > max(2, int(min(image.width, image.height) * 0.08)):
+                return False
+            image.thumbnail((int(canvas_size * 0.78), int(canvas_size * 0.78)), Image.LANCZOS)
+            canvas = Image.new("RGBA", (canvas_size, canvas_size), (255, 255, 255, 0))
+            x = (canvas_size - image.width) // 2
+            y = (canvas_size - image.height) // 2
+            canvas.alpha_composite(image, (x, y))
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            canvas.save(destination, format="PNG", optimize=True)
+            return square_quality_ok(destination) and visible_logo_occupancy_ok(destination, minimum_span=0.28)
+    except Exception:
+        return False
+
+
 def create_tight_logo_asset(source: Path, destination: Path, padding: int = 8) -> bool:
     if not source.exists() or not quality_ok(source):
         return False
@@ -621,6 +719,30 @@ def preferred_logo_asset(asset_dir: Path, stem: str, prefer_square: bool = False
     return matches[0] if matches else None
 
 
+def preferred_loose_square_asset(asset_dir: Path, stem: str) -> Path | None:
+    base = re.sub(r"-(logo|mark|favicon)$", "", stem)
+    for candidate_stem in (f"{base}-mark", f"{base}-favicon", f"{base}-initial-mark", base, stem):
+        for suffix in (".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico"):
+            candidate = asset_dir / f"{candidate_stem}{suffix}"
+            if candidate.exists() and quality_ok(candidate, minimum=16):
+                quality = asset_quality(candidate)
+                width = int(quality.get("width") or 0)
+                height = int(quality.get("height") or 0)
+                if width and height and abs(width - height) <= max(2, int(min(width, height) * 0.08)):
+                    return candidate
+    return None
+
+
+def svg_asset_contains_term(path: Path, term: str) -> bool:
+    if not path.exists() or path.suffix.lower() != ".svg" or not term:
+        return False
+    try:
+        content = path.read_text(encoding="utf-8", errors="ignore").lower()
+    except Exception:
+        return False
+    return term.lower() in content
+
+
 def source_looks_like_share_card(source: str) -> bool:
     lower = (source or "").lower()
     return any(token in lower for token in ("seoimages", "social-", "social_", "/social/", "share-", "share_", "/share/"))
@@ -642,9 +764,12 @@ def brand_logo_manifest_entry(name: str, asset: str, source: str, ok: bool, bran
     elif not quality.get("valid_image"):
         entry["ok"] = False
         entry["error"] = f"Primary brand logo asset is invalid: {quality.get('reason') or 'unknown quality failure'}."
-    elif quality.get("format") != "svg" and (quality.get("width", 0) < 200 or quality.get("height", 0) < 60):
+    elif source_filename_looks_mismatched(source, name):
         entry["ok"] = False
-        entry["error"] = f"Primary brand logo raster is too small ({quality.get('width')}x{quality.get('height')}); use a dedicated asset at least 200px wide and 60px tall."
+        entry["error"] = f"Primary brand logo source looks mismatched for {name}: {source}"
+    elif quality.get("format") != "svg" and (quality.get("width", 0) < 320 or quality.get("height", 0) < 80):
+        entry["ok"] = False
+        entry["error"] = f"Primary brand logo raster is too small ({quality.get('width')}x{quality.get('height')}); use a dedicated asset at least 320px wide and 80px tall."
     elif source_looks_like_share_card(source):
         entry["ok"] = False
         entry["error"] = "Primary brand logo used a social/share image instead of a dedicated first-party logo asset."
@@ -663,21 +788,48 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
     brand_name = brand.get("name", "brand")
     brand_slug = brand.get("slug") or slugify(brand_name)
     brand["slug"] = brand_slug
+    brand_host = urllib.parse.urlparse(str(brand.get("website", ""))).netloc.lower().replace("www.", "")
     brand_logo = asset_dir / f"{brand_slug}-logo.svg"
     brand_candidates = discover_site_logo_candidates(str(brand.get("website", "")))
     ok, source = acquire_logo(brand_name, brand.get("website", ""), brand_logo, candidates=brand_candidates, allow_simpleicons=False)
+    mark_ok, mark_source = acquire_square_logo(brand_name, brand.get("website", ""), asset_dir, brand_slug)
     if ok:
         brand_asset = None
         source_path = Path(urllib.parse.urlparse(source).path)
         source_suffix = source_path.suffix.lower() if source_path.suffix else ""
+        suspicious_exact_brand_asset = False
         if source_suffix in {".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"}:
             exact_brand_asset = asset_dir / f"{brand_slug}-logo{source_suffix}"
             if exact_brand_asset.exists() and quality_ok(exact_brand_asset):
-                brand_asset = exact_brand_asset
+                suspicious_exact_brand_asset = suspicious_brand_logo_candidate(exact_brand_asset, brand_name, source)
+                if not suspicious_exact_brand_asset:
+                    brand_asset = exact_brand_asset
+        pptx_brand_asset = asset_dir / f"{brand_slug}-pptx-logo.png"
+        if brand_asset is None and pptx_brand_asset.exists() and quality_ok(pptx_brand_asset, minimum=200):
+            brand_asset = pptx_brand_asset
+            if suspicious_exact_brand_asset:
+                source = "local-raster; replaced-suspicious-brand-logo-with-local-pptx-logo"
         if brand_asset is None:
             brand_asset = preferred_logo_asset(asset_dir, f"{brand_slug}-logo")
         brand["logo_url"] = relative_to_brand(brand_asset, brand_folder) if brand_asset else ""
-        brand["mark_url"] = brand["logo_url"]
+        mark_asset = preferred_logo_asset(asset_dir, f"{brand_slug}-mark", prefer_square=True) if mark_ok else None
+        if not mark_asset:
+            loose_square_asset = preferred_loose_square_asset(asset_dir, f"{brand_slug}-mark")
+            if loose_square_asset:
+                promoted_mark = asset_dir / f"{brand_slug}-mark.png"
+                if promote_small_square_logo(loose_square_asset, promoted_mark):
+                    mark_asset = promoted_mark
+                    mark_source = f"{mark_source or source}; promoted-small-square-brand-mark"
+        if not mark_asset and brand_asset:
+            derived_mark = asset_dir / f"{brand_slug}-mark.png"
+            if create_square_badge_from_logo(brand_asset, derived_mark):
+                mark_asset = derived_mark
+                mark_source = f"{source}; generated-square-badge-from-brand-logo"
+        if not mark_asset and brand_asset and square_quality_ok(brand_asset):
+            mark_asset = brand_asset
+        brand["mark_url"] = relative_to_brand(mark_asset, brand_folder) if mark_asset else brand["logo_url"]
+        if mark_asset:
+            brand["mark_resolution_source"] = mark_source or source
     else:
         manifest["ok"] = False
         manifest["errors"].append(f"{brand_name} brand logo failed: {source}")
@@ -739,15 +891,44 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
         source_name = item.get("source") or brand_name
         source_url = item.get("url") or brand.get("website", "")
         slug = slugify(source_name)
-        if source_name.lower().strip() in {brand_name.lower().strip(), f"{brand_name.lower().strip()} newsroom"}:
+        source_host = urllib.parse.urlparse(str(source_url)).netloc.lower().replace("www.", "")
+        source_type = str(item.get("source_type") or "").strip().lower()
+        is_owned_source = source_name.lower().strip() in {
+            brand_name.lower().strip(),
+            f"{brand_name.lower().strip()} newsroom",
+            f"{brand_name.lower().strip()} blog",
+            f"{brand_name.lower().strip()} press",
+        } or source_type == "owned_newsroom"
+        if is_owned_source:
             asset = brand.get("logo_url", "")
             ok = bool(asset)
             resolution = "brand-logo"
+            if ok:
+                item["source_logo_asset_kind"] = "acquired-or-derived-logo"
         else:
+            if source_host and brand_host and source_host == brand_host:
+                source_url = ""
             logo_path = asset_dir / f"{slug}-news.svg"
+            if (
+                logo_path.exists()
+                and brand_name
+                and brand_name.lower() not in source_name.lower()
+                and svg_asset_contains_term(logo_path, brand_name)
+            ):
+                try:
+                    logo_path.unlink()
+                except Exception:
+                    pass
             ok, resolution = acquire_logo(source_name, source_url, logo_path)
             logo_asset = preferred_logo_asset(asset_dir, f"{slug}-news")
+            if not logo_asset:
+                logo_asset = preferred_logo_asset(asset_dir, f"{slug}-pptx-logo")
+                if logo_asset:
+                    ok = True
+                    resolution = f"{resolution}; reused-local-pptx-logo"
             asset = relative_to_brand(logo_asset, brand_folder) if ok and logo_asset else ""
+            if ok and logo_asset:
+                item["source_logo_asset_kind"] = "acquired-or-derived-logo"
         if ok:
             item["source_logo_url"] = asset
             item["publisher_logo_url"] = asset

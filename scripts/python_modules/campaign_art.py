@@ -5,7 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from python_modules.common import add_event, load_state, save_state, set_gate, set_status
+from python_modules.common import add_event, load_state, proof_root, save_state, set_gate, set_status
 
 
 def module_campaign_art(
@@ -32,14 +32,56 @@ def module_campaign_art(
         reduction = apply_manifest(data_path, manifest_path)
     else:
         reduction = {"ok": False, "applied_count": 0}
+    generated_batch: dict[str, Any] = {"generated": 0, "skipped": True}
     import_result: dict[str, Any] = {"imported": 0, "skipped": True}
     import_reduction: dict[str, Any] = {"ok": False, "applied_count": 0, "skipped": True}
-    if args.campaign_art_source_dir or args.campaign_art_latest_generated_batch:
+    source_dir = str(getattr(args, "campaign_art_source_dir", "") or "").strip()
+    latest_generated_batch = bool(getattr(args, "campaign_art_latest_generated_batch", False))
+    auto_generate_originals = bool(getattr(args, "campaign_art_generate_originals", True))
+    generate_dry_run = bool(getattr(args, "campaign_art_generate_dry_run", False))
+
+    if not source_dir and not latest_generated_batch and auto_generate_originals:
+        generator_script = script_root / "campaign-art" / "generate_final_campaign_art.py"
+        generated_batch_dir = proof_root(None) / brand_folder.name / "campaign-art-autogen"
+        generator_args = [
+            "--data",
+            str(data_path),
+            "--out-dir",
+            str(generated_batch_dir),
+        ]
+        if args.campaign_art_overwrite_final:
+            generator_args.append("--force")
+        if generate_dry_run:
+            generator_args.append("--dry-run")
+        try:
+            generated_batch = run_python_script(generator_script, generator_args)
+            if not generate_dry_run:
+                source_dir = str(generated_batch.get("batch_dir") or "").strip()
+            add_event(
+                state,
+                "fanout",
+                "campaign_art.original_generation",
+                jobs=[f"imagegen:{name}" for name in generated_batch.get("expected_files", [])],
+            )
+            save_state(brand_folder, state)
+        except SystemExit:
+            set_status(state, "campaign_art", "blocked")
+            set_gate(state, "gate_5b_campaign_art", "blocked")
+            add_event(
+                state,
+                "note",
+                "campaign_art.original_generation_failed",
+                notes=["newbizintel could not generate original campaign artwork in-run."],
+            )
+            save_state(brand_folder, state)
+            raise
+
+    if source_dir or latest_generated_batch:
         import_script = script_root / "campaign-art" / "import_final_campaign_art.py"
         import_args = ["--data", str(data_path), "--manifest-only"]
-        if args.campaign_art_source_dir:
-            import_args.extend(["--source-dir", str(Path(args.campaign_art_source_dir))])
-        if args.campaign_art_latest_generated_batch:
+        if source_dir:
+            import_args.extend(["--source-dir", str(Path(source_dir))])
+        if latest_generated_batch:
             import_args.append("--latest-generated-batch")
         if args.campaign_art_overwrite_final:
             import_args.append("--overwrite-final")
@@ -73,6 +115,7 @@ def module_campaign_art(
         "brand_folder": str(brand_folder),
         "generation": generation,
         "campaign_reduction": reduction,
+        "original_generation": generated_batch,
         "final_raster_import": import_result,
         "final_raster_reduction": import_reduction,
         "contract_audit": audit,

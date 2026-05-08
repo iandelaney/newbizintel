@@ -3,11 +3,15 @@
   "domain": "assets",
   "data": "report-data.json",
   "base_sha256": "18315D2DA8A0C60DA635F7A59B9E09DC7E0F669B24D8328CEA206D8148CA0BB9",
-  "generated_at": "2026-04-25T19:25:15.7944119+00:00",
+  "generated_at": "2026-05-08T17:19:58.9907182+00:00",
   "patches": [
     {
       "path": "brand.logo_url",
       "value": "slide-assets/example-brand-logo.svg"
+    },
+    {
+      "path": "brand.mark_url",
+      "value": "slide-assets/example-brand-mark.svg"
     },
     {
       "path": "competitive_landscape.table[0].logo_url",
@@ -26,7 +30,15 @@
       "value": "slide-assets/example-brand-logo.svg"
     },
     {
+      "path": "brand_reputation.influential_news[0].source_logo_url",
+      "value": "slide-assets/example-brand-logo.svg"
+    },
+    {
       "path": "brand_reputation.influential_news[1].publisher_logo_url",
+      "value": "slide-assets/example-brand-logo.svg"
+    },
+    {
+      "path": "brand_reputation.influential_news[1].source_logo_url",
       "value": "slide-assets/example-brand-logo.svg"
     },
     {
@@ -34,11 +46,23 @@
       "value": "slide-assets/example-brand-logo.svg"
     },
     {
+      "path": "brand_reputation.influential_news[2].source_logo_url",
+      "value": "slide-assets/example-brand-logo.svg"
+    },
+    {
       "path": "brand_reputation.influential_news[3].publisher_logo_url",
       "value": "slide-assets/example-brand-logo.svg"
     },
     {
+      "path": "brand_reputation.influential_news[3].source_logo_url",
+      "value": "slide-assets/example-brand-logo.svg"
+    },
+    {
       "path": "brand_reputation.influential_news[4].publisher_logo_url",
+      "value": "slide-assets/example-brand-logo.svg"
+    },
+    {
+      "path": "brand_reputation.influential_news[4].source_logo_url",
       "value": "slide-assets/example-brand-logo.svg"
     }
   ],

@@ -30,6 +30,7 @@ $validateResearchSummary = Join-Path $PSScriptRoot 'validate_research_summary.ps
 $auditResearchWorkpacks = Join-Path $PSScriptRoot 'audit_research_workpacks.ps1'
 $reduceSearchWorkpacks = Join-Path $PSScriptRoot 'reduce_search_workpacks.py'
 $probeSemrushAccess = Join-Path $PSScriptRoot 'probe_semrush_access.ps1'
+$prepareSemrushRequests = Join-Path $PSScriptRoot 'prepare_semrush_requests.ps1'
 $resolvePython = Join-Path $context.repo_root 'scripts\common\resolve_python.ps1'
 $writeJsonUtf8 = Join-Path $context.repo_root 'scripts\common\write_json_utf8.ps1'
 
@@ -51,6 +52,7 @@ Add-NewBizHybridEvent -State $state -Type fanout -Key 'research.evidence_collect
 $summaryPath = Join-Path $context.brand_folder 'research-summary.json'
 $semrushApiResult = $null
 $semrushAccessPath = Join-Path $context.brand_folder 'semrush-access.json'
+$semrushRequestPlanPath = Join-Path $context.brand_folder 'semrush-composio-request-plan.json'
 
 if ($ResearchMode -eq 'bootstrap') {
     $summaryBuild = & $buildResearchSummary -DataPath $context.data_path -OutputPath $summaryPath | ConvertFrom-Json
@@ -135,6 +137,8 @@ if ($ComposioSemrushAvailable) {
 if ($JinaFallbackAvailable) {
     $semrushProbeParams.JinaFallbackAvailable = $true
 }
+$semrushRequestPlan = & $prepareSemrushRequests -DataPath $context.data_path -Database $SemrushDatabase | ConvertFrom-Json
+& $writeJsonUtf8 -Path $semrushRequestPlanPath -InputObject $semrushRequestPlan
 $semrushAccessResult = & $probeSemrushAccess @semrushProbeParams | ConvertFrom-Json
 $shouldUseSemrushApi = $UseSemrushApi.IsPresent -or ([string]$semrushAccessResult.selected_provider -eq 'direct-api')
 
@@ -152,6 +156,18 @@ Add-NewBizHybridEvent -State $state -Type reducer -Key 'research.summary_reducer
 $summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
 if (Test-Path -LiteralPath $semrushAccessPath) {
     $semrushAccess = Get-Content -LiteralPath $semrushAccessPath -Raw | ConvertFrom-Json
+    $standardSemrushBackupPaths = @(
+        (Join-Path $context.brand_folder 'semrush-evidence.json'),
+        (Join-Path $context.brand_folder 'semrush-plugin-evidence.json'),
+        (Join-Path $context.brand_folder 'semrush-composio-evidence.json'),
+        (Join-Path $context.brand_folder 'research-workpacks\98-semrush-plugin.json'),
+        (Join-Path $context.brand_folder 'research-workpacks\98-semrush-composio.json')
+    )
+    $semrushBackupPath = $standardSemrushBackupPaths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    $semrushBackup = $null
+    if ($semrushBackupPath) {
+        $semrushBackup = Get-Content -LiteralPath $semrushBackupPath -Raw | ConvertFrom-Json
+    }
     if ($null -ne $semrushApiResult) {
         $semrushAccess.evidence_status = [string]$semrushApiResult.status
         & $writeJsonUtf8 -Path $semrushAccessPath -InputObject $semrushAccess
@@ -170,8 +186,35 @@ if (Test-Path -LiteralPath $semrushAccessPath) {
     }
     elseif ($null -ne $semrushApiResult -and [string]$semrushApiResult.status -notin @('passed', 'partial')) {
         if ([bool]$semrushAccess.composio_mcp.available) {
-            $summary.status.semrush = 'quota-limited'
-            $summary.notes = @(@($summary.notes) + 'Direct SEMrush API was selected but did not return usable evidence; Composio SEMrush remains the next backup route before Jina/public-web fallback.')
+            if ($semrushBackup -and [string]$semrushBackup.status -in @('passed', 'partial')) {
+                if (@($semrushBackup.seo.semrush_evidence).Count -gt 0) {
+                    $summary.seo.semrush_evidence = @($semrushBackup.seo.semrush_evidence)
+                }
+                if (@($semrushBackup.seo.priority_issues).Count -gt 0) {
+                    $summary.seo.priority_issues = @($semrushBackup.seo.priority_issues)
+                }
+                $summary.status.semrush = [string]$semrushBackup.status
+                $summary.semrush_backup = [pscustomobject]@{
+                    provider = 'composio-semrush'
+                    status = [string]$semrushBackup.status
+                    path = $semrushBackupPath
+                }
+                $summary.notes = @(@($summary.notes) + "Composio SEMrush backup evidence was auto-merged from $([System.IO.Path]::GetFileName($semrushBackupPath)).")
+                $semrushAccess.selected_provider = 'composio-mcp'
+                $semrushAccess.evidence_status = [string]$semrushBackup.status
+            }
+            else {
+                $summary.status.semrush = 'quota-limited'
+                $summary.semrush_backup = [pscustomobject]@{
+                    provider = 'composio-semrush'
+                    status = 'awaiting-evidence-file'
+                    request_plan_path = $semrushRequestPlanPath
+                    accepted_paths = @($standardSemrushBackupPaths)
+                }
+                $summary.notes = @(@($summary.notes) + 'Direct SEMrush API was selected but did not return usable evidence; Composio SEMrush request plan was written automatically and the runner will merge a standard backup evidence file when present.')
+                $semrushAccess.selected_provider = 'composio-mcp'
+                $semrushAccess.evidence_status = 'pending'
+            }
         }
         else {
             $summary.status.semrush = $(if ([string]$semrushApiResult.status) { [string]$semrushApiResult.status } else { 'blocked' })
@@ -179,8 +222,10 @@ if (Test-Path -LiteralPath $semrushAccessPath) {
         }
     }
 
+    $summary.semrush_access = $semrushAccess
     & $writeJsonUtf8 -Path $summaryPath -InputObject $summary
     $summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
+    & $writeJsonUtf8 -Path $semrushAccessPath -InputObject $semrushAccess
 }
 Update-ResearchSummaryFreshness -State $state -SummaryPath $summaryPath
 

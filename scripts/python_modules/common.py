@@ -159,6 +159,28 @@ def output_root(explicit_root: str | None) -> Path:
     return (Path.cwd() / "output").resolve()
 
 
+def proof_root(explicit_root: str | None = None) -> Path:
+    if explicit_root:
+        root = Path(explicit_root).expanduser().resolve()
+    else:
+        env_root = os.environ.get("NEWBIZINTEL_PROOF_ROOT")
+        if env_root:
+            root = Path(env_root).expanduser().resolve()
+        else:
+            root = (Path.cwd() / "tmp-newbizintel-proofs").resolve()
+    delivery_root = output_root(None).resolve()
+    delivery_prefix = str(delivery_root).rstrip("\\/") + os.sep
+    normalized_root = str(root)
+    normalized_delivery = str(delivery_root)
+    if normalized_root == normalized_delivery or normalized_root.startswith(delivery_prefix):
+        raise SystemExit(
+            "NewBizIntel proof artifacts must not be written inside the delivery output root. "
+            f"Use a proof root outside '{delivery_root}'. Requested: {root}"
+        )
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
 def brand_folder_from_data(data_path: Path) -> Path:
     return data_path.resolve().parent
 
