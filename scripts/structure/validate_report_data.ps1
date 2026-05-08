@@ -66,6 +66,21 @@ function Test-ExactNewsDate {
     return $Value -match '^\d{1,2}\s+[A-Z][a-z]+\s+\d{4}$'
 }
 
+function Get-ExactNewsDate {
+    param([string]$Value)
+
+    if (-not (Test-ExactNewsDate $Value)) {
+        return $null
+    }
+
+    try {
+        return [datetime]::ParseExact($Value, 'd MMMM yyyy', [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+    catch {
+        return $null
+    }
+}
+
 $script:ReputationScoreWeights = [ordered]@{
     source_authority = 0.25
     buyer_relevance = 0.25
@@ -397,9 +412,14 @@ else {
     if (-not (Test-HasValue $data.storybrand.content_implications)) { Add-MissingError 'storybrand.content_implications' }
 
     $publishedStatements = @($data.storybrand.existing_messaging_assessment.published_statements)
+    $storybrandCards = @($data.storybrand.cards)
     if ($publishedStatements.Count -lt 2) {
         $errors.Add("storybrand.existing_messaging_assessment.published_statements must include at least 2 mission, purpose, promise, or proposition statements.")
     }
+    if ($storybrandCards.Count -lt 6) {
+        $errors.Add("storybrand.cards must include a full StoryBrand card set, not a partial scaffold.")
+    }
+    $sourceUrls = New-Object System.Collections.Generic.HashSet[string]
     for ($i = 0; $i -lt $publishedStatements.Count; $i++) {
         $item = $publishedStatements[$i]
         $pathPrefix = "storybrand.existing_messaging_assessment.published_statements[$i]"
@@ -407,6 +427,46 @@ else {
         if (-not (Test-HasValue $item.statement)) { Add-MissingError "$pathPrefix.statement" }
         if (-not (Test-HasValue $item.source)) { Add-MissingError "$pathPrefix.source" }
         if (-not (Test-HasValue $item.source_url)) { Add-MissingError "$pathPrefix.source_url" }
+        if (Test-HasValue $item.source_url) { [void]$sourceUrls.Add(([string]$item.source_url).Trim().TrimEnd('/').ToLowerInvariant()) }
+    }
+
+    $websiteRoot = ([string]$data.brand.website).Trim().TrimEnd('/').ToLowerInvariant()
+    if ($sourceUrls.Count -gt 0) {
+        $allHomepage = $true
+        foreach ($url in $sourceUrls) {
+            if ($url -ne $websiteRoot) {
+                $allHomepage = $false
+                break
+            }
+        }
+        if ($allHomepage) {
+            $errors.Add("storybrand.existing_messaging_assessment must cite at least one specific official source page, not only the homepage root.")
+        }
+    }
+
+    $storybrandText = [string]::Join(' ', @(
+        [string]$data.storybrand.existing_messaging_assessment.summary,
+        [string]$data.storybrand.existing_messaging_assessment.reputation_read_across,
+        [string]$data.storybrand.existing_messaging_assessment.implication,
+        [string]$data.storybrand.one_liner,
+        ([string]::Join(' ', @($data.storybrand.messaging_fixes))),
+        ([string]::Join(' ', @($data.storybrand.content_implications))),
+        ([string]::Join(' ', @($storybrandCards | ForEach-Object { [string]$_.body })))
+    )).ToLowerInvariant()
+    foreach ($snippet in @(
+        'the buyer or customer wants a simpler, more confident path to the outcome the brand promises',
+        'feel reassured that the promise is credible, the route is clear, and the experience will stand up under scrutiny',
+        'confidence drift: the repeated friction of comparison, unclear proof',
+        'clear proof points, visible controls, customer feedback loops, service-recovery evidence',
+        'understand the offer, compare the options fairly, see the proof',
+        'take the next high-intent step with confidence',
+        'the brand feels easier to trust, easier to choose, and easier to stay with',
+        'helps customers achieve the promised outcome with clearer choices, stronger proof, and visible control throughout the journey'
+    )) {
+        if ($storybrandText -like "*$snippet*") {
+            $errors.Add("storybrand contains generic reusable card language instead of brand-specific messaging evidence.")
+            break
+        }
     }
 
     foreach ($fieldName in @('messaging_fixes', 'content_implications')) {
@@ -601,6 +661,8 @@ if ($null -ne $influenceRanking) {
 $seenSources = New-Object System.Collections.Generic.List[string]
 $seenSourceTypes = New-Object System.Collections.Generic.List[string]
 $influenceScores = New-Object System.Collections.Generic.List[int]
+$newsWindowEnd = (Get-Date).Date
+$newsWindowStart = $newsWindowEnd.AddMonths(-6)
 
 for ($i = 0; $i -lt $influentialNews.Count; $i++) {
     $item = $influentialNews[$i]
@@ -614,6 +676,15 @@ for ($i = 0; $i -lt $influentialNews.Count; $i++) {
 
     if (-not (Test-ExactNewsDate ([string]$item.date))) {
         $errors.Add("$pathPrefix.date must use an exact publication date like '19 November 2025'.")
+    }
+    else {
+        $parsedDate = Get-ExactNewsDate ([string]$item.date)
+        if ($null -eq $parsedDate) {
+            $errors.Add("$pathPrefix.date could not be parsed as an exact day-month-year publication date.")
+        }
+        elseif ($parsedDate.Date -lt $newsWindowStart -or $parsedDate.Date -gt $newsWindowEnd) {
+            $errors.Add("$pathPrefix.date must fall within the last six months. Cutoff for this run is $($newsWindowStart.ToString('dd MMMM yyyy')); found $($parsedDate.ToString('dd MMMM yyyy')).")
+        }
     }
 
     if (-not ([string]$item.url).StartsWith('http://') -and -not ([string]$item.url).StartsWith('https://')) {

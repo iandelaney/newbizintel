@@ -1,6 +1,7 @@
 import argparse
 import json
 import re
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -16,6 +17,123 @@ SCORE_WEIGHTS = {
 
 PLACEHOLDER_COMPETITORS = {"competitor a", "competitor b", "competitor c"}
 PLACEHOLDER_MARKERS = ("replace with", "example brand", "competitor a", "example.com")
+APPENDIX_NOISE_SNIPPETS = (
+    "paddlepals",
+    "playtomic",
+    "jack black",
+    "paul rudd",
+    "ice cube",
+    "trailer",
+    "streaming",
+    "reboot",
+    "movie",
+    "film",
+    "murder suspect",
+    "bar shooting",
+    "montana",
+    "orthodontics",
+    "ibuprofen",
+    "storage solutions",
+    "fightwear",
+)
+COMPETITOR_APPENDIX_KEYWORDS = (
+    "competitor",
+    "competitors",
+    "alternative",
+    "alternatives",
+    "market share",
+    "peer insights",
+    "machine learning",
+    "data science",
+    "python environment",
+    "ai platform",
+)
+COMPETITOR_APPENDIX_TRUSTED_DOMAINS = (
+    "softwareworld.co",
+    "cbinsights.com",
+    "gartner.com",
+    "g2.com",
+    "6sense.com",
+    "peerspot.com",
+    "getapp.co.uk",
+    "capterra.co.uk",
+    "serchen.com",
+    "datacamp.com",
+    "trustradius.com",
+    "softwareadvice.com",
+)
+SOCIAL_OR_FORUM_DOMAINS = (
+    "reddit.com",
+    "facebook.com",
+    "instagram.com",
+    "tiktok.com",
+    "forums.",
+)
+RUN_CONTEXT_STOPWORDS = {
+    "about",
+    "across",
+    "advance",
+    "anaconda",
+    "analysis",
+    "brand",
+    "brief",
+    "build",
+    "business",
+    "capabilities",
+    "capability",
+    "clarity",
+    "clearer",
+    "company",
+    "compare",
+    "content",
+    "control",
+    "customer",
+    "customers",
+    "deploy",
+    "delivery",
+    "easier",
+    "evidence",
+    "faster",
+    "foundation",
+    "governed",
+    "helps",
+    "insights",
+    "intelligence",
+    "journey",
+    "language",
+    "model",
+    "models",
+    "native",
+    "opportunities",
+    "opportunity",
+    "platform",
+    "promise",
+    "proof",
+    "report",
+    "safer",
+    "scale",
+    "search",
+    "secure",
+    "security",
+    "source",
+    "sources",
+    "strategy",
+    "teams",
+    "trust",
+    "trusted",
+    "using",
+    "value",
+    "visibility",
+    "workflow",
+    "workflows",
+}
+GENERIC_COMPETITOR_VENDOR_TOKENS = {
+    "amazon",
+    "google",
+    "meta",
+    "microsoft",
+    "oracle",
+}
 
 
 def load_json(path: Path):
@@ -179,6 +297,77 @@ def brand_tokens(brand_name: str) -> tuple[str, list[str]]:
     return compact, list(dict.fromkeys(words))
 
 
+def significant_words(text: str, *, minimum_length: int = 4) -> set[str]:
+    tokens = {
+        token
+        for token in re.findall(r"[a-z0-9]+", text.lower())
+        if len(token) >= minimum_length and token not in RUN_CONTEXT_STOPWORDS
+    }
+    return tokens
+
+
+def result_is_noise(result: dict) -> bool:
+    text = result_text(result).lower()
+    domain = get_domain(str(result.get("url") or ""))
+    if any(snippet in text for snippet in APPENDIX_NOISE_SNIPPETS):
+        return True
+    if any(snippet in domain for snippet in SOCIAL_OR_FORUM_DOMAINS):
+        return True
+    return False
+
+
+def build_run_context_tokens(data: dict, brand_name: str) -> set[str]:
+    texts: list[str] = []
+    brand = data.get("brand") or {}
+    company_snapshot = data.get("company_snapshot") or {}
+    seo_audit = data.get("seo_audit") or {}
+    competitive_landscape = data.get("competitive_landscape") or {}
+    for value in (
+        brand.get("scope"),
+        company_snapshot.get("summary"),
+        seo_audit.get("score_label"),
+        seo_audit.get("search_score"),
+    ):
+        if value:
+            texts.append(str(value))
+    for item in company_snapshot.get("items") or []:
+        if isinstance(item, dict):
+            texts.append(str(item.get("value") or ""))
+    for item in seo_audit.get("priority_issues") or []:
+        if isinstance(item, dict):
+            texts.append(str(item.get("issue") or ""))
+            texts.append(str(item.get("recommendation") or ""))
+            texts.append(str(item.get("why_it_matters") or ""))
+    for row in competitive_landscape.get("table") or []:
+        if isinstance(row, dict):
+            texts.append(str(row.get("why_it_matters") or ""))
+            texts.append(str(row.get("positioning_pattern") or ""))
+            texts.append(str(row.get("implication") or ""))
+    token_counter: Counter[str] = Counter()
+    for text in texts:
+        token_counter.update(significant_words(text))
+    context_tokens = {
+        token for token, count in token_counter.items()
+        if count >= 2 and not token.isdigit()
+    }
+    for token in brand_tokens(brand_name)[1]:
+        context_tokens.discard(token)
+    return context_tokens
+
+
+def competitor_name_tokens(data: dict) -> set[str]:
+    tokens: set[str] = set()
+    for row in (data.get("competitive_landscape") or {}).get("table") or []:
+        if not isinstance(row, dict):
+            continue
+        tokens.update(
+            token
+            for token in significant_words(str(row.get("competitor") or ""), minimum_length=3)
+            if token not in GENERIC_COMPETITOR_VENDOR_TOKENS
+        )
+    return tokens
+
+
 def mentions_brand(result: dict, tokens: tuple[str, list[str]]) -> bool:
     compact_brand, words = tokens
     if not compact_brand and not words:
@@ -192,6 +381,54 @@ def mentions_brand(result: dict, tokens: tuple[str, list[str]]) -> bool:
     if len(words) == 1 and words[0] in spaced_words:
         return True
     return False
+
+
+def result_matches_run_context(result: dict, context_tokens: set[str], competitor_tokens: set[str]) -> bool:
+    text_tokens = significant_words(result_text(result), minimum_length=3)
+    url_domain = get_domain(str(result.get("url") or ""))
+    domain_tokens = significant_words(url_domain.replace(".", " "), minimum_length=3)
+    if text_tokens.intersection(competitor_tokens):
+        return True
+    if len(text_tokens.intersection(context_tokens)) >= 2:
+        return True
+    if domain_tokens.intersection(context_tokens):
+        return True
+    return False
+
+
+def source_map_entry_allowed(
+    result: dict,
+    brand_name: str,
+    target_domain: str,
+    influential_urls: set[str],
+    context_tokens: set[str],
+    competitor_tokens: set[str],
+) -> bool:
+    url = str(result.get("url") or "").strip()
+    if not url:
+        return False
+    title = str(result.get("title") or "").strip()
+    source = str(result.get("source") or infer_source_name(result) or "").strip()
+    role = str(result.get("_workpack_role") or "source_gathering").strip().lower()
+    domain = get_domain(url)
+    text = f"{title} {source} {url}".lower()
+    if any(snippet in text for snippet in APPENDIX_NOISE_SNIPPETS):
+        return False
+    if any(snippet in domain for snippet in SOCIAL_OR_FORUM_DOMAINS):
+        return False
+    if role in {"recent_news", "reputation_public_web"}:
+        return url in influential_urls
+    if role == "competitor_discovery":
+        has_competitor_signal = any(keyword in text for keyword in COMPETITOR_APPENDIX_KEYWORDS)
+        trusted_domain = any(domain.endswith(allowed) for allowed in COMPETITOR_APPENDIX_TRUSTED_DOMAINS)
+        return has_competitor_signal or trusted_domain
+    if target_domain and domain.endswith(target_domain):
+        return True
+    return mentions_brand(result, brand_tokens(brand_name)) and result_matches_run_context(
+        result,
+        context_tokens,
+        competitor_tokens,
+    )
 
 
 def score_source_authority(source_type: str, domain: str) -> int:
@@ -250,17 +487,32 @@ def infer_sentiment(result: dict) -> str:
     return "neutral"
 
 
-def build_influential_news(results: list[dict], brand_name: str, workpack_summaries: list[dict]) -> tuple[list[dict], dict]:
+def build_influential_news(
+    results: list[dict],
+    brand_name: str,
+    workpack_summaries: list[dict],
+    context_tokens: set[str],
+    competitor_tokens: set[str],
+) -> tuple[list[dict], dict]:
     tokens = brand_tokens(brand_name)
     candidate_roles = {"recent_news", "reputation_public_web"}
     candidates = [
         result for result in unique_by_url(results)
-        if result.get("_workpack_role") in candidate_roles and mentions_brand(result, tokens)
+        if (
+            result.get("_workpack_role") in candidate_roles
+            and mentions_brand(result, tokens)
+            and not result_is_noise(result)
+            and result_matches_run_context(result, context_tokens, competitor_tokens)
+        )
     ]
     if len(candidates) < 12:
         candidates = [
             result for result in unique_by_url(results)
-            if mentions_brand(result, tokens)
+            if (
+                mentions_brand(result, tokens)
+                and not result_is_noise(result)
+                and result_matches_run_context(result, context_tokens, competitor_tokens)
+            )
         ]
 
     scored = []
@@ -367,7 +619,29 @@ def label_from_domain(domain: str) -> str:
     return special.get(label.lower(), re.sub(r"[-_]+", " ", label).title())
 
 
-def build_competitors_from_workpacks(results: list[dict], data: dict) -> list[dict]:
+def build_competitors_from_workpacks(
+    results: list[dict],
+    data: dict,
+    context_tokens: set[str],
+    competitor_tokens: set[str],
+) -> list[dict]:
+    curated = []
+    for row in data.get("competitive_landscape", {}).get("table", []) or []:
+        name = row.get("competitor")
+        if not name or str(name).strip().lower() in PLACEHOLDER_COMPETITORS:
+            continue
+        curated.append(
+            {
+                "competitor": name,
+                "website": row.get("website"),
+                "why_it_matters": row.get("why_it_matters"),
+                "positioning_pattern": row.get("positioning_pattern"),
+                "implication": row.get("implication"),
+            }
+        )
+    if curated:
+        return curated
+
     competitors = []
     seen = set()
     target_domain = get_domain(str(data.get("brand", {}).get("website") or ""))
@@ -385,6 +659,10 @@ def build_competitors_from_workpacks(results: list[dict], data: dict) -> list[di
 
     for result in results:
         if result.get("_workpack_role") != "competitor_discovery":
+            continue
+        if result_is_noise(result):
+            continue
+        if not result_matches_run_context(result, context_tokens, competitor_tokens):
             continue
         text = result_text(result).lower()
         for domain in re.findall(r"\b([a-z0-9-]+\.(?:co\.uk|com|io|ai|net|org))\b", text):
@@ -406,19 +684,6 @@ def build_competitors_from_workpacks(results: list[dict], data: dict) -> list[di
             if len(competitors) >= 5:
                 return competitors
 
-    for row in data.get("competitive_landscape", {}).get("table", []) or []:
-        name = row.get("competitor")
-        if not name or str(name).strip().lower() in PLACEHOLDER_COMPETITORS:
-            continue
-        competitors.append(
-            {
-                "competitor": name,
-                "website": row.get("website"),
-                "why_it_matters": row.get("why_it_matters"),
-                "positioning_pattern": row.get("positioning_pattern"),
-                "implication": row.get("implication"),
-            }
-        )
     return competitors
 
 
@@ -590,36 +855,97 @@ def main():
             all_results.append(result)
 
     all_results = unique_by_url(all_results)
-    source_map = []
-    for result in all_results:
-        title = str(result.get("title") or result.get("url") or "").strip()
-        url = str(result.get("url") or "").strip()
-        if not url:
-            continue
-        role = result.get("_workpack_role") or "source_gathering"
-        used_for = ["appendix"]
-        if role == "competitor_discovery":
-            used_for.append("competitive_landscape")
-        elif role == "recent_news":
-            used_for.append("brand_reputation")
-        elif role == "reputation_public_web":
-            used_for.append("brand_reputation")
-        else:
-            used_for.append("seo_audit")
-        source_map.append(
-            {
-                "title": title,
-                "url": url,
-                "source": infer_source_name(result),
-                "used_for": sorted(set(used_for)),
-            }
-        )
-
-    competitors = build_competitors_from_workpacks(all_results, data)
-
     brand_name = data.get("brand", {}).get("name") or ""
     target_domain = get_domain(str(data.get("brand", {}).get("website") or ""))
-    influential_news, influence_ranking = build_influential_news(all_results, brand_name, workpack_summaries)
+    context_tokens = build_run_context_tokens(data, brand_name)
+    competitor_tokens = competitor_name_tokens(data)
+    competitors = build_competitors_from_workpacks(all_results, data, context_tokens, competitor_tokens)
+    curated_influential_news = data.get("brand_reputation", {}).get("influential_news", []) or []
+    if curated_influential_news and not contains_placeholder(curated_influential_news):
+        influential_news = curated_influential_news
+        influence_ranking = {
+            "discovery_mode": "preserve_curated_report_data_set",
+            "candidate_story_count": len(curated_influential_news),
+            "candidate_pool_summary": [
+                f"{item.get('source')}: {item.get('headline')}"
+                for item in curated_influential_news
+                if isinstance(item, dict) and (item.get("source") or item.get("headline"))
+            ],
+            "broad_discovery_queries": [
+                str(item.get("query") or "").strip()
+                for item in workpack_summaries
+                if item.get("role") in {"recent_news", "reputation_public_web"} and str(item.get("query") or "").strip()
+            ][:8],
+            "verification_queries": [
+                f"{item.get('headline')} {item.get('source')} {brand_name}".strip()
+                for item in curated_influential_news
+                if isinstance(item, dict)
+            ],
+            "discovery_sequence": [
+                "A curated influential-news set already exists in report data and was preserved.",
+                "Broad current-web discovery remains available as fallback input when no curated set exists.",
+            ],
+            "ranking_method": "Preserve the current curated influential-news set from report data.",
+            "search_queries": [
+                str(item.get("query") or "").strip()
+                for item in workpack_summaries
+                if item.get("role") in {"recent_news", "reputation_public_web"} and str(item.get("query") or "").strip()
+            ][:8],
+            "ranking_factors": list(SCORE_WEIGHTS.keys()),
+            "score_weights": SCORE_WEIGHTS,
+            "confidence_score": 80,
+            "confidence_rationale": "Confidence is higher because the saved report-data set has already been reviewed and repaired for delivery.",
+            "limitations": [
+                "If the report-data set is stale or placeholder-backed, rerun broad discovery and final Tavily Research instead of preserving it."
+            ],
+        }
+    else:
+        influential_news, influence_ranking = build_influential_news(
+            all_results,
+            brand_name,
+            workpack_summaries,
+            context_tokens,
+            competitor_tokens,
+        )
+    influential_urls = {str(item.get("url") or "").strip() for item in influential_news if item.get("url")}
+
+    curated_source_map = (
+        data.get("appendix", {}).get("source_map")
+        or data.get("appendix", {}).get("sources_reviewed")
+        or []
+    )
+    if curated_source_map and not contains_placeholder(curated_source_map):
+        source_map = curated_source_map
+    else:
+        source_map = []
+        for result in all_results:
+            if not source_map_entry_allowed(
+                result,
+                brand_name,
+                target_domain,
+                influential_urls,
+                context_tokens,
+                competitor_tokens,
+            ):
+                continue
+            title = str(result.get("title") or result.get("url") or "").strip()
+            url = str(result.get("url") or "").strip()
+            role = result.get("_workpack_role") or "source_gathering"
+            used_for = ["appendix"]
+            if role == "competitor_discovery":
+                used_for.append("competitive_landscape")
+            elif role in {"recent_news", "reputation_public_web"}:
+                used_for.append("brand_reputation")
+            else:
+                used_for.append("seo_audit")
+            source_map.append(
+                {
+                    "title": title,
+                    "url": url,
+                    "source": infer_source_name(result),
+                    "used_for": sorted(set(used_for)),
+                }
+            )
 
     semrush_evidence = data.get("seo_audit", {}).get("semrush_evidence", []) or []
     search_evidence = data.get("seo_audit", {}).get("search_evidence", []) or []

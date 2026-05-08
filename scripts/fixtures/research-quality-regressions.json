@@ -1,0 +1,192 @@
+{
+  "base_case": {
+    "brand_name": "Anaconda",
+    "brand_website": "https://www.anaconda.com",
+    "competitors": [
+      "Databricks",
+      "Dataiku",
+      "Posit",
+      "KNIME",
+      "Amazon SageMaker"
+    ],
+    "candidate_pool_summary": [
+      "Outerbounds acquisition reviewed.",
+      "Desktop beta launch reviewed.",
+      "Industry recognition reviewed.",
+      "SOC 2 Type 2 certification reviewed.",
+      "Trade-press trust analysis reviewed.",
+      "Security rating update reviewed.",
+      "AI Catalyst launch reviewed.",
+      "Partner mention reviewed and excluded.",
+      "Release-note cluster reviewed and excluded.",
+      "Undated newsroom index reviewed and excluded.",
+      "Aggregate ratings page reviewed and excluded.",
+      "Generic company profile reviewed and excluded."
+    ],
+    "broad_discovery_queries": [
+      "Anaconda company news 2026 enterprise AI",
+      "Anaconda security governance updates 2026",
+      "Anaconda product launches developer platform 2026",
+      "Anaconda acquisitions industry recognition 2026"
+    ],
+    "verification_queries": [
+      "site:anaconda.com/press anaconda acquires outerbounds",
+      "site:anaconda.com/blog introducing anaconda desktop",
+      "site:upguard.com/security-report/anaconda"
+    ],
+    "storybrand": {
+      "hero": "AI and data science teams want to move governed open-source Python work from experimentation into production without package risk or environment drift.",
+      "primary_desire": "Adopt open-source AI faster while keeping packages vetted, environments reproducible, and deployment standards under control.",
+      "villain": "Dependency chaos and governance drag make AI feel risky to scale.",
+      "guide_signals": "Pre-vetted packages, reproducible environments, governance controls, security proof, and visible operating discipline.",
+      "plan": "Standardize the Python foundation, govern what enters the stack, then move AI work into production with fewer compatibility surprises.",
+      "one_liner": "Anaconda gives AI and data science teams a secure, governed open-source Python foundation so they can move from experimentation to production with less drift, less risk, and more confidence."
+    },
+    "influential_news": [
+      {
+        "headline": "Anaconda Acquires Outerbounds to Power Secure AI-Native Development",
+        "source": "Anaconda Press",
+        "source_type": "owned_newsroom",
+        "url": "https://www.anaconda.com/press/anaconda-acquires-outerbounds",
+        "date_offset_days": 9
+      },
+      {
+        "headline": "Introducing Anaconda Desktop",
+        "source": "Anaconda Product Blog",
+        "source_type": "owned_newsroom",
+        "url": "https://www.anaconda.com/blog/introducing-anaconda-desktop",
+        "date_offset_days": 10
+      },
+      {
+        "headline": "Anaconda Achieves SOC 2 Type 2 Certification",
+        "source": "Anaconda Blog",
+        "source_type": "owned_newsroom",
+        "url": "https://www.anaconda.com/blog/anaconda-achieves-soc-2-type-2-certification",
+        "date_offset_days": 136
+      },
+      {
+        "headline": "Anaconda Security Rating A (810/950) – UpGuard Report",
+        "source": "UpGuard",
+        "source_type": "analyst_or_research",
+        "url": "https://www.upguard.com/security-report/anaconda",
+        "date_offset_days": 6
+      },
+      {
+        "headline": "Anaconda Earns Wave of Industry Accolades",
+        "source": "Anaconda Press",
+        "source_type": "owned_newsroom",
+        "url": "https://www.anaconda.com/press/anaconda-earns-wave-of-industry-accolades",
+        "date_offset_days": 45
+      },
+      {
+        "headline": "Break the AI Gridlock at the Intersection of Velocity and Trust",
+        "source": "The New Stack",
+        "source_type": "trade_press",
+        "url": "https://thenewstack.io/break-the-ai-gridlock-at-the-intersection-of-velocity-and-trust/",
+        "date_offset_days": 143
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "base_pass",
+      "expect_ok": true
+    },
+    {
+      "name": "breadth_fail_thin_candidate_pool",
+      "expect_ok": false,
+      "expected_category": "breadth",
+      "mutations": {
+        "candidate_pool_summary": [
+          "Outerbounds acquisition reviewed.",
+          "Desktop beta launch reviewed.",
+          "Industry recognition reviewed.",
+          "SOC 2 Type 2 certification reviewed."
+        ]
+      }
+    },
+    {
+      "name": "freshness_fail_stale_news",
+      "expect_ok": false,
+      "expected_category": "freshness",
+      "mutations": {
+        "replace_story": {
+          "index": 0,
+          "date_offset_days": 220
+        }
+      }
+    },
+    {
+      "name": "source_quality_fail_single_publisher_missing_url",
+      "expect_ok": false,
+      "expected_category": "source_quality",
+      "mutations": {
+        "stories_override": [
+          {
+            "headline": "Story one",
+            "source": "Anaconda Press",
+            "source_type": "owned_newsroom",
+            "url": "",
+            "date_offset_days": 9
+          },
+          {
+            "headline": "Story two",
+            "source": "Anaconda Press",
+            "source_type": "owned_newsroom",
+            "url": "https://www.anaconda.com/press/story-two",
+            "date_offset_days": 10
+          },
+          {
+            "headline": "Story three",
+            "source": "Anaconda Press",
+            "source_type": "owned_newsroom",
+            "url": "https://www.anaconda.com/press/story-three",
+            "date_offset_days": 11
+          },
+          {
+            "headline": "Story four",
+            "source": "Anaconda Press",
+            "source_type": "owned_newsroom",
+            "url": "https://www.anaconda.com/press/story-four",
+            "date_offset_days": 12
+          },
+          {
+            "headline": "Story five",
+            "source": "Anaconda Press",
+            "source_type": "owned_newsroom",
+            "url": "https://www.anaconda.com/press/story-five",
+            "date_offset_days": 13
+          }
+        ]
+      }
+    },
+    {
+      "name": "specificity_fail_generic_storybrand",
+      "expect_ok": false,
+      "expected_category": "anti_generic_specificity",
+      "mutations": {
+        "storybrand": {
+          "hero": "The buyer or customer wants a simpler, more confident path to the outcome the brand promises.",
+          "primary_desire": "Feel reassured that the promise is credible and the route is clear.",
+          "villain": "Confidence drift and uncertainty about whether the experience will match the claim.",
+          "guide_signals": "Clear proof points, visible controls, and practical guidance that makes the promise believable.",
+          "plan": "Understand the offer, compare the options fairly, and know exactly how the relationship works.",
+          "one_liner": "The brand helps customers achieve the promised outcome with clearer choices, stronger proof, and visible control."
+        }
+      }
+    },
+    {
+      "name": "contamination_fail_appendix_noise",
+      "expect_ok": false,
+      "expected_category": "contamination_protection",
+      "mutations": {
+        "appendix_noise": [
+          {
+            "label": "PaddlePals article",
+            "url": "https://example.com/paddlepals"
+          }
+        ]
+      }
+    }
+  ]
+}

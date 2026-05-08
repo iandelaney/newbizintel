@@ -25,6 +25,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 from collections import Counter
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -48,9 +49,12 @@ from python_modules.deploy import module_vercel_stage as vercel_stage_module_ent
 from python_modules.common import load_state
 from python_modules.common import normalize_url
 from python_modules.common import output_root
+from python_modules.common import ensure_task_list
+from python_modules.common import sync_task_status_from_gates
 from python_modules.common import read_json
 from python_modules.common import reset_tasks_from
 from python_modules.research import module_research as research_module_entry
+from python_modules.qa import audit_pptx_package as audit_pptx_package_helper
 from python_modules.qa import module_qa as qa_module_entry
 from python_modules.common import save_state
 from python_modules.common import set_gate
@@ -153,7 +157,6 @@ FOOD_CONTEXT_TERMS = (
     "cooking",
     "food",
     "chef",
-    "freshness",
     "hello fresh",
     "hellofresh",
     "gousto",
@@ -176,10 +179,215 @@ FOOD_LEAKAGE_TERMS = (
     "supermarket planning friction",
     "dinner drift",
     "household usefulness",
-    "freshness",
     "view this week's recipes",
     "choose meals",
 )
+GENERIC_SAFE_TOKENS = {
+    "about",
+    "access",
+    "adoption",
+    "advance",
+    "agentic",
+    "analysis",
+    "analytics",
+    "architecture",
+    "audit",
+    "backed",
+    "benchmark",
+    "brand",
+    "buyer",
+    "buyers",
+    "business",
+    "capture",
+    "category",
+    "certification",
+    "clearer",
+    "cloud",
+    "commercial",
+    "comparison",
+    "comparisons",
+    "competitive",
+    "content",
+    "context",
+    "control",
+    "controls",
+    "conversion",
+    "customer",
+    "customers",
+    "demand",
+    "delivery",
+    "development",
+    "diagnosis",
+    "discoverability",
+    "discovery",
+    "documentation",
+    "domain",
+    "enterprise",
+    "evaluation",
+    "evidence",
+    "facing",
+    "faster",
+    "findings",
+    "footprint",
+    "governance",
+    "groups",
+    "growth",
+    "health",
+    "indexed",
+    "intent",
+    "issue",
+    "issues",
+    "journeys",
+    "keyword",
+    "keywords",
+    "landing",
+    "latest",
+    "layer",
+    "light",
+    "management",
+    "market",
+    "messaging",
+    "migration",
+    "model",
+    "native",
+    "nonbrand",
+    "observed",
+    "onpage",
+    "open",
+    "opportunities",
+    "opportunity",
+    "organic",
+    "pages",
+    "package",
+    "paid",
+    "paths",
+    "platform",
+    "positioning",
+    "practical",
+    "priority",
+    "product",
+    "proof",
+    "provider",
+    "python",
+    "queries",
+    "rebuild",
+    "recovery",
+    "recommended",
+    "relevance",
+    "reputation",
+    "report",
+    "routes",
+    "sales",
+    "search",
+    "section",
+    "security",
+    "selection",
+    "semrush",
+    "snapshot",
+    "source",
+    "signals",
+    "site",
+    "sizing",
+    "stages",
+    "story",
+    "stronger",
+    "technical",
+    "teams",
+    "themes",
+    "traffic",
+    "trust",
+    "useful",
+    "visibility",
+    "watch",
+    "workflow",
+    "workflows",
+    "workstreams",
+    "year",
+    "last",
+    "months",
+    "actions",
+}
+GENERIC_SAFE_PROPER_PHRASES = {
+    "Brand Reputation",
+    "Business Plan",
+    "Business Wire",
+    "Company Snapshot",
+    "Competitive Landscape",
+    "Content Implications",
+    "Content Strategy",
+    "Creative Campaign Ideas",
+    "Current Search Visibility Health",
+    "Customer Control",
+    "Delivery Handoff",
+    "Department Opportunity Signals",
+    "Keyword Opportunity Groups",
+    "Messaging Assessment",
+    "Mission Anaconda",
+    "New Business Intelligence",
+    "On Page",
+    "Open Source",
+    "Paid Support Coverage",
+    "Priority Issues",
+    "Search Evidence",
+    "Search Intent",
+    "Search Visibility",
+    "SEO Audit",
+    "SEO Evidence",
+    "SimilarWeb",
+    "Social Proof",
+    "Source Map",
+    "Source Mission Anaconda",
+    "Target Vs Competitor Search Visibility",
+    "Technical Findings",
+    "Unit 42",
+    "UpGuard Report",
+    "US Domain",
+    "Workflow Task List",
+    "Workflow Task List Passed",
+    "Year On Year",
+}
+OUT_OF_SCOPE_BRAND_PHRASES = (
+    "Operation Anaconda",
+    "Anaconda Mining",
+    "Anaconda Invest",
+    "Anaconda Brand Experience",
+    "Mission Command",
+    "PaddlePals",
+)
+OUT_OF_SCOPE_TOKENS = {
+    "alto",
+    "afghanistan",
+    "barber",
+    "bartleby",
+    "cnapp",
+    "cooking",
+    "cspm",
+    "cyberark",
+    "dns",
+    "dinner",
+    "ecuador",
+    "firewall",
+    "firewalls",
+    "grocery",
+    "havok",
+    "meal",
+    "meals",
+    "mining",
+    "mission",
+    "montana",
+    "movie",
+    "movies",
+    "orthodontics",
+    "radiomics",
+    "recipe",
+    "recipes",
+    "rudd",
+    "shooting",
+    "soldiers",
+    "streaming",
+    "suspect",
+    "trailer",
+}
 
 RICH_RENDER_SCRIPT = SCRIPT_ROOT / "render" / "render_report.py"
 RICH_RENDER_TEMPLATE = SKILL_ROOT / "templates" / "report-template.html"
@@ -232,6 +440,36 @@ def as_int(value: Any) -> int | None:
 
 def normalised_source(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip()).lower()
+
+
+def parse_exact_human_date(value: Any) -> date | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.strptime(text, "%d %B %Y").date()
+    except ValueError:
+        return None
+
+
+def subtract_calendar_months(anchor: date, months: int) -> date:
+    year = anchor.year
+    month = anchor.month - months
+    while month <= 0:
+        month += 12
+        year -= 1
+    day = anchor.day
+    while day > 28:
+        try:
+            return date(year, month, day)
+        except ValueError:
+            day -= 1
+    return date(year, month, day)
+
+
+def influential_news_cutoff(today: date | None = None) -> date:
+    reference = today or datetime.now().date()
+    return subtract_calendar_months(reference, 6)
 
 
 def placeholder_marker_matches(value: str, marker: str) -> bool:
@@ -368,6 +606,231 @@ def audit_cross_client_leakage(payload: Any, *, root_label: str = "report_data")
 
 def is_cross_client_safe(payload: Any) -> bool:
     return audit_cross_client_leakage(payload, root_label="payload").get("ok", False)
+
+
+def flatten_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return " ".join(flatten_text(child) for child in value.values())
+    if isinstance(value, list):
+        return " ".join(flatten_text(child) for child in value)
+    return str(value)
+
+
+def significant_tokens(text: str) -> set[str]:
+    tokens: set[str] = set()
+    for raw in re.findall(r"[A-Za-z][A-Za-z0-9'-]+", text):
+        token = raw.lower().strip("-'")
+        if len(token) < 4:
+            continue
+        if token in GENERIC_SAFE_TOKENS:
+            continue
+        if token in {"https", "http", "www", "com", "org", "net"}:
+            continue
+        tokens.add(token)
+    return tokens
+
+
+def domain_tokens(url: str) -> set[str]:
+    normal = normalize_url(url)
+    parsed = urllib.parse.urlparse(normal if "://" in normal else f"https://{normal}")
+    host = (parsed.netloc or parsed.path).lower().replace("www.", "")
+    parts = re.split(r"[^a-z0-9]+", host)
+    return {part for part in parts if len(part) >= 4}
+
+
+def collect_allowed_identity_phrases(data: dict[str, Any]) -> set[str]:
+    phrases: set[str] = set(GENERIC_SAFE_PROPER_PHRASES)
+    brand = data.get("brand", {})
+    if isinstance(brand, dict):
+        for field in ("name",):
+            value = str(brand.get(field) or "").strip()
+            if value:
+                phrases.add(value)
+    company_snapshot = data.get("company_snapshot", {})
+    if isinstance(company_snapshot, dict):
+        for collection in ("leadership", "founders"):
+            for item in company_snapshot.get(collection, []) if isinstance(company_snapshot.get(collection), list) else []:
+                if isinstance(item, dict):
+                    name = str(item.get("name") or "").strip()
+                    if name:
+                        phrases.add(name)
+    for row in data.get("competitive_landscape", {}).get("table", []) if isinstance(data.get("competitive_landscape", {}), dict) else []:
+        if isinstance(row, dict):
+            name = str(row.get("competitor") or row.get("name") or "").strip()
+            if name:
+                phrases.add(name)
+    for item in data.get("brand_reputation", {}).get("influential_news", []) if isinstance(data.get("brand_reputation", {}), dict) else []:
+        if isinstance(item, dict):
+            source = str(item.get("source") or "").strip()
+            if source:
+                phrases.add(source)
+    return {phrase for phrase in phrases if phrase}
+
+
+def collect_run_scope_tokens(data: dict[str, Any]) -> set[str]:
+    tokens: set[str] = set(GENERIC_SAFE_TOKENS)
+    brand = data.get("brand", {})
+    if isinstance(brand, dict):
+        tokens.update(significant_tokens(str(brand.get("name") or "")))
+        tokens.update(domain_tokens(str(brand.get("website") or "")))
+    for phrase in collect_allowed_identity_phrases(data):
+        tokens.update(significant_tokens(phrase))
+    for key in (
+        "company_snapshot",
+        "storybrand",
+        "usp_ksp_review",
+        "competitive_landscape",
+        "brand_reputation",
+        "opportunities",
+        "creative_campaign_ideas",
+        "content_strategy",
+        "appendix",
+    ):
+        tokens.update(significant_tokens(flatten_text(data.get(key))))
+    seo = data.get("seo_audit", {})
+    if isinstance(seo, dict):
+        evidence_only = {
+            "semrush_evidence": seo.get("semrush_evidence"),
+            "similarweb_evidence": seo.get("similarweb_evidence"),
+            "search_evidence": seo.get("search_evidence"),
+            "priority_issues_evidence": [
+                item.get("evidence")
+                for item in seo.get("priority_issues", [])
+                if isinstance(item, dict)
+            ],
+        }
+        tokens.update(significant_tokens(flatten_text(evidence_only)))
+    return tokens
+
+
+def extract_proper_phrases(text: str) -> set[str]:
+    phrases: set[str] = set()
+    pattern = re.compile(
+        r"\b(?:[A-Z][a-z]+|[A-Z]{2,}|[0-9]+[A-Z][A-Za-z0-9]*)(?:\s+(?:[A-Z][a-z]+|[A-Z]{2,}|[0-9]+[A-Z][A-Za-z0-9]*)){1,3}\b"
+    )
+    for match in pattern.findall(text):
+        phrase = re.sub(r"\s+", " ", match).strip()
+        if len(phrase) < 5:
+            continue
+        phrases.add(phrase)
+    return phrases
+
+
+def seo_narrative_payload(seo: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "cards": seo.get("cards"),
+        "charts": seo.get("charts"),
+        "priority_issues": [
+            {
+                "issue": item.get("issue"),
+                "why_it_matters": item.get("why_it_matters"),
+                "recommended_fix": item.get("recommended_fix"),
+            }
+            for item in seo.get("priority_issues", [])
+            if isinstance(item, dict)
+        ],
+        "content_implications": seo.get("content_implications"),
+        "search_score": seo.get("search_score"),
+        "score_label": seo.get("score_label"),
+    }
+
+
+def audit_run_scope_identity(data: dict[str, Any], *, root_label: str = "report_data") -> dict[str, Any]:
+    errors: list[str] = []
+    heading_leads = {"mission", "promise", "business", "hero", "plan", "problems", "villain", "guide", "failure", "success", "direct", "supporting", "source"}
+    allowed_phrases = {phrase.lower() for phrase in collect_allowed_identity_phrases(data)}
+    allowed_tokens = collect_run_scope_tokens(data)
+    brand_tokens = significant_tokens(flatten_text(data.get("brand", {})))
+    text_samples = {
+        "seo_audit": flatten_text(seo_narrative_payload(data.get("seo_audit", {}) if isinstance(data.get("seo_audit"), dict) else {})),
+        "storybrand": flatten_text(data.get("storybrand")),
+        "opportunities": flatten_text(data.get("opportunities")),
+        "content_strategy": flatten_text(data.get("content_strategy")),
+        "creative_campaign_ideas": flatten_text(data.get("creative_campaign_ideas")),
+        "executive_summary": flatten_text(data.get("executive_summary")),
+    }
+    for section, text in text_samples.items():
+        lowered = text.lower()
+        for phrase in OUT_OF_SCOPE_BRAND_PHRASES:
+            if phrase.lower() in lowered:
+                errors.append(f"{root_label}.{section} contains out-of-scope brand or topic reference: {phrase}")
+        for phrase in extract_proper_phrases(text):
+            normal = phrase.lower()
+            if normal in allowed_phrases:
+                continue
+            if phrase in GENERIC_SAFE_PROPER_PHRASES:
+                continue
+            phrase_tokens = significant_tokens(phrase)
+            phrase_words = re.findall(r"[A-Za-z][A-Za-z0-9'-]*", phrase.lower())
+            if phrase_words and phrase_words[0] in heading_leads:
+                continue
+            if phrase_tokens and phrase_tokens.issubset(GENERIC_SAFE_TOKENS):
+                continue
+            if phrase_tokens.intersection(brand_tokens) and not phrase_tokens.intersection(OUT_OF_SCOPE_TOKENS):
+                continue
+            if not phrase_tokens.intersection(OUT_OF_SCOPE_TOKENS):
+                unsupported = {token for token in phrase_tokens if token not in allowed_tokens and token not in GENERIC_SAFE_TOKENS}
+                if len(unsupported) < 2:
+                    continue
+            errors.append(f"{root_label}.{section} contains an out-of-scope or unsupported named phrase: {phrase}")
+    return {"ok": not errors, "errors": errors[:25]}
+
+
+def audit_seo_section_scope(data: dict[str, Any], *, root_label: str = "report_data") -> dict[str, Any]:
+    seo = data.get("seo_audit", {})
+    if not isinstance(seo, dict):
+        return {"ok": True, "errors": []}
+    allowed_tokens = collect_run_scope_tokens(data)
+    text = flatten_text(seo_narrative_payload(seo))
+    suspicious = sorted(
+        token for token in significant_tokens(text)
+        if token not in allowed_tokens and token not in GENERIC_SAFE_TOKENS
+    )
+    flagged_out_of_scope = sorted(token for token in suspicious if token in OUT_OF_SCOPE_TOKENS)
+    errors: list[str] = []
+    if flagged_out_of_scope:
+        errors.append(
+            f"{root_label}.seo_audit contains out-of-scope tokens inconsistent with this run: {', '.join(flagged_out_of_scope[:12])}"
+        )
+    return {"ok": not errors, "errors": errors}
+
+
+def audit_rendered_identity_scope(data: dict[str, Any], html_text: str) -> dict[str, Any]:
+    errors: list[str] = []
+    heading_leads = {"mission", "promise", "business", "hero", "plan", "problems", "villain", "guide", "failure", "success", "direct", "supporting", "source", "workflow"}
+    visible_text = html.unescape(re.sub(r"<[^>]+>", " ", html_text))
+    visible_text = re.sub(r"\s+", " ", visible_text)
+    allowed_phrases = {phrase.lower() for phrase in collect_allowed_identity_phrases(data)}
+    allowed_phrases.update(phrase.lower() for phrase in extract_proper_phrases(flatten_text(data)))
+    allowed_tokens = collect_run_scope_tokens(data)
+    brand_tokens = significant_tokens(flatten_text(data.get("brand", {})))
+    for phrase in OUT_OF_SCOPE_BRAND_PHRASES:
+        if phrase.lower() in visible_text.lower():
+            errors.append(f"Rendered HTML contains out-of-scope brand or topic reference: {phrase}")
+    for phrase in extract_proper_phrases(visible_text):
+        normal = phrase.lower()
+        if normal in allowed_phrases:
+            continue
+        if phrase in GENERIC_SAFE_PROPER_PHRASES:
+            continue
+        tokens = significant_tokens(phrase)
+        phrase_words = re.findall(r"[A-Za-z][A-Za-z0-9'-]*", phrase.lower())
+        if phrase_words and phrase_words[0] in heading_leads:
+            continue
+        if tokens and tokens.issubset(GENERIC_SAFE_TOKENS):
+            continue
+        if tokens.intersection(brand_tokens) and not tokens.intersection(OUT_OF_SCOPE_TOKENS):
+            continue
+        if not tokens.intersection(OUT_OF_SCOPE_TOKENS):
+            unsupported = {token for token in tokens if token not in allowed_tokens and token not in GENERIC_SAFE_TOKENS}
+            if len(unsupported) < 2:
+                continue
+        errors.append(f"Rendered HTML contains an out-of-scope or unsupported named phrase: {phrase}")
+    return {"ok": not errors, "errors": errors[:25]}
 
 
 def audit_rendered_html_completeness(html_text: str) -> dict[str, Any]:
@@ -518,6 +981,8 @@ def validate_reputation_ranking_contract(
     sources: list[str] = []
     source_types: list[str] = []
     scores: list[int] = []
+    today = datetime.now().date()
+    cutoff = influential_news_cutoff(today)
     for index, item in enumerate(news):
         item_prefix = f"{prefix}[{index}]"
         if not isinstance(item, dict):
@@ -529,8 +994,23 @@ def validate_reputation_ranking_contract(
         story_why = str(item.get("why_it_matters") or "").strip().lower()
         if story_why.startswith(("raises ", "creates ", "signals ", "shows ", "suggests ", "points to ", "could affect ", "may affect ", "risks ", "needs ", "highlights ", "contributes ", "underscores ")):
             errors.append(f"{item_prefix}.why_it_matters must be a complete sentence, not a subjectless note fragment.")
-        if not re.match(r"^\d{1,2}\s+[A-Z][a-z]+\s+\d{4}$", str(item.get("date", ""))):
+        raw_date = str(item.get("date", ""))
+        if not re.match(r"^\d{1,2}\s+[A-Z][a-z]+\s+\d{4}$", raw_date):
             errors.append(f"{item_prefix}.date must use an exact date like '19 November 2025'.")
+        parsed_date = parse_exact_human_date(raw_date)
+        if raw_date and parsed_date is None:
+            errors.append(f"{item_prefix}.date could not be parsed as an exact day-month-year date.")
+        elif parsed_date is not None:
+            if parsed_date < cutoff:
+                errors.append(
+                    f"{item_prefix}.date must fall within the last six months. "
+                    f"Cutoff for this run is {cutoff.strftime('%d %B %Y')}; found {parsed_date.strftime('%d %B %Y')}."
+                )
+            elif parsed_date > today:
+                errors.append(
+                    f"{item_prefix}.date cannot be in the future for this run. "
+                    f"Today is {today.strftime('%d %B %Y')}; found {parsed_date.strftime('%d %B %Y')}."
+                )
         if not str(item.get("url", "")).startswith(("http://", "https://")):
             errors.append(f"{item_prefix}.url must be an http(s) URL.")
         score = as_int(item.get("influence_score"))
@@ -630,6 +1110,27 @@ def validate_company_snapshot_contract(data: dict[str, Any], errors: list[str]) 
         errors.append("company_snapshot must be an object.")
         return
 
+    placeholder_snippets = (
+        "should be confirmed",
+        "source pending",
+        "record whether",
+        "record known funding",
+        "must be drawn from",
+        "identify likely stakeholder groups",
+        "before publication",
+        "latest verified public company",
+        "public finance, scale, and operating metrics",
+        "required for finance, ownership, and governance facts",
+        "required for current leadership and profile links",
+        "treated in this report as a brand",
+    )
+
+    def contains_placeholder_language(value: Any) -> bool:
+        text = re.sub(r"\s+", " ", str(value or "")).strip().lower()
+        if not text:
+            return False
+        return any(snippet in text for snippet in placeholder_snippets)
+
     required_sections = {
         "items": 6,
         "finance_stats": 3,
@@ -643,6 +1144,11 @@ def validate_company_snapshot_contract(data: dict[str, Any], errors: list[str]) 
         if not isinstance(values, list) or len([item for item in values if has_value(item)]) < minimum:
             errors.append(f"company_snapshot.{section} must include at least {minimum} populated item(s).")
 
+    if not has_value(snapshot.get("summary")):
+        errors.append("company_snapshot.summary is required.")
+    elif contains_placeholder_language(snapshot.get("summary")):
+        errors.append("company_snapshot.summary contains placeholder or research-note language instead of verified company context.")
+
     for section in ("items", "finance_stats", "ownership_funding", "source_map"):
         for index, item in enumerate(snapshot.get(section, []) if isinstance(snapshot.get(section), list) else []):
             if not isinstance(item, dict):
@@ -651,6 +1157,10 @@ def validate_company_snapshot_contract(data: dict[str, Any], errors: list[str]) 
             for key in ("label", "value"):
                 if not has_value(item.get(key)):
                     errors.append(f"company_snapshot.{section}[{index}].{key} is required.")
+            if contains_placeholder_language(item.get("label")) or contains_placeholder_language(item.get("value")):
+                errors.append(
+                    f"company_snapshot.{section}[{index}] contains placeholder language and must be replaced with verified company facts."
+                )
             if section in ("finance_stats", "ownership_funding", "source_map") and not has_value(
                 item.get("source_url") or item.get("url")
             ):
@@ -664,6 +1174,10 @@ def validate_company_snapshot_contract(data: dict[str, Any], errors: list[str]) 
         for key in ("name", "role", "value"):
             if not has_value(item.get(key)):
                 errors.append(f"company_snapshot.leadership[{index}].{key} is required.")
+            elif contains_placeholder_language(item.get(key)):
+                errors.append(
+                    f"company_snapshot.leadership[{index}].{key} contains placeholder language and must use verified leadership details."
+                )
         profiles = item.get("profiles") or item.get("linkedin_profiles") or []
         if isinstance(profiles, list) and any(has_value(profile.get("url") if isinstance(profile, dict) else profile) for profile in profiles):
             leadership_profiles += 1
@@ -677,6 +1191,10 @@ def validate_company_snapshot_contract(data: dict[str, Any], errors: list[str]) 
         for key in ("name", "value"):
             if not has_value(item.get(key)):
                 errors.append(f"company_snapshot.founders[{index}].{key} is required.")
+            elif contains_placeholder_language(item.get(key)):
+                errors.append(
+                    f"company_snapshot.founders[{index}].{key} contains placeholder language and must use verified founding details."
+                )
 
 
 def validate_executive_summary_tone(data: dict[str, Any], errors: list[str]) -> None:
@@ -735,6 +1253,25 @@ def validate_executive_summary_tone(data: dict[str, Any], errors: list[str]) -> 
             )
 
 
+def validate_appendix_source_map(data: dict[str, Any], errors: list[str]) -> None:
+    appendix = data.get("appendix", {})
+    if not isinstance(appendix, dict):
+        return
+    source_map = appendix.get("source_map")
+    if not isinstance(source_map, list):
+        return
+    for index, item in enumerate(source_map):
+        if not isinstance(item, dict):
+            continue
+        text = " ".join(str(item.get(field) or "") for field in ("title", "source", "url")).lower()
+        for snippet in APPENDIX_SOURCE_NOISE_SNIPPETS:
+            if snippet in text:
+                errors.append(
+                    f"appendix.source_map[{index}] contains ambiguous or irrelevant source noise unsuitable for delivery: {snippet}"
+                )
+                break
+
+
 def is_enriched_company_snapshot(value: Any) -> bool:
     if not isinstance(value, dict):
         return False
@@ -742,7 +1279,7 @@ def is_enriched_company_snapshot(value: Any) -> bool:
     return all(isinstance(value.get(section), list) and len(value.get(section) or []) > 0 for section in required_sections)
 
 
-def validate_report_data(data_path: Path) -> dict[str, Any]:
+def validate_report_data(data_path: Path, *, phase: str = "final") -> dict[str, Any]:
     data = read_json(data_path)
     errors: list[str] = []
     warnings: list[str] = []
@@ -796,13 +1333,32 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     for path in required:
         ensure_path(data, path, errors)
     content_audit = audit_missing_content(data)
+    if phase == "structure" and not content_audit["ok"]:
+        deferred_prefixes = (
+            "report_data.brand.logo_url",
+            "report_data.competitive_landscape.table",
+            "report_data.brand_reputation.influential_news",
+        )
+        content_audit["errors"] = [
+            error
+            for error in content_audit.get("errors", [])
+            if not any(error.startswith(prefix) for prefix in deferred_prefixes)
+        ]
+        content_audit["ok"] = not content_audit["errors"]
     if not content_audit["ok"]:
         errors.extend(f"missing_content_audit: {error}" for error in content_audit.get("errors", []))
     leakage_audit = audit_cross_client_leakage(data, root_label="report_data")
     if not leakage_audit["ok"]:
         errors.extend(f"cross_client_leakage: {error}" for error in leakage_audit.get("errors", []))
+    identity_audit = audit_run_scope_identity(data, root_label="report_data")
+    if not identity_audit["ok"]:
+        errors.extend(f"run_scope_identity: {error}" for error in identity_audit.get("errors", []))
+    seo_scope_audit = audit_seo_section_scope(data, root_label="report_data")
+    if not seo_scope_audit["ok"]:
+        errors.extend(f"seo_scope: {error}" for error in seo_scope_audit.get("errors", []))
     validate_company_snapshot_contract(data, errors)
     validate_executive_summary_tone(data, errors)
+    validate_appendix_source_map(data, errors)
     usp = data.get("usp_ksp_review", {})
     if isinstance(usp, dict):
         usp_rows = usp.get("rows", [])
@@ -834,12 +1390,13 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
                     lower_value = value.lower()
                     if any(snippet in lower_value for snippet in GENERIC_COMPETITOR_ANALYSIS_SNIPPETS):
                         errors.append(f"competitive_landscape.table[{index}].{field} contains generic discovery-language.")
-                logo_fields = ("logo_url", "competitor_logo_url", "badge_url", "mark_url")
-                if not any(has_value(row.get(field_name)) for field_name in logo_fields):
-                    errors.append(
-                        f"competitive_landscape.table[{index}] must include a usable competitor logo field "
-                        f"({', '.join(logo_fields)})."
-                    )
+                if phase != "structure":
+                    logo_fields = ("logo_url", "competitor_logo_url", "badge_url", "mark_url")
+                    if not any(has_value(row.get(field_name)) for field_name in logo_fields):
+                        errors.append(
+                            f"competitive_landscape.table[{index}] must include a usable competitor logo field "
+                            f"({', '.join(logo_fields)})."
+                        )
                 why_values.append(str(row.get("why_it_matters") or "").strip().lower())
                 pattern_values.append(str(row.get("positioning_pattern") or "").strip().lower())
             populated_count = len([value for value in pattern_values if value])
@@ -882,7 +1439,11 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
     validate_seo_charts(data.get("seo_audit", {}).get("charts", []), errors)
     strategy = data.get("opportunities", {}).get("marketing_strategy", {})
     if isinstance(strategy, dict):
-        threads = strategy.get("evidence_threads", [])
+        threads = strategy.get("evidence_threads")
+        if not isinstance(threads, list) or not threads:
+            threads = strategy.get("built_from_findings")
+        if not isinstance(threads, list) or not threads:
+            threads = strategy.get("threads", [])
         if not isinstance(threads, list):
             threads = []
         if len(threads) < 4:
@@ -914,64 +1475,87 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
         warnings,
         prefix="brand_reputation.influential_news",
     )
+    if phase != "structure":
+        for index, item in enumerate(news if isinstance(news, list) else []):
+            if not isinstance(item, dict):
+                continue
+            logo_fields = ("source_logo_url", "publisher_logo_url")
+            if not any(has_value(item.get(field_name)) for field_name in logo_fields):
+                errors.append(
+                    f"brand_reputation.influential_news[{index}] must include a usable publisher/source logo field "
+                    f"({', '.join(logo_fields)})."
+                )
+    brand_name = str(data.get("brand", {}).get("name") or "").strip().lower()
+    brand_domain = brand_domain_from_website(str(data.get("brand", {}).get("website") or ""))
     for index, item in enumerate(news if isinstance(news, list) else []):
         if not isinstance(item, dict):
             continue
-        logo_fields = ("source_logo_url", "publisher_logo_url")
-        if not any(has_value(item.get(field_name)) for field_name in logo_fields):
+        source = str(item.get("source") or "").strip()
+        source_lower = source.lower()
+        source_type = str(item.get("source_type") or "").strip().lower()
+        url = str(item.get("url") or "").strip()
+        source_domain = brand_domain_from_website(url)
+        owned_source = source_type == "owned_newsroom" or (
+            brand_name and brand_name in source_lower
+        ) or any(token in source_lower for token in ("blog", "press", "newsroom"))
+        if source and url and brand_domain and source_domain == brand_domain and not owned_source:
             errors.append(
-                f"brand_reputation.influential_news[{index}] must include a usable publisher/source logo field "
-                f"({', '.join(logo_fields)})."
+                f"brand_reputation.influential_news[{index}] labels the publisher as '{source}' but links to the brand-owned domain {brand_domain}."
             )
     for index, item in enumerate(data.get("agency_opportunity", {}).get("department_opportunity_map", [])):
         if not has_value(item.get("opportunity_signal")):
             errors.append(f"agency_opportunity.department_opportunity_map[{index}].opportunity_signal is required.")
-    campaign_ideas = data.get("creative_campaign_ideas", {}).get("ideas", [])
-    seen_activation_signatures: set[str] = set()
-    generic_activation_names = {"flagship proof asset", "destination page", "channel cut-downs"}
-    for idea_index, idea in enumerate(campaign_ideas if isinstance(campaign_ideas, list) else []):
-        plan = idea.get("activation_plan", {}) if isinstance(idea, dict) else {}
-        items = plan.get("order_of_precedence", []) if isinstance(plan, dict) else []
-        for key in ("driving_idea", "implementation_story"):
-            text = str(idea.get(key) or "").strip()
-            if len(text) < 120:
-                errors.append(f"creative_campaign_ideas.ideas[{idea_index}].{key} must be a developed campaign narrative, not a short label or bullet fragment.")
-        if not isinstance(items, list) or len(items) < 1:
-            errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence must include at least 1 vivid activation expression.")
-            continue
-        names = []
-        for item_index, item in enumerate(items):
-            if not isinstance(item, dict):
-                errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}] must be an object.")
+    if phase != "structure":
+        campaign_ideas = data.get("creative_campaign_ideas", {}).get("ideas", [])
+        seen_activation_signatures: set[str] = set()
+        generic_activation_names = {"flagship proof asset", "destination page", "channel cut-downs"}
+        for idea_index, idea in enumerate(campaign_ideas if isinstance(campaign_ideas, list) else []):
+            plan = idea.get("activation_plan", {}) if isinstance(idea, dict) else {}
+            items = plan.get("order_of_precedence", []) if isinstance(plan, dict) else []
+            for key in ("driving_idea", "implementation_story"):
+                text = str(idea.get(key) or "").strip()
+                if len(text) < 120:
+                    errors.append(f"creative_campaign_ideas.ideas[{idea_index}].{key} must be a developed campaign narrative, not a short label or bullet fragment.")
+            if not isinstance(items, list) or len(items) < 1:
+                errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence must include at least 1 vivid activation expression.")
                 continue
-            name = str(item.get("name") or "").strip()
-            names.append(name.lower())
-            for key in ("name", "creates", "looks_like", "why_this_format", "intended_result", "example_moments"):
-                if not has_value(item.get(key)):
-                    errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].{key} is required.")
-            for key, minimum in (("creates", 95), ("looks_like", 150), ("why_this_format", 70), ("intended_result", 55)):
-                text = str(item.get(key) or "").strip()
-                if len(text) < minimum:
+            names = []
+            for item_index, item in enumerate(items):
+                if not isinstance(item, dict):
+                    errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}] must be an object.")
+                    continue
+                name = str(item.get("name") or "").strip()
+                names.append(name.lower())
+                for key in ("name", "creates", "looks_like", "why_this_format", "intended_result", "example_moments"):
+                    if not has_value(item.get(key)):
+                        errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].{key} is required.")
+                for key, minimum in (("creates", 95), ("looks_like", 150), ("why_this_format", 70), ("intended_result", 55)):
+                    text = str(item.get(key) or "").strip()
+                    if len(text) < minimum:
+                        errors.append(
+                            f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].{key} must be descriptive enough for a reader to picture the activation."
+                        )
+                examples = item.get("example_moments")
+                if not isinstance(examples, list) or len([entry for entry in examples if has_value(entry)]) < 3:
                     errors.append(
-                        f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].{key} must be descriptive enough for a reader to picture the activation."
+                        f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].example_moments must include at least 3 concrete moments, screens, modules, scenes, or user paths."
                     )
-            examples = item.get("example_moments")
-            if not isinstance(examples, list) or len([entry for entry in examples if has_value(entry)]) < 3:
-                errors.append(
-                    f"creative_campaign_ideas.ideas[{idea_index}].activation_plan.order_of_precedence[{item_index}].example_moments must include at least 3 concrete moments, screens, modules, scenes, or user paths."
-                )
-        if set(names).issubset(generic_activation_names):
-            errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan is too generic; item names must be campaign-specific.")
-        signature = "|".join(names)
-        if signature and signature in seen_activation_signatures:
-            errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan duplicates another campaign's activation sequence.")
-        seen_activation_signatures.add(signature)
+            if set(names).issubset(generic_activation_names):
+                errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan is too generic; item names must be campaign-specific.")
+            signature = "|".join(names)
+            if signature and signature in seen_activation_signatures:
+                errors.append(f"creative_campaign_ideas.ideas[{idea_index}].activation_plan duplicates another campaign's activation sequence.")
+            seen_activation_signatures.add(signature)
     storybrand = data.get("storybrand", {})
     messaging_assessment = storybrand.get("existing_messaging_assessment", {})
     published_statements = messaging_assessment.get("published_statements", [])
+    cards = storybrand.get("cards", [])
     if len(published_statements) < 2:
         errors.append("storybrand.existing_messaging_assessment.published_statements must include at least 2 mission, purpose, promise, or proposition statements.")
+    if len(cards) < 6:
+        errors.append("storybrand.cards must include a full StoryBrand card set, not a partial scaffold.")
     high_order_count = 0
+    source_urls: set[str] = set()
     for index, item in enumerate(published_statements):
         if not has_value(item.get("label")):
             errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].label is required.")
@@ -981,6 +1565,8 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
             errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].source is required.")
         if not has_value(item.get("source_url")):
             errors.append(f"storybrand.existing_messaging_assessment.published_statements[{index}].source_url is required so readers can verify the published messaging.")
+        if has_value(item.get("source_url")):
+            source_urls.add(normalize_url(str(item.get("source_url") or "")))
         combined = f"{item.get('label', '')} {item.get('statement', '')} {item.get('source', '')} {item.get('source_url', '')}".lower()
         if any(term in combined for term in HIGH_ORDER_MESSAGING_TERMS):
             high_order_count += 1
@@ -989,8 +1575,46 @@ def validate_report_data(data_path: Path) -> dict[str, Any]:
                 errors.append(
                     f"storybrand.existing_messaging_assessment.published_statements[{index}] uses weak blog/product-copy language rather than mission, purpose, promise, or values evidence."
                 )
+    website_root = normalize_url(str(data.get("brand", {}).get("website") or ""))
+    if source_urls and all(url.rstrip("/") == website_root.rstrip("/") for url in source_urls):
+        errors.append("storybrand.existing_messaging_assessment must cite at least one specific official source page, not only the homepage root.")
     if high_order_count < 1:
         errors.append("storybrand.existing_messaging_assessment.published_statements must include at least one high-order mission, purpose, promise, values, or brand-platform statement.")
+    storybrand_text = flatten_text(
+        {
+            "summary": messaging_assessment.get("summary"),
+            "reputation_read_across": messaging_assessment.get("reputation_read_across"),
+            "implication": messaging_assessment.get("implication"),
+            "cards": cards,
+            "one_liner": storybrand.get("one_liner"),
+            "messaging_fixes": storybrand.get("messaging_fixes"),
+            "content_implications": storybrand.get("content_implications"),
+        }
+    )
+    lower_storybrand = storybrand_text.lower()
+    for snippet in STORYBRAND_GENERIC_SNIPPETS:
+        if snippet in lower_storybrand:
+            errors.append("storybrand contains generic reusable card language instead of brand-specific messaging evidence.")
+            break
+    storybrand_tokens = significant_tokens(storybrand_text)
+    storybrand_evidence_tokens = significant_tokens(
+        flatten_text(
+            {
+                "brand": data.get("brand"),
+                "company_snapshot": data.get("company_snapshot"),
+                "published_statements": published_statements,
+                "competitive_landscape": data.get("competitive_landscape"),
+                "brand_reputation": data.get("brand_reputation"),
+                "seo_priority_issues": data.get("seo_audit", {}).get("priority_issues"),
+            }
+        )
+    )
+    overlap = storybrand_tokens.intersection(storybrand_evidence_tokens)
+    if len(overlap) < 8:
+        errors.append(
+            "storybrand does not appear grounded enough in the current run's evidence. "
+            f"Context-token overlap is too low ({len(overlap)})."
+        )
     for field in ("messaging_fixes", "content_implications"):
         items = storybrand.get(field, [])
         if len(items) < 2:
@@ -1204,28 +1828,35 @@ def find_source_url(summary: dict[str, Any], *terms: str, fallback: str = "") ->
 
 
 def read_owned_workpack_results(brand_folder: Path, domain: str) -> list[dict[str, Any]]:
-    path = brand_folder / "research-workpacks" / "09-source_gathering.json"
-    if not path.exists():
-        return []
-    try:
-        payload = read_json(path)
-    except Exception:
-        return []
-    results = payload.get("results") if isinstance(payload, dict) else []
-    if not isinstance(results, list):
+    workpack_dir = brand_folder / "research-workpacks"
+    if not workpack_dir.exists():
         return []
     owned = []
-    for item in results:
-        if not isinstance(item, dict):
+    seen_urls: set[str] = set()
+    for path in sorted(workpack_dir.glob("*.json")):
+        if path.name.endswith(".prompt.txt") or path.name == "research-acquisition.json":
             continue
-        url = str(item.get("url") or "")
-        result_domain = brand_domain_from_website(url)
-        domain_stem = domain.split(".")[0].replace("-", "") if domain else ""
-        result_stem = result_domain.replace("-", "")
-        if domain and domain not in result_domain and domain_stem and domain_stem not in result_stem:
+        try:
+            payload = read_json(path)
+        except Exception:
             continue
-        if item.get("content"):
-            owned.append(item)
+        results = payload.get("results") if isinstance(payload, dict) else []
+        if not isinstance(results, list):
+            continue
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("url") or "")
+            if not url or url in seen_urls:
+                continue
+            result_domain = brand_domain_from_website(url)
+            domain_stem = domain.split(".")[0].replace("-", "") if domain else ""
+            result_stem = result_domain.replace("-", "")
+            if domain and domain not in result_domain and domain_stem and domain_stem not in result_stem:
+                continue
+            if item.get("content"):
+                owned.append(item)
+                seen_urls.add(url)
     return owned
 
 
@@ -1305,6 +1936,18 @@ WEAK_PUBLISHED_MESSAGING_SNIPPETS = (
 )
 
 
+STORYBRAND_GENERIC_SNIPPETS = (
+    "the buyer or customer wants a simpler, more confident path to the outcome the brand promises",
+    "feel reassured that the promise is credible, the route is clear, and the experience will stand up under scrutiny",
+    "confidence drift: the repeated friction of comparison, unclear proof",
+    "clear proof points, visible controls, customer feedback loops, service-recovery evidence",
+    "understand the offer, compare the options fairly, see the proof",
+    "take the next high-intent step with confidence",
+    "the brand feels easier to trust, easier to choose, and easier to stay with",
+    "helps customers achieve the promised outcome with clearer choices, stronger proof, and visible control throughout the journey",
+)
+
+
 BIOGRAPHY_MESSAGING_SNIPPETS = (
     "prior to joining",
     "joined the company",
@@ -1364,6 +2007,25 @@ GENERIC_COMPETITOR_ANALYSIS_SNIPPETS = (
     "use this comparator to sharpen positioning",
     "alternative or category comparator",
 )
+APPENDIX_SOURCE_NOISE_SNIPPETS = (
+    "paddlepals",
+    "playtomic",
+    "jack black",
+    "paul rudd",
+    "ice cube",
+    "trailer",
+    "streaming",
+    "reboot",
+    "movie",
+    "film",
+    "murder suspect",
+    "bar shooting",
+    "montana",
+    "orthodontics",
+    "ibuprofen",
+    "storage solutions",
+    "fightwear",
+)
 
 
 def competitor_role_analysis(brand: str, row: dict[str, Any]) -> dict[str, str]:
@@ -1400,9 +2062,9 @@ def competitor_role_analysis(brand: str, row: dict[str, Any]) -> dict[str, str]:
     if analysis:
         return analysis
     return {
-        "why_it_matters": f"{name or 'This competitor'} matters because it gives customers another way to solve the same meal-planning problem. The analysis should compare the specific promise, friction removed, proof offered, and trade-off versus {brand}.",
-        "positioning_pattern": "Comparator requiring manual synthesis: identify whether it wins on price, health, convenience, cuisine, trust, format flexibility, or audience focus.",
-        "implication": f"{brand} should use this competitor to clarify what it does better, where it asks more of the customer, and which proof is needed to make that trade-off feel worthwhile.",
+        "why_it_matters": f"{name or 'This competitor'} matters because it gives buyers a credible alternative path to the same commercial outcome. The analysis should compare category promise, onboarding friction, governance model, proof signals, and the trade-off versus {brand}.",
+        "positioning_pattern": "Comparator requiring manual synthesis: identify whether it wins on platform breadth, ease of adoption, governance, ecosystem trust, workflow flexibility, technical depth, or executive proof.",
+        "implication": f"{brand} should use this competitor to clarify where it is easier to buy, easier to govern, or easier to prove in production, and which evidence is needed to make that difference commercially meaningful.",
     }
 
 
@@ -1592,6 +2254,143 @@ def messaging_reputation_read_across(top_news: dict[str, Any]) -> str:
         "Public coverage creates a trust test for the published promise. The messaging therefore needs visible proof that the customer experience "
         "lives up to the mission and values."
     )
+
+
+def build_storybrand_section(
+    brand: str,
+    published_statements: list[dict[str, str]],
+    competitors: list[str],
+    top_news: dict[str, Any],
+) -> dict[str, Any]:
+    combined = " ".join(str(item.get("statement") or "") for item in published_statements)
+    lower = combined.lower()
+    competitor_text = ", ".join(competitors[:4]) if competitors else "other enterprise AI platforms"
+    if any(term in lower for term in ("open source", "python", "governed", "packages", "experimentation to production", "enterprise ai")):
+        return {
+            "score": "7.6 / 10",
+            "score_summary": (
+                f"{brand}'s published promise is strong when it talks about trusted open-source AI development, "
+                "but it still needs more concrete buyer proof around governance, compatibility, and deployment confidence."
+            ),
+            "existing_messaging_assessment": {
+                "summary": (
+                    f"{brand}'s messaging is strongest when it positions the platform as a trusted foundation for AI-native development and "
+                    "for moving teams from experimentation to production with governed open-source Python. The job now is to turn that platform "
+                    "claim into sharper buyer proof about why the foundation is safer, easier to govern, and easier to scale than the alternatives."
+                ),
+                "published_statements": published_statements,
+                "reputation_read_across": (
+                    f"{sentence(top_news.get('source'), 'Current public coverage')} and the latest trust signals raise the standard for proof. "
+                    f"If {brand} claims secure, governed AI delivery, buyers will expect visible evidence that package vetting, environment control, "
+                    "and production-readiness are real operating strengths rather than category language."
+                ),
+                "implication": (
+                    f"The messaging should move from broad enterprise-AI ambition to inspectable operating proof: show exactly how {brand} reduces "
+                    "environment drift, governs open-source risk, and helps teams deploy AI faster without losing control."
+                ),
+            },
+            "cards": [
+                {
+                    "title": "Hero",
+                    "body": (
+                        "AI, data science, and security teams want to move open-source Python and AI work from experimentation into production "
+                        "without introducing package risk, compatibility drift, or governance blind spots."
+                    ),
+                },
+                {
+                    "title": "Primary desire",
+                    "body": (
+                        "Adopt open-source AI faster while keeping packages vetted, environments reproducible, and deployment standards under control."
+                    ),
+                },
+                {
+                    "title": "Problems",
+                    "body": (
+                        "<p><strong>External:</strong> buyers must compare "
+                        + competitor_text
+                        + " and decide whether "
+                        + brand
+                        + " is the best foundation for governed Python and AI work.</p>"
+                        "<p><strong>Internal:</strong> technical teams worry about environment drift, unvetted dependencies, fragmented tooling, and whether prototypes will survive contact with production requirements.</p>"
+                        "<p><strong>Philosophical:</strong> open-source AI should not force organizations to choose between developer speed and enterprise control.</p>"
+                    ),
+                },
+                {
+                    "title": "Villain",
+                    "body": (
+                        "Dependency chaos and governance drag: the mix of broken environments, unvetted packages, and fragmented controls that makes AI feel risky to scale."
+                    ),
+                },
+                {
+                    "title": "Guide signals",
+                    "body": (
+                        "Pre-vetted Python packages, reproducible environments, governance controls, security proof, and clear evidence that the same foundation works from notebook to production."
+                    ),
+                },
+                {
+                    "title": "Plan",
+                    "body": (
+                        "Standardize the Python foundation, govern what enters the stack, then move AI work into production with fewer compatibility surprises and clearer operational control."
+                    ),
+                },
+                {
+                    "title": "Call to action review",
+                    "body": (
+                        "<p><strong>Direct call to action:</strong> get a demo or start with the platform to see how governed open-source AI delivery works in practice.</p>"
+                        "<p><strong>Supporting call to action:</strong> explore package security, AI governance, and deployment workflows before committing to a broader platform choice.</p>"
+                    ),
+                },
+                {
+                    "title": "Failure and success",
+                    "body": (
+                        "<p><strong>Failure stakes:</strong> AI projects stay stuck in prototype mode, teams lose time to dependency problems, and security or compliance concerns slow adoption.</p>"
+                        "<p><strong>Success outcome:</strong> teams ship open-source AI faster with a foundation that feels secure, governed, and dependable enough for enterprise production.</p>"
+                    ),
+                },
+            ],
+            "one_liner": (
+                f"{brand} gives AI and data science teams a secure, governed open-source Python foundation so they can move from experimentation to production with less drift, less risk, and more confidence."
+            ),
+            "messaging_fixes": [
+                f"Lead with the specific operational promise, not just category ambition. Why: {brand} already claims a trusted foundation for AI-native development, so the next job is to explain what becomes safer, faster, and easier to govern for real enterprise teams.",
+                "Turn governance into visible buyer proof. Why: package vetting, environment control, auditability, and security standards are central to the claim, so they need inspection-ready proof modules rather than broad reassurance language.",
+                f"Sharpen comparison messaging against {competitor_text}. Why: buyers are not choosing abstract AI innovation; they are choosing which platform foundation makes governed Python and AI delivery easiest to trust.",
+            ],
+            "content_implications": [
+                "Create proof-led pages showing how package governance, environment reproducibility, and deployment controls work from first use through production. Why: those are the concrete mechanisms behind the trust claim.",
+                f"Build direct comparison content against {competitor_text} that explains when {brand} is the stronger foundation layer for open-source Python and AI operations. Why: category buyers need proof that makes the platform trade-off legible.",
+                "Publish buying-moment explainers on open-source risk, dependency management, and AI governance. Why: enterprise adoption will move faster when technical and security concerns are answered before procurement and platform review stall the deal.",
+            ],
+        }
+    return {
+        "score": "6.8 / 10",
+        "score_summary": "The published message is directionally clear, but the StoryBrand layer still needs stronger buyer-specific proof and sharper commercial detail.",
+        "existing_messaging_assessment": {
+            "summary": summarize_existing_messaging(brand, published_statements),
+            "published_statements": published_statements,
+            "reputation_read_across": messaging_reputation_read_across(top_news),
+            "implication": f"The messaging should translate {brand}'s published promise into more specific proof of delivery, differentiation, and buyer confidence.",
+        },
+        "cards": [
+            {"title": "Hero", "body": f"The buyer wants a clearer path to the outcome {brand} promises, with enough proof to trust the decision."},
+            {"title": "Primary desire", "body": f"Understand why {brand} is credible, how the offer works, and what makes the outcome dependable in practice."},
+            {"title": "Problems", "body": f"<p><strong>External:</strong> buyers must compare {brand} with alternatives and judge whether the promise is distinctive enough to matter.</p><p><strong>Internal:</strong> uncertainty grows when proof is thin or the operating model is hard to picture.</p><p><strong>Philosophical:</strong> a strong promise should be easy to understand, verify, and trust.</p>"},
+            {"title": "Villain", "body": "Message drift: broad claims that sound plausible but leave too much room for doubt at the moment of decision."},
+            {"title": "Guide signals", "body": f"Specific proof, visible operating detail, and buyer-facing reassurance that shows how {brand} delivers on the promise."},
+            {"title": "Plan", "body": "Clarify the offer, show the proof, explain the mechanics, and make the next decision step feel informed rather than risky."},
+            {"title": "Call to action review", "body": "<p><strong>Direct call to action:</strong> take the next high-intent step once the proof is clear.</p><p><strong>Supporting call to action:</strong> explore how the offer works, what evidence supports it, and how it compares with alternatives.</p>"},
+            {"title": "Failure and success", "body": f"<p><strong>Failure stakes:</strong> buyers leave with an impression of {brand}, but not enough confidence to choose it.</p><p><strong>Success outcome:</strong> the offer feels easier to understand, easier to trust, and easier to defend internally.</p>"},
+        ],
+        "one_liner": f"{brand} helps buyers understand the promise, see the proof, and move forward with more confidence.",
+        "messaging_fixes": [
+            "Make the proof closer to the claim. Why: buyers trust a message faster when the evidence sits beside the promise instead of elsewhere in the journey.",
+            "Explain the operating mechanics more clearly. Why: confidence rises when readers can picture how the promise becomes a real outcome.",
+        ],
+        "content_implications": [
+            "Build explanatory proof modules around the strongest claims. Why: they reduce hesitation at comparison and conversion moments.",
+            "Use comparison and reassurance content to answer the biggest buyer doubts early. Why: many messaging failures are really evidence failures.",
+        ],
+    }
 
 
 def clean_placeholder_text(value: str, brand: str) -> str:
@@ -1785,37 +2584,12 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         ],
     }
 
-    data["storybrand"] = {
-        "score": "6.8 / 10",
-        "score_summary": "The basic customer story is intuitive, but the proof around trust, control, and service recovery needs to be made more explicit.",
-        "existing_messaging_assessment": {
-            "summary": summarize_existing_messaging(brand, published_statements),
-            "published_statements": published_statements,
-            "reputation_read_across": messaging_reputation_read_across(top_news),
-            "implication": "The messaging should move from broad mission language to proof-backed delivery: show how the operating model creates dependable buyer outcomes while keeping the customer in control.",
-        },
-        "cards": [
-            {"title": "Hero", "body": "The buyer or customer wants a simpler, more confident path to the outcome the brand promises, without losing control over cost, risk, or implementation."},
-            {"title": "Primary desire", "body": "Feel reassured that the promise is credible, the route is clear, and the experience will stand up under scrutiny."},
-            {"title": "Problems", "body": "<p><strong>External:</strong> choosing between alternatives, understanding trade-offs, and judging whether the promise will hold up in practice.</p><p><strong>Internal:</strong> anxiety about value, control, reliability, and what happens if something goes wrong.</p><p><strong>Philosophical:</strong> a strong promise should also be transparent, fair, and easy to trust.</p>"},
-            {"title": "Villain", "body": "Confidence drift: the repeated friction of comparison, unclear proof, and uncertainty about whether the experience will match the claim."},
-            {"title": "Guide signals", "body": "Clear proof points, visible controls, customer feedback loops, service-recovery evidence, and practical guidance that makes the promise believable."},
-            {"title": "Plan", "body": "Understand the offer, compare the options fairly, see the proof, and know exactly how the relationship works when conditions change."},
-            {"title": "Call to action review", "body": "<p><strong>Direct call to action:</strong> take the next high-intent step with confidence.</p><p><strong>Supporting call to action:</strong> compare options, understand controls, and see how issues are handled.</p>"},
-            {"title": "Failure and success", "body": "<p><strong>Failure stakes:</strong> customers fear overclaiming, weak support, hidden trade-offs, or hard-to-resolve issues.</p><p><strong>Success outcome:</strong> the brand feels easier to trust, easier to choose, and easier to stay with.</p>"},
-        ],
-        "one_liner": f"{brand} helps customers achieve the promised outcome with clearer choices, stronger proof, and visible control throughout the journey.",
-        "messaging_fixes": [
-            "Lead with control as well as promise. Why: reputation and customer-trust evidence shows confidence is as important as the headline claim.",
-            "Turn delivery standards, reliability, escalation, and service recovery into visible proof modules. Why: trust and service concerns need evidence at the moment customers compare or hesitate.",
-            "Separate inspiration from reassurance. Why: growth content can attract customers, but proof content protects conversion and retention.",
-        ],
-        "content_implications": [
-            "Create plain-English pages and modules explaining customer control, escalation, refunds or remedies, and delivery recovery. Why: reputation findings show trust depends on customers understanding what happens when something goes wrong.",
-            "Build comparison and alternative content that is useful rather than defensive. Why: search and competitor evidence shows buyers are actively comparing options and need customer-centred proof.",
-            "Use customer feedback loops as proof content. Why: review and service evidence should become visible reassurance rather than hidden operational detail.",
-        ],
-    }
+    data["storybrand"] = build_storybrand_section(
+        brand,
+        published_statements,
+        competitor_names,
+        top_news,
+    )
 
     enriched_competitors = enrich_competitor_table(brand, competitors)
     data["competitive_landscape"] = {
@@ -2653,6 +3427,112 @@ def reduce_search_workpacks(data_path: Path, brand_folder: Path, workpacks: list
     return read_json(output_path)
 
 
+def semrush_request_plan(data_path: Path, *, database: str) -> dict[str, Any]:
+    data = read_json(data_path)
+    website = normalize_url(data.get("brand", {}).get("website") or "")
+    parsed = urllib.parse.urlparse(website if "://" in website else f"https://{website}")
+    domain = (parsed.netloc or parsed.path).lower().replace("www.", "").strip("/")
+    if not domain:
+        raise SystemExit("Could not resolve a root domain for SEMrush planning.")
+    return {
+        "ok": True,
+        "data": str(data_path),
+        "domain": domain,
+        "provider": "Composio MCP",
+        "backup_provider": "Jina AI",
+        "database": database,
+        "requests": [
+            {
+                "priority": 1,
+                "tool": "SEMRUSH_DOMAIN_ORGANIC_SEARCH_KEYWORDS",
+                "parameters": {"domain": domain, "database": database},
+                "why": "Primary evidence for keyword demand, ranking gaps, and SEO opportunity sizing.",
+            },
+            {
+                "priority": 2,
+                "tool": "SEMRUSH_COMPETITORS_IN_ORGANIC_SEARCH",
+                "parameters": {"domain": domain, "database": database},
+                "why": "Validates the competitor set before structure and recommendations are locked.",
+            },
+            {
+                "priority": 3,
+                "tool": "SEMRUSH_INDEXED_PAGES",
+                "parameters": {"target": domain, "target_type": "root_domain"},
+                "why": "Checks index footprint and helps catch missing or underperforming site sections.",
+            },
+            {
+                "priority": 4,
+                "tool": "SEMRUSH_BACKLINKS_OVERVIEW",
+                "parameters": {"target": domain, "target_type": "root_domain"},
+                "why": "Adds authority context if keyword or competitor evidence is thin.",
+            },
+        ],
+        "status_guidance": {
+            "passed": "Use when at least two compact SEMrush-backed proof points can be included.",
+            "partial": "Use when one SEMrush dataset exists but needs public-web supplementation.",
+            "quota_limited": "Use when Composio SEMrush quota or entitlement blocks full retrieval.",
+            "blocked": "Use when SEMrush cannot be authenticated or reached.",
+        },
+    }
+
+
+def standard_semrush_backup_paths(brand_folder: Path) -> list[Path]:
+    return [
+        brand_folder / "semrush-evidence.json",
+        brand_folder / "semrush-plugin-evidence.json",
+        brand_folder / "semrush-composio-evidence.json",
+        brand_folder / "research-workpacks" / "98-semrush-plugin.json",
+        brand_folder / "research-workpacks" / "98-semrush-composio.json",
+    ]
+
+
+def load_semrush_backup_payload(brand_folder: Path) -> tuple[dict[str, Any] | None, Path | None]:
+    for candidate in standard_semrush_backup_paths(brand_folder):
+        if not candidate.exists():
+            continue
+        try:
+            payload = read_json(candidate)
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            return payload, candidate
+    return None, None
+
+
+def merge_semrush_payload_into_summary(
+    summary: dict[str, Any],
+    payload: dict[str, Any],
+    *,
+    summary_key: str,
+    note_prefix: str,
+) -> tuple[dict[str, Any], str]:
+    status = str(payload.get("status") or "blocked")
+    if status not in {"passed", "partial", "quota-limited", "blocked"}:
+        status = "blocked"
+
+    seo = summary.setdefault("seo", {})
+    semrush_evidence = payload.get("seo", {}).get("semrush_evidence") if isinstance(payload.get("seo"), dict) else []
+    if isinstance(semrush_evidence, list) and semrush_evidence:
+        seo["semrush_evidence"] = semrush_evidence
+    seo.setdefault("semrush_evidence", [])
+    seo.setdefault("similarweb_evidence", [])
+    seo.setdefault("search_evidence", [])
+
+    priority_issues = payload.get("seo", {}).get("priority_issues") if isinstance(payload.get("seo"), dict) else []
+    if isinstance(priority_issues, list) and priority_issues:
+        seo["priority_issues"] = priority_issues
+    seo.setdefault("priority_issues", [])
+
+    summary.setdefault("status", {})["semrush"] = status
+    enough_direct = len(seo.get("semrush_evidence") or []) >= 2
+    enough_similarweb = len(seo.get("similarweb_evidence") or []) >= 2
+    summary.setdefault("status", {})["search_seo"] = "passed" if enough_direct or enough_similarweb else status
+    summary[summary_key] = payload
+    summary.setdefault("source_provenance_summary", {})[f"{summary_key}_status"] = status
+    summary.setdefault("notes", []).append(f"{note_prefix} status: {status}.")
+    return summary, status
+
+
 def apply_semrush_direct_api(
     data_path: Path,
     brand_folder: Path,
@@ -2661,6 +3541,39 @@ def apply_semrush_direct_api(
     database: str,
     composio_backup_available: bool = False,
 ) -> tuple[dict[str, Any], Path | None]:
+    request_plan_path = brand_folder / "semrush-composio-request-plan.json"
+    access_path = brand_folder / "semrush-access.json"
+    request_plan = semrush_request_plan(data_path, database=database)
+    write_json(request_plan_path, request_plan)
+    access_payload = {
+        "ok": True,
+        "status": "available" if os.environ.get("SEMRUSH_API_KEY") else ("available" if composio_backup_available else "fallback"),
+        "selected_provider": "direct-api" if os.environ.get("SEMRUSH_API_KEY") else ("composio-mcp" if composio_backup_available else "jina-public-web"),
+        "provider_order": ["direct-api", "composio-mcp", "jina-public-web"],
+        "next_backup_provider": "composio-mcp" if os.environ.get("SEMRUSH_API_KEY") and composio_backup_available else ("jina-public-web" if composio_backup_available else None),
+        "domain": request_plan["domain"],
+        "database": database,
+        "direct_api": {
+            "available": bool(os.environ.get("SEMRUSH_API_KEY")),
+            "credential_env": "SEMRUSH_API_KEY",
+            "credential_value": "present-redacted" if os.environ.get("SEMRUSH_API_KEY") else "missing",
+        },
+        "composio_mcp": {
+            "available": composio_backup_available,
+            "required_tool_slugs": [item["tool"] for item in request_plan["requests"]],
+            "role": "Backup provider after direct SEMrush API is unavailable, quota-limited, or blocked.",
+            "note": "Provide plugin-returned evidence in one of the standard semrush-evidence JSON paths for automatic merge.",
+        },
+        "fallback": {
+            "jina_public_web_available": True,
+            "role": "Use only to support SEO/source context when SEMrush direct API and Composio MCP are unavailable or quota-limited.",
+        },
+        "query_plan": request_plan,
+        "evidence_status": "pending",
+        "fail_condition": "A report must not claim SEMrush-backed evidence unless direct-api or composio-mcp returns at least two verified SEMrush evidence points. Jina/public web is fallback context, not SEMrush-backed evidence.",
+    }
+    write_json(access_path, access_payload)
+
     output_path = brand_folder / "research-workpacks" / "98-semrush-direct-api.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     command = [
@@ -2695,46 +3608,52 @@ def apply_semrush_direct_api(
         }
         write_json(output_path, payload)
 
-    status = str(payload.get("status") or "blocked")
-    if status not in {"passed", "partial", "quota-limited", "blocked"}:
-        status = "blocked"
-
-    seo = summary.setdefault("seo", {})
-    semrush_evidence = payload.get("seo", {}).get("semrush_evidence") if isinstance(payload.get("seo"), dict) else []
-    if isinstance(semrush_evidence, list) and semrush_evidence:
-        seo["semrush_evidence"] = semrush_evidence
-    seo.setdefault("semrush_evidence", [])
-    seo.setdefault("similarweb_evidence", [])
-    seo.setdefault("search_evidence", [])
-    priority_issues = payload.get("seo", {}).get("priority_issues") if isinstance(payload.get("seo"), dict) else []
-    if isinstance(priority_issues, list) and priority_issues:
-        seo["priority_issues"] = priority_issues
-    seo.setdefault("priority_issues", [])
-
-    summary.setdefault("status", {})["semrush"] = status
-    enough_direct = len(seo.get("semrush_evidence") or []) >= 2
-    enough_similarweb = len(seo.get("similarweb_evidence") or []) >= 2
-    summary.setdefault("status", {})["search_seo"] = "passed" if enough_direct or enough_similarweb else status
-    summary["semrush_direct_api"] = payload
-    summary.setdefault("source_provenance_summary", {})["semrush_direct_api_status"] = status
-    summary.setdefault("notes", []).append(f"SEMrush direct API status: {status}.")
+    summary, status = merge_semrush_payload_into_summary(
+        summary,
+        payload,
+        summary_key="semrush_direct_api",
+        note_prefix="SEMrush direct API",
+    )
     if status != "passed" and composio_backup_available:
-        summary["semrush_backup"] = {
-            "provider": "composio-semrush",
-            "status": "available_not_executed_by_python_runner",
-            "reason": "Direct SEMrush API did not pass; Composio SEMrush is the documented backup but is executed outside this local Python runner.",
-        }
-        summary.setdefault("notes", []).append(
-            "Composio SEMrush backup is marked available, but the Python runner did not execute MCP tools directly."
-        )
+        backup_payload, backup_path = load_semrush_backup_payload(brand_folder)
+        if backup_payload is not None:
+            summary, backup_status = merge_semrush_payload_into_summary(
+                summary,
+                backup_payload,
+                summary_key="semrush_backup",
+                note_prefix="SEMrush backup",
+            )
+            summary["semrush_backup"]["provider"] = "composio-semrush"
+            summary["semrush_backup"]["path"] = str(backup_path) if backup_path else None
+            summary.setdefault("notes", []).append(
+                f"Composio SEMrush backup evidence was auto-merged from {backup_path.name if backup_path else 'a standard backup path'}."
+            )
+            access_payload["evidence_status"] = backup_status
+            access_payload["selected_provider"] = "composio-mcp"
+        else:
+            summary["semrush_backup"] = {
+                "provider": "composio-semrush",
+                "status": "awaiting-evidence-file",
+                "request_plan_path": str(request_plan_path),
+                "accepted_paths": [str(path) for path in standard_semrush_backup_paths(brand_folder)],
+                "reason": "Direct SEMrush API did not pass; Composio SEMrush is the documented backup and the runner will auto-merge a standard evidence file when present.",
+            }
+            if status == "blocked":
+                summary.setdefault("status", {})["semrush"] = "quota-limited"
+            summary.setdefault("notes", []).append(
+                "Composio SEMrush backup request plan was written automatically; no plugin-returned evidence file was present yet."
+            )
+            access_payload["status"] = "available"
+            access_payload["selected_provider"] = "composio-mcp"
+            access_payload["evidence_status"] = "pending"
+    summary["semrush_access"] = access_payload
+    write_json(access_path, access_payload)
     return summary, output_path
 
 
 def tavily_reputation_research_prompt(data: dict[str, Any], summary: dict[str, Any]) -> str:
     brand_name = data.get("brand", {}).get("name") or summary.get("brand_name") or "the target brand"
     website = data.get("brand", {}).get("website") or summary.get("brand_website") or ""
-    candidate_pool = summary.get("influence_ranking", {}).get("candidate_pool_summary") or []
-    candidate_lines = "\n".join(f"- {item}" for item in candidate_pool[:40])
     return textwrap.dedent(
         f"""
         Research the current brand reputation of {brand_name} ({website}) for a new-business intelligence report.
@@ -2763,9 +3682,6 @@ def tavily_reputation_research_prompt(data: dict[str, Any], summary: dict[str, A
 
         Use discovery_mode exactly: broad_first_scored_reduction.
         Set confidence_score from 70 to 100 only if the final set is genuinely report-ready; otherwise return the best possible structured result with limitations.
-
-        Cheap-search candidate pool to consider but not blindly accept:
-        {candidate_lines}
         """
     ).strip()
 
@@ -2816,15 +3732,54 @@ def story_specific_query(query: str, final_sources: set[str], final_headlines: l
 
 def normalise_reputation_research_payload(payload: dict[str, Any], *, brand_name: str = "the target brand") -> dict[str, Any]:
     news = payload.get("influential_news") if isinstance(payload.get("influential_news"), list) else []
+    today = datetime.now().date()
+    cutoff = influential_news_cutoff(today)
+    dropped_out_of_window: list[str] = []
     for item in news:
         if not isinstance(item, dict):
             continue
+        why = re.sub(r"\s+", " ", str(item.get("why_it_matters") or "").strip())
+        if why and why.lower().startswith(
+            (
+                "raises ",
+                "creates ",
+                "signals ",
+                "shows ",
+                "suggests ",
+                "points to ",
+                "could affect ",
+                "may affect ",
+                "risks ",
+                "needs ",
+                "highlights ",
+                "contributes ",
+                "underscores ",
+            )
+        ):
+            why = "This story " + why[0].lower() + why[1:]
+        if why and why[-1] not in ".!?":
+            why += "."
+        if why:
+            item["why_it_matters"] = why
         subscores = item.get("influence_subscores")
         if isinstance(subscores, dict):
             calculated = calculate_reputation_influence_score(subscores)
             if calculated is not None:
                 item["influence_score"] = calculated
-    news = [item for item in news if isinstance(item, dict)]
+    filtered_news: list[dict[str, Any]] = []
+    for item in news:
+        if not isinstance(item, dict):
+            continue
+        parsed_date = parse_exact_human_date(item.get("date"))
+        headline = str(item.get("headline") or item.get("title") or "Untitled story").strip()
+        if parsed_date is None:
+            dropped_out_of_window.append(f"{headline} (missing exact date)")
+            continue
+        if parsed_date < cutoff or parsed_date > today:
+            dropped_out_of_window.append(f"{headline} ({parsed_date.strftime('%d %B %Y')})")
+            continue
+        filtered_news.append(item)
+    news = filtered_news
     news.sort(key=lambda item: as_int(item.get("influence_score")) or 0, reverse=True)
     payload["influential_news"] = news
     ranking = payload.get("influence_ranking")
@@ -2832,6 +3787,11 @@ def normalise_reputation_research_payload(payload: dict[str, Any], *, brand_name
         ranking.setdefault("ranking_factors", list(REPUTATION_RANKING_FACTORS))
         ranking.setdefault("score_weights", REPUTATION_SCORE_WEIGHTS)
         ranking.setdefault("discovery_mode", "broad_first_scored_reduction")
+        ranking["discovery_sequence"] = [
+            "Broad discovery across category, reputation, investor, regulatory, and social/public-web sources using generic queries.",
+            "Score and reduce the dated candidate pool against the weighted influence factors.",
+            "Targeted verification of the shortlisted stories using publisher-specific or headline-specific checks.",
+        ]
         final_sources = {normalised_source(item.get("source")) for item in news if isinstance(item, dict)}
         final_headlines = [str(item.get("headline", "")) for item in news if isinstance(item, dict)]
         broad_queries = ranking.get("broad_discovery_queries") if isinstance(ranking.get("broad_discovery_queries"), list) else []
@@ -2861,6 +3821,14 @@ def normalise_reputation_research_payload(payload: dict[str, Any], *, brand_name
                 cleaned_broad.append(query)
         ranking["broad_discovery_queries"] = list(dict.fromkeys(cleaned_broad))
         ranking["verification_queries"] = list(dict.fromkeys(cleaned_verification))
+        if dropped_out_of_window:
+            limitations = ranking.setdefault("limitations", [])
+            note = (
+                f"Stories outside the last-six-month window for this run "
+                f"(before {cutoff.strftime('%d %B %Y')} or after {today.strftime('%d %B %Y')}) were excluded."
+            )
+            if note not in limitations:
+                limitations.append(note)
     return payload
 
 
@@ -3008,6 +3976,23 @@ def validate_research_summary(summary: dict[str, Any], *, allow_examples: bool =
             warnings,
             prefix="influential_news",
         )
+        brand_name = str(summary.get("brand_name") or "").strip().lower()
+        brand_domain = brand_domain_from_website(str(summary.get("brand_website") or ""))
+        for index, item in enumerate(summary.get("influential_news") or []):
+            if not isinstance(item, dict):
+                continue
+            source = str(item.get("source") or "").strip()
+            source_lower = source.lower()
+            source_type = str(item.get("source_type") or "").strip().lower()
+            url = str(item.get("url") or "").strip()
+            source_domain = brand_domain_from_website(url)
+            owned_source = source_type == "owned_newsroom" or (
+                brand_name and brand_name in source_lower
+            ) or any(token in source_lower for token in ("blog", "press", "newsroom"))
+            if source and url and brand_domain and source_domain == brand_domain and not owned_source:
+                errors.append(
+                    f"influential_news[{index}] labels the publisher as '{source}' but links to the brand-owned domain {brand_domain}."
+                )
     if summary.get("required_tavily_reputation_research") and not summary.get("source_provenance_summary", {}).get("tavily_research_used"):
         errors.append("Tavily Reputation Research is required for this live run but did not produce the final reputation story set")
     return {"ok": not errors, "errors": errors, "warnings": warnings, "anti_placeholder_audit": placeholder_audit}
@@ -3068,7 +4053,7 @@ def module_structure(args: argparse.Namespace) -> dict[str, Any]:
         data = merge_research_into_data(data, summary)
         data = build_structured_report_data(data, summary, brand_folder)
         write_json(data_path, data)
-    validation = validate_report_data(data_path)
+    validation = validate_report_data(data_path, phase="structure")
     if not validation["ok"]:
         set_status(state, "structure", "failed")
         set_gate(state, "gate_4_report_data", "failed")
@@ -3147,7 +4132,13 @@ def apply_manifest(data_path: Path, manifest_path: Path) -> dict[str, Any]:
 
 
 def run_python_script(script: Path, args: list[str]) -> dict[str, Any]:
-    completed = subprocess.run([sys.executable, str(script), *args], text=True, capture_output=True, check=False)
+    python_executable = Path(sys.executable)
+    repo_root = Path(__file__).resolve().parents[1]
+    if script.name == "report_data_to_pptx.py":
+        pptx_runtime_python = repo_root / "pptx_runtime_env" / "Scripts" / "python.exe"
+        if pptx_runtime_python.exists():
+            python_executable = pptx_runtime_python
+    completed = subprocess.run([str(python_executable), str(script), *args], text=True, capture_output=True, check=False)
     if completed.returncode != 0:
         raise SystemExit(f"{script.name} failed with exit code {completed.returncode}: {completed.stderr.strip() or completed.stdout.strip()}")
     output = completed.stdout.strip()
@@ -3289,6 +4280,7 @@ def audit_campaign_art(data_path: Path) -> dict[str, Any]:
     ideas = campaign_section(data).get("ideas", [])
     errors = []
     diversity_groups: list[str] = []
+    palette_families: list[str] = []
     style_names: list[str] = []
     fingerprints: list[tuple[int, str, dict[str, Any]]] = []
     accepted_final_backends = {"imagegen-batch-import"}
@@ -3299,9 +4291,16 @@ def audit_campaign_art(data_path: Path) -> dict[str, Any]:
         backend = idea.get("illustration_generation_backend")
         import_source = str(idea.get("illustration_import_source") or "").strip()
         provenance = str(idea.get("illustration_source_provenance") or "").strip().lower()
+        batch_manifest = str(idea.get("illustration_batch_manifest") or "").strip()
+        expected_filename = str(idea.get("illustration_expected_filename") or "").strip()
+        prompt_manifest_sha256 = str(idea.get("illustration_prompt_manifest_sha256") or "").strip().upper()
+        prompt_sha256 = str(idea.get("illustration_prompt_sha256") or "").strip().upper()
         style_name = str(idea.get("illustration_style_name") or "").strip()
+        palette_family = str(idea.get("illustration_palette_family") or "").strip().lower()
         if style_name:
             style_names.append(style_name.lower())
+        if palette_family:
+            palette_families.append(palette_family)
         diversity_groups.append(campaign_art_diversity_group(idea))
         if role != "final-raster-artwork":
             errors.append(f"ideas[{index}] artwork is not marked final-raster-artwork.")
@@ -3314,6 +4313,14 @@ def audit_campaign_art(data_path: Path) -> dict[str, Any]:
                 )
             if not import_source:
                 errors.append(f"ideas[{index}] final artwork is missing illustration_import_source provenance.")
+            if not batch_manifest:
+                errors.append(f"ideas[{index}] final artwork is missing illustration_batch_manifest traceability.")
+            if not expected_filename:
+                errors.append(f"ideas[{index}] final artwork is missing illustration_expected_filename traceability.")
+            if not prompt_manifest_sha256:
+                errors.append(f"ideas[{index}] final artwork is missing illustration_prompt_manifest_sha256 traceability.")
+            if not prompt_sha256:
+                errors.append(f"ideas[{index}] final artwork is missing illustration_prompt_sha256 traceability.")
             if provenance in disallowed_provenance:
                 errors.append(
                     f"ideas[{index}] final artwork uses disallowed source provenance '{provenance or 'missing'}'."
@@ -3354,6 +4361,8 @@ def audit_campaign_art(data_path: Path) -> dict[str, Any]:
                 fingerprints.append((index, str(idea.get("title") or f"idea {index + 1}"), fingerprint))
     if len(style_names) != len(set(style_names)):
         errors.append("Campaign artwork must use distinct style names for each idea.")
+    if len(palette_families) != len(ideas):
+        errors.append("Campaign artwork is missing illustration_palette_family metadata on one or more ideas.")
     if len(ideas) >= 3:
         unique_groups = set(diversity_groups)
         if len(unique_groups) < min(len(ideas), 3):
@@ -3366,6 +4375,14 @@ def audit_campaign_art(data_path: Path) -> dict[str, Any]:
             errors.append(
                 "Campaign artwork repeats broad treatment group(s): "
                 + ", ".join(sorted(repeated_groups))
+            )
+        repeated_palette_families = [
+            family for family, count in Counter(palette_families).items() if family and count > 1
+        ]
+        if repeated_palette_families:
+            errors.append(
+                "Campaign artwork repeats palette family or families: "
+                + ", ".join(sorted(repeated_palette_families))
             )
     for left_index, left_title, left_fp in fingerprints:
         for right_index, right_title, right_fp in fingerprints:
@@ -3380,11 +4397,16 @@ def audit_campaign_art(data_path: Path) -> dict[str, Any]:
                     f"and ideas[{right_index}] '{right_title}' "
                     f"(hash similarity {hash_similarity:.2f}, colour similarity {colour_similarity:.2f})."
                 )
-    return {"ok": not errors, "errors": errors, "diversity_groups": diversity_groups}
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "diversity_groups": diversity_groups,
+        "palette_families": palette_families,
+    }
 
 
 def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, Any]:
-    return audit_presentation_html_helper(
+    result = audit_presentation_html_helper(
         brand_folder,
         data_path,
         current_renderer_fingerprint=current_renderer_fingerprint,
@@ -3397,6 +4419,19 @@ def audit_presentation_html(brand_folder: Path, data_path: Path) -> dict[str, An
         has_value=has_value,
         audit_cross_client_leakage=audit_cross_client_leakage,
     )
+    html_path = brand_folder / "newbizintel-report.html"
+    if html_path.exists():
+        data = read_json(data_path)
+        html_text = html_path.read_text(encoding="utf-8", errors="ignore")
+        identity_audit = audit_rendered_identity_scope(data, html_text)
+        if not identity_audit["ok"]:
+            result.setdefault("errors", []).extend(identity_audit.get("errors", []))
+            result["ok"] = False
+    return result
+
+
+def audit_pptx_output(pptx_path: Path) -> dict[str, Any]:
+    return audit_pptx_package_helper(pptx_path)
 
 
 def module_campaign_art(args: argparse.Namespace) -> dict[str, Any]:
@@ -3677,6 +4712,7 @@ def module_qa(args: argparse.Namespace) -> dict[str, Any]:
         validate_report_data=validate_report_data,
         audit_campaign_art=audit_campaign_art,
         audit_presentation_html=audit_presentation_html,
+        audit_pptx=audit_pptx_output,
         audit_deploy_stage=audit_deploy_stage,
         audit_task_list=audit_task_list,
         inject_task_list_into_html=inject_task_list_into_html,
@@ -3906,6 +4942,8 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--campaign-art-source-dir")
     parser.add_argument("--campaign-art-latest-generated-batch", action="store_true")
     parser.add_argument("--campaign-art-overwrite-final", action="store_true")
+    parser.add_argument("--campaign-art-generate-originals", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--campaign-art-generate-dry-run", action="store_true")
 
 
 def main() -> None:

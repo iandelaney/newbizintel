@@ -27,6 +27,7 @@ Use this checklist before sharing `newbizintel` with colleagues or publishing it
   - macOS Python-first with no `pwsh` requirement
 - Confirm no hidden sibling-repo dependency has been introduced
 - Confirm research evidence routing is documented accurately: direct SEMrush API first, Composio-backed SEMrush as backup, Jina/direct web as current-web fallback, and explicitly labelled Similarweb evidence only when SEMrush is blocked, quota-limited, or too thin.
+- Confirm the run meets the pass bar in `references\research-quality-standard.md` for breadth, freshness, source quality, anti-generic specificity, and contamination protection.
 
 ## Recommended
 

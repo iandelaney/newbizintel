@@ -1,0 +1,325 @@
+{
+  "identity_cases": [
+    {
+      "name": "anaconda_movie_noise_rejected",
+      "check_type": "result_matches_run_context",
+      "brand_name": "Anaconda",
+      "website": "https://www.anaconda.com",
+      "company_summary": "Anaconda is an enterprise AI and open-source Python platform used to build and deploy governed models at scale.",
+      "company_items": [
+        "Enterprise AI platform for governed Python development and package security.",
+        "Teams use Anaconda to manage environments, packages, and AI deployment with enterprise controls."
+      ],
+      "seo_priority_issues": [
+        "Comparison demand exists around Python platform alternatives and enterprise AI governance."
+      ],
+      "competitors": [
+        "Databricks",
+        "Dataiku",
+        "Posit",
+        "KNIME",
+        "Amazon SageMaker"
+      ],
+      "result": {
+        "title": "Jack Black, Paul Rudd go on an adventure to remake 'Anaconda' film in the Amazon - ABC News",
+        "url": "https://abcnews.go.com/GMA/Culture/jack-black-paul-rudd-adventure-remake-anaconda-film/story?id=125674753",
+        "content": "Entertainment coverage of a movie remake starring Jack Black and Paul Rudd.",
+        "_workpack_role": "recent_news"
+      },
+      "expected": false
+    },
+    {
+      "name": "anaconda_businesswire_release_accepted",
+      "check_type": "source_map_entry_allowed",
+      "brand_name": "Anaconda",
+      "website": "https://www.anaconda.com",
+      "company_summary": "Anaconda is an enterprise AI and open-source Python platform used to build and deploy governed models at scale.",
+      "company_items": [
+        "Enterprise AI platform for governed Python development and package security.",
+        "Teams use Anaconda to manage environments, packages, and AI deployment with enterprise controls."
+      ],
+      "seo_priority_issues": [
+        "Comparison demand exists around Python platform alternatives and enterprise AI governance."
+      ],
+      "competitors": [
+        "Databricks",
+        "Dataiku",
+        "Posit",
+        "KNIME",
+        "Amazon SageMaker"
+      ],
+      "result": {
+        "title": "Anaconda Raises Over $150M in Series C Funding to Power AI for the Enterprise",
+        "url": "https://www.businesswire.com/news/home/20250730399625/en/Anaconda-Raises-Over-150M-in-Series-C-Funding-to-Power-AI-for-the-Enterprise",
+        "content": "Funding release covering enterprise AI, platform growth, governance, and open-source Python.",
+        "_workpack_role": "source_gathering"
+      },
+      "expected": true
+    },
+    {
+      "name": "apple_recipe_noise_rejected",
+      "check_type": "result_matches_run_context",
+      "brand_name": "Apple",
+      "website": "https://www.apple.com",
+      "company_summary": "Apple builds devices, operating systems, app ecosystems, and privacy-led consumer and enterprise technology products.",
+      "company_items": [
+        "Hardware and software ecosystem spanning iPhone, Mac, iPad, and services.",
+        "Privacy, device integration, developer ecosystems, and enterprise adoption."
+      ],
+      "seo_priority_issues": [
+        "Search demand spans devices, operating systems, app ecosystems, and privacy positioning."
+      ],
+      "competitors": [
+        "Samsung",
+        "Google Pixel",
+        "Microsoft Surface"
+      ],
+      "result": {
+        "title": "Best Apple Pie Recipe for Autumn Baking",
+        "url": "https://www.example.com/apple-pie-recipe",
+        "content": "Baking guidance, cinnamon, pastry tips, and fruit preparation.",
+        "_workpack_role": "source_gathering"
+      },
+      "expected": false
+    },
+    {
+      "name": "apple_device_story_accepted",
+      "check_type": "result_matches_run_context",
+      "brand_name": "Apple",
+      "website": "https://www.apple.com",
+      "company_summary": "Apple builds devices, operating systems, app ecosystems, and privacy-led consumer and enterprise technology products.",
+      "company_items": [
+        "Hardware and software ecosystem spanning iPhone, Mac, iPad, and services.",
+        "Privacy, device integration, developer ecosystems, and enterprise adoption."
+      ],
+      "seo_priority_issues": [
+        "Search demand spans devices, operating systems, app ecosystems, and privacy positioning."
+      ],
+      "competitors": [
+        "Samsung",
+        "Google Pixel",
+        "Microsoft Surface"
+      ],
+      "result": {
+        "title": "Apple expands iPhone and Mac management features for enterprise teams",
+        "url": "https://www.example.com/apple-enterprise-devices",
+        "content": "Coverage of Apple device management, enterprise deployment, privacy, and developer tooling.",
+        "_workpack_role": "source_gathering"
+      },
+      "expected": true
+    },
+    {
+      "name": "notion_dictionary_noise_rejected",
+      "check_type": "result_matches_run_context",
+      "brand_name": "Notion",
+      "website": "https://www.notion.so",
+      "company_summary": "Notion provides collaborative workspace software for documents, projects, knowledge bases, and team planning with AI assistance.",
+      "company_items": [
+        "Workspace software for docs, tasks, wikis, and collaboration.",
+        "AI search, team productivity, and knowledge management."
+      ],
+      "seo_priority_issues": [
+        "Buyers compare Notion with other workspace and collaboration tools for docs, projects, and internal knowledge."
+      ],
+      "competitors": [
+        "Asana",
+        "ClickUp",
+        "Confluence"
+      ],
+      "result": {
+        "title": "The notion of justice in political philosophy",
+        "url": "https://www.example.com/notion-of-justice",
+        "content": "A philosophical essay about abstract notions and moral theory.",
+        "_workpack_role": "source_gathering"
+      },
+      "expected": false
+    },
+    {
+      "name": "notion_software_story_accepted",
+      "check_type": "result_matches_run_context",
+      "brand_name": "Notion",
+      "website": "https://www.notion.so",
+      "company_summary": "Notion provides collaborative workspace software for documents, projects, knowledge bases, and team planning with AI assistance.",
+      "company_items": [
+        "Workspace software for docs, tasks, wikis, and collaboration.",
+        "AI search, team productivity, and knowledge management."
+      ],
+      "seo_priority_issues": [
+        "Buyers compare Notion with other workspace and collaboration tools for docs, projects, and internal knowledge."
+      ],
+      "competitors": [
+        "Asana",
+        "ClickUp",
+        "Confluence"
+      ],
+      "result": {
+        "title": "Notion AI adds enterprise search across docs and projects",
+        "url": "https://www.example.com/notion-ai-enterprise-search",
+        "content": "Coverage of workspace software, AI search, collaboration, docs, and project planning.",
+        "_workpack_role": "source_gathering"
+      },
+      "expected": true
+    }
+  ],
+  "preservation_case": {
+    "name": "preserve_curated_sets_over_noisy_workpacks",
+    "data": {
+      "brand": {
+        "name": "Anaconda",
+        "website": "https://www.anaconda.com"
+      },
+      "company_snapshot": {
+        "summary": "Anaconda is an enterprise AI and open-source Python platform used to build and deploy governed models at scale.",
+        "items": [
+          {
+            "value": "Enterprise AI platform for Python package governance, environment management, and secure deployment."
+          },
+          {
+            "value": "Used by technical and security teams to control open-source software and AI workflows."
+          }
+        ]
+      },
+      "seo_audit": {
+        "priority_issues": [
+          {
+            "issue": "Comparison demand exists around Python platform alternatives and enterprise AI governance."
+          }
+        ]
+      },
+      "competitive_landscape": {
+        "table": [
+          {
+            "competitor": "Databricks",
+            "website": "https://www.databricks.com",
+            "why_it_matters": "Large-scale governed data and AI platform benchmark.",
+            "positioning_pattern": "Lakehouse-led enterprise AI platform.",
+            "implication": "Anaconda must clarify its governance and Python workflow advantage."
+          },
+          {
+            "competitor": "Dataiku",
+            "website": "https://www.dataiku.com",
+            "why_it_matters": "Governed collaboration and enterprise AI workflow benchmark.",
+            "positioning_pattern": "Enterprise AI orchestration platform.",
+            "implication": "Anaconda should sharpen its secure Python and package-control edge."
+          },
+          {
+            "competitor": "Posit",
+            "website": "https://posit.co",
+            "why_it_matters": "Open-source practitioner workflow benchmark.",
+            "positioning_pattern": "Workbench and collaboration tooling for Python and R teams.",
+            "implication": "Anaconda must explain its governance and repository distinction."
+          },
+          {
+            "competitor": "KNIME",
+            "website": "https://www.knime.com",
+            "why_it_matters": "Workflow automation benchmark for data teams.",
+            "positioning_pattern": "Visual analytics and data workflow platform.",
+            "implication": "Anaconda should distinguish control and open-source governance."
+          },
+          {
+            "competitor": "Amazon SageMaker",
+            "website": "https://aws.amazon.com/sagemaker/",
+            "why_it_matters": "Cloud-native managed ML benchmark.",
+            "positioning_pattern": "Managed ML services within AWS.",
+            "implication": "Anaconda should contrast portability and governed open-source workflows."
+          }
+        ]
+      },
+      "brand_reputation": {
+        "influential_news": [
+          {
+            "date": "30 July 2025",
+            "headline": "Anaconda Raises Over $150M in Series C Funding to Power AI for the Enterprise",
+            "source": "Business Wire",
+            "source_type": "financial_investor_press",
+            "sentiment": "positive",
+            "influence_score": 90,
+            "rank_reason": "Funding and scale proof relevant to enterprise buyers.",
+            "url": "https://www.businesswire.com/news/home/20250730399625/en/Anaconda-Raises-Over-150M-in-Series-C-Funding-to-Power-AI-for-the-Enterprise"
+          },
+          {
+            "date": "17 April 2025",
+            "headline": "Anaconda Achieves SOC 2 Type 2 Certification",
+            "source": "Anaconda Newsroom",
+            "source_type": "owned_newsroom",
+            "sentiment": "positive",
+            "influence_score": 82,
+            "rank_reason": "Security proof relevant to governance-led buying.",
+            "url": "https://www.anaconda.com/blog/anaconda-achieves-soc-2-type-2-certification"
+          }
+        ]
+      },
+      "appendix": {
+        "source_map": [
+          {
+            "title": "Anaconda About Us",
+            "url": "https://www.anaconda.com/about-us",
+            "source": "Anaconda",
+            "used_for": [
+              "appendix",
+              "brand_reputation"
+            ]
+          },
+          {
+            "title": "Anaconda Raises Over $150M in Series C Funding to Power AI for the Enterprise",
+            "url": "https://www.businesswire.com/news/home/20250730399625/en/Anaconda-Raises-Over-150M-in-Series-C-Funding-to-Power-AI-for-the-Enterprise",
+            "source": "Business Wire",
+            "used_for": [
+              "appendix",
+              "brand_reputation"
+            ]
+          }
+        ]
+      }
+    },
+    "workpacks": [
+      {
+        "filename": "01-competitor_discovery.json",
+        "payload": {
+          "status": "completed",
+          "query": "Anaconda competitors",
+          "results": [
+            {
+              "title": "PaddlePals is a fun Anaconda alternative",
+              "url": "https://www.paddlepals.co.uk/anaconda-alternative",
+              "content": "Leisure booking software with no Python or AI platform relevance."
+            }
+          ]
+        }
+      },
+      {
+        "filename": "02-recent_news.json",
+        "payload": {
+          "status": "completed",
+          "query": "Anaconda news",
+          "results": [
+            {
+              "title": "Jack Black, Paul Rudd go on an adventure to remake 'Anaconda' film in the Amazon - ABC News",
+              "url": "https://abcnews.go.com/GMA/Culture/jack-black-paul-rudd-adventure-remake-anaconda-film/story?id=125674753",
+              "content": "Entertainment coverage of a movie remake starring Jack Black and Paul Rudd."
+            },
+            {
+              "title": "Anaconda murder suspect apprehended - Montana Public Radio",
+              "url": "https://www.mtpr.org/montana-news/2025-08-08/anaconda-murder-suspect-apprehended",
+              "content": "Local Montana crime coverage unrelated to the software company."
+            }
+          ]
+        }
+      },
+      {
+        "filename": "03-source_gathering.json",
+        "payload": {
+          "status": "completed",
+          "query": "Anaconda sources",
+          "results": [
+            {
+              "title": "Mission Command during Operation Anaconda",
+              "url": "https://havokjournal.com/history/operation-anaconda/",
+              "content": "Military history article unrelated to the software company."
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

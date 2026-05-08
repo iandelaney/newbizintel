@@ -56,6 +56,10 @@ function Add-NewBizFixture {
 }
 
 $fixtures = @()
+$workflowChecks = @()
+
+$workflowChecks += Invoke-NewBizFixtureJson -Name 'ambiguous_brand_regressions' -Path (Join-Path $RepoRoot 'scripts\qa\audit_ambiguous_brand_regressions.ps1')
+$workflowChecks += Invoke-NewBizFixtureJson -Name 'research_quality_regressions' -Path (Join-Path $RepoRoot 'scripts\qa\audit_research_quality_regressions.ps1')
 
 foreach ($path in @($DataPaths)) {
     if ($path) {
@@ -104,7 +108,11 @@ foreach ($fixture in @($fixtures)) {
     }
 
     if (Test-Path -LiteralPath $pptxPath) {
-        $checks += Invoke-NewBizFixtureJson -Name 'pptx' -Path (Join-Path $RepoRoot 'scripts\qa\audit_pptx_output.ps1') -Parameters @{ PptxPath = $pptxPath }
+        $pptxParameters = @{ PptxPath = $pptxPath }
+        if (-not $fixture.require_canonical_output) {
+            $pptxParameters.MinRichSlideCount = 10
+        }
+        $checks += Invoke-NewBizFixtureJson -Name 'pptx' -Path (Join-Path $RepoRoot 'scripts\qa\audit_pptx_output.ps1') -Parameters $pptxParameters
     }
     else {
         $checks += [pscustomobject]@{
@@ -146,6 +154,15 @@ foreach ($fixture in @($fixtures)) {
     }
 }
 
+foreach ($check in @($workflowChecks)) {
+    if ($check.ok -ne $true) {
+        $errors.Add("Workflow regression failed '$($check.name)': $($check.error)")
+    }
+    elseif ($check.result -and $check.result.PSObject.Properties['ok'] -and $check.result.ok -ne $true) {
+        $errors.Add("Workflow regression returned ok:false for '$($check.name)'.")
+    }
+}
+
 if ($fixtures.Count -eq 0) {
     $errors.Add('No regression fixtures were found.')
 }
@@ -158,6 +175,7 @@ if ($errors.Count -gt 0) {
     ok = $true
     repo_root = (Resolve-Path -LiteralPath $RepoRoot).Path
     fixture_count = @($fixtures).Count
+    workflow_checks = $workflowChecks
     fixtures = $results
     warnings = $warnings.ToArray()
 } | ConvertTo-Json -Depth 8 -Compress
