@@ -19,6 +19,32 @@ if (-not $DestinationRoot) {
 $sourceRoot = $PSScriptRoot
 $destination = Join-Path $DestinationRoot 'newbizintel'
 
+function Convert-ToInstalledSkillMetadata {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SkillPath
+    )
+
+    if (-not (Test-Path -LiteralPath $SkillPath)) {
+        return
+    }
+
+    $content = Get-Content -LiteralPath $SkillPath -Raw
+    $content = $content.Replace(
+        'name: newbizintel-dev',
+        'name: newbizintel'
+    )
+    $content = $content.Replace(
+        'description: Development worktree variant of the supported newbizintel workflow. Use when working inside the canonical repo itself and you want the same modular orchestration without colliding with the installed production skill name.',
+        'description: Supported default workflow for new-business intelligence. Use when you want research, assets, art, render, QA, and deploy coordinated through smaller resumable task skills instead of one monolithic run.'
+    )
+    $content = $content.Replace(
+        '# NewBizIntel Dev',
+        '# NewBizIntel'
+    )
+    Set-Content -LiteralPath $SkillPath -Value $content -Encoding UTF8
+}
+
 if (Test-Path -LiteralPath $destination) {
     Remove-Item -LiteralPath $destination -Recurse -Force
 }
@@ -53,6 +79,8 @@ foreach ($item in $items) {
     Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $destination $item) -Recurse -Force
     $installedItems += $item
 }
+
+Convert-ToInstalledSkillMetadata -SkillPath (Join-Path $destination 'SKILL.md')
 
 if (Test-Path -LiteralPath (Join-Path $destination 'package.json')) {
     $npm = Get-Command npm -ErrorAction SilentlyContinue

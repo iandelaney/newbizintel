@@ -23,6 +23,35 @@ mkdir -p "$destination_root"
 rm -rf "$destination"
 mkdir -p "$destination"
 
+convert_to_installed_skill_metadata() {
+  local skill_path="$1"
+
+  if [[ ! -f "$skill_path" ]]; then
+    return
+  fi
+
+  python3 - <<'PY' "$skill_path"
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+content = path.read_text(encoding="utf-8")
+content = content.replace(
+    "name: newbizintel-dev",
+    "name: newbizintel",
+)
+content = content.replace(
+    "description: Development worktree variant of the supported newbizintel workflow. Use when working inside the canonical repo itself and you want the same modular orchestration without colliding with the installed production skill name.",
+    "description: Supported default workflow for new-business intelligence. Use when you want research, assets, art, render, QA, and deploy coordinated through smaller resumable task skills instead of one monolithic run.",
+)
+content = content.replace(
+    "# NewBizIntel Dev",
+    "# NewBizIntel",
+)
+path.write_text(content, encoding="utf-8")
+PY
+}
+
 items=(
   "SKILL.md"
   "agents"
@@ -50,6 +79,8 @@ for item in "${items[@]}"; do
   cp -R "$SOURCE_ROOT/$item" "$destination/$item"
   installed+=("$item")
 done
+
+convert_to_installed_skill_metadata "$destination/SKILL.md"
 
 if [[ -f "$destination/package.json" ]]; then
   if ! command -v npm >/dev/null 2>&1; then
