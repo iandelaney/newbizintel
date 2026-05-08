@@ -54,12 +54,33 @@ fi
 
 python_runtime_ok=false
 python_runtime_detail="Python runtime check was skipped because no Python interpreter was found."
+python_runtime_repairable=false
 if [[ "$python_ok" == true && -f "$REPO_ROOT/scripts/qa/check_python_runtime.py" ]]; then
   if runtime_json="$("$python_bin" "$REPO_ROOT/scripts/qa/check_python_runtime.py" --repo-root "$REPO_ROOT" 2>/dev/null)"; then
     python_runtime_ok=true
     python_runtime_detail="$runtime_json"
   else
     python_runtime_detail="$runtime_json"
+    if [[ -n "$runtime_json" ]] && "$python_bin" - <<'PY' "$runtime_json"
+import json
+import sys
+
+try:
+    payload = json.loads(sys.argv[1])
+except Exception:
+    raise SystemExit(1)
+
+checks = payload.get("checks", [])
+fatal_keys = [check.get("key") for check in checks if not check.get("ok")]
+repair = payload.get("repair")
+python_ok = next((check.get("ok") for check in checks if check.get("key") == "python_version"), False)
+repairable = bool(repair) and bool(python_ok)
+raise SystemExit(0 if repairable else 1)
+PY
+    then
+      python_runtime_ok=true
+      python_runtime_repairable=true
+    fi
   fi
 fi
 
@@ -94,18 +115,22 @@ done
 
 "$python_bin" - <<'PY' \
   "$ok" "$REPO_ROOT" "$CODEX_ROOT" \
-  "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$assets_ok" "$package_ok" "$python_runtime_ok" "$legacy_powershell_ok" "$writable" \
+  "$python_ok" "$node_ok" "$companion_ok" "$config_ok" "$assets_ok" "$package_ok" "$python_runtime_ok" "$legacy_powershell_ok" "$writable" "$python_runtime_repairable" \
   "$COMPANION_ROOT" "$CONFIG_EXAMPLE" "$write_detail" "$python_runtime_detail"
 import json
 import sys
 
 try:
-    runtime_payload = json.loads(sys.argv[16])
+    runtime_payload = json.loads(sys.argv[17])
     runtime_detail = "; ".join(
         check.get("detail", "") for check in runtime_payload.get("checks", []) if not check.get("ok")
     ) or "Python runtime dependencies are importable."
+    if sys.argv[13].lower() == "true" and not runtime_payload.get("ok", False):
+        repair = runtime_payload.get("repair")
+        if repair:
+            runtime_detail = f"{runtime_detail}; repairable via {repair}"
 except Exception:
-    runtime_detail = sys.argv[16]
+    runtime_detail = sys.argv[17]
 
 print(json.dumps({
     "ok": sys.argv[1].lower() == "true",
@@ -125,12 +150,12 @@ print(json.dumps({
         {
             "key": "companion_skills",
             "ok": sys.argv[6].lower() == "true",
-            "detail": f"Expected companion-skills folder at {sys.argv[13]}.",
+            "detail": f"Expected companion-skills folder at {sys.argv[14]}.",
         },
         {
             "key": "config_example",
             "ok": sys.argv[7].lower() == "true",
-            "detail": f"Expected config example at {sys.argv[14]}.",
+            "detail": f"Expected config example at {sys.argv[15]}.",
         },
         {
             "key": "assets",
@@ -155,7 +180,7 @@ print(json.dumps({
         {
             "key": "codex_root_writable",
             "ok": sys.argv[12].lower() == "true",
-            "detail": sys.argv[15],
+            "detail": sys.argv[16],
         },
     ],
 }, separators=(",", ":")))

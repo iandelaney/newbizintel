@@ -83,9 +83,14 @@ if (Test-Path -LiteralPath $runtimeCheck) {
         else {
             'Python runtime dependencies are importable.'
         }
+        $runtimeRepairable = $false
+        if (-not $runtime.ok -and $runtime.repair -and ($runtime.checks | Where-Object { $_.key -eq 'python_version' -and $_.ok })) {
+            $runtimeRepairable = $true
+            $runtimeDetail = "$runtimeDetail; repairable via $($runtime.repair)"
+        }
         $checks += [pscustomobject]@{
             key = 'python_runtime_modules'
-            ok = [bool]$runtime.ok
+            ok = [bool]($runtime.ok -or $runtimeRepairable)
             detail = $runtimeDetail
         }
     }
