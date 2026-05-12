@@ -138,6 +138,8 @@ PLACEHOLDER_MARKERS = (
     ("Example Consumer Source", "template news source"),
     ("John Doe", "placeholder person name"),
     ("Jane Doe", "placeholder person name"),
+    ("Add verified profile owner", "placeholder profile owner"),
+    ("goes here", "template fill-in text"),
     ("TBC", "unfinished generated content"),
     ("https://example.com", "template URL"),
     ("http://example.com", "template URL"),
@@ -1272,6 +1274,90 @@ def validate_appendix_source_map(data: dict[str, Any], errors: list[str]) -> Non
                 break
 
 
+def validate_delivery_section_contract(data: dict[str, Any], errors: list[str]) -> None:
+    required_object_sections = (
+        "brand",
+        "report_meta",
+        "company_snapshot",
+        "executive_summary",
+        "agency_opportunity",
+        "storybrand",
+        "usp_ksp_review",
+        "competitive_landscape",
+        "seo_audit",
+        "brand_reputation",
+        "content_strategy",
+        "creative_campaign_ideas",
+        "opportunities",
+        "appendix",
+    )
+    for key in required_object_sections:
+        if not isinstance(data.get(key), dict):
+            errors.append(f"{key} must exist as a populated report section object before delivery.")
+
+    executive_summary = data.get("executive_summary", {})
+    if isinstance(executive_summary, dict):
+        cards = executive_summary.get("cards", [])
+        if not isinstance(cards, list) or len([card for card in cards if has_value(card)]) < 6:
+            errors.append("executive_summary.cards must include 6 populated executive-summary cards.")
+        if not has_value(executive_summary.get("overall_recommendation")):
+            errors.append("executive_summary.overall_recommendation is required.")
+
+    content_strategy = data.get("content_strategy", {})
+    if isinstance(content_strategy, dict):
+        cards = content_strategy.get("cards", [])
+        if not isinstance(cards, list) or len([card for card in cards if has_value(card)]) < 4:
+            errors.append("content_strategy.cards must include at least 4 populated cards.")
+        priority = content_strategy.get("priority_opportunities", [])
+        if not isinstance(priority, list) or len([item for item in priority if has_value(item)]) < 2:
+            errors.append("content_strategy.priority_opportunities must include at least 2 populated items.")
+        ideas = content_strategy.get("example_ideas", [])
+        if not isinstance(ideas, list) or len([item for item in ideas if has_value(item)]) < 2:
+            errors.append("content_strategy.example_ideas must include at least 2 populated example ideas.")
+        if not has_value(content_strategy.get("response_to_findings")):
+            errors.append("content_strategy.response_to_findings is required.")
+
+    opportunities = data.get("opportunities", {})
+    if isinstance(opportunities, dict):
+        timelines = opportunities.get("timelines", [])
+        if not isinstance(timelines, list) or len(timelines) < 3:
+            errors.append("opportunities.timelines must include the 30/60/90-day plan.")
+        else:
+            expected_titles = {"next 30 days", "next 60 days", "next 90 days"}
+            seen_titles = {
+                str(item.get("title") or "").strip().lower()
+                for item in timelines
+                if isinstance(item, dict) and has_value(item.get("title"))
+            }
+            if not expected_titles.issubset(seen_titles):
+                errors.append("opportunities.timelines must include titled entries for Next 30 days, Next 60 days, and Next 90 days.")
+            for index, item in enumerate(timelines):
+                if not isinstance(item, dict):
+                    errors.append(f"opportunities.timelines[{index}] must be an object.")
+                    continue
+                if not has_value(item.get("title")):
+                    errors.append(f"opportunities.timelines[{index}].title is required.")
+                timeline_items = item.get("items", [])
+                if not isinstance(timeline_items, list) or len([entry for entry in timeline_items if has_value(entry)]) < 2:
+                    errors.append(f"opportunities.timelines[{index}].items must include at least 2 populated actions.")
+
+    appendix = data.get("appendix", {})
+    if isinstance(appendix, dict):
+        source_map = appendix.get("source_map", [])
+        if not isinstance(source_map, list) or len([item for item in source_map if has_value(item)]) < 3:
+            errors.append("appendix.source_map must include at least 3 populated verifiable source entries.")
+        assumptions = appendix.get("assumptions_and_confidence_notes", [])
+        if not isinstance(assumptions, list) or len([item for item in assumptions if has_value(item)]) < 1:
+            errors.append("appendix.assumptions_and_confidence_notes must include at least 1 populated note.")
+
+    reputation = data.get("brand_reputation", {})
+    if isinstance(reputation, dict):
+        for key, minimum in (("cards", 4), ("recommended_actions", 2), ("content_implications", 2)):
+            items = reputation.get(key, [])
+            if not isinstance(items, list) or len([item for item in items if has_value(item)]) < minimum:
+                errors.append(f"brand_reputation.{key} must include at least {minimum} populated item(s).")
+
+
 def is_enriched_company_snapshot(value: Any) -> bool:
     if not isinstance(value, dict):
         return False
@@ -1305,8 +1391,11 @@ def validate_report_data(data_path: Path, *, phase: str = "final") -> dict[str, 
         "company_snapshot.founders",
         "company_snapshot.ownership_funding",
         "company_snapshot.source_map",
+        "executive_summary.cards",
+        "executive_summary.overall_recommendation",
         "agency_opportunity.score",
         "agency_opportunity.summary",
+        "agency_opportunity.department_opportunity_map",
         "agency_opportunity.lead_offering.name",
         "agency_opportunity.lead_offering.lead_department",
         "storybrand.existing_messaging_assessment.summary",
@@ -1322,13 +1411,21 @@ def validate_report_data(data_path: Path, *, phase: str = "final") -> dict[str, 
         "seo_audit.cards",
         "seo_audit.priority_issues",
         "brand_reputation.influential_news",
+        "competitive_landscape.table",
         "competitive_landscape.why_each_competitor_matters",
         "competitive_landscape.messaging_patterns",
         "competitive_landscape.content_patterns",
         "competitive_landscape.status_summary",
+        "content_strategy.cards",
+        "content_strategy.priority_opportunities",
+        "content_strategy.example_ideas",
+        "content_strategy.response_to_findings",
+        "creative_campaign_ideas.ideas",
         "opportunities.marketing_strategy.strategy",
         "opportunities.marketing_strategy.why_it_matters",
         "opportunities.marketing_strategy.evidence_threads",
+        "opportunities.timelines",
+        "appendix.source_map",
     ]
     for path in required:
         ensure_path(data, path, errors)
@@ -1356,6 +1453,7 @@ def validate_report_data(data_path: Path, *, phase: str = "final") -> dict[str, 
     seo_scope_audit = audit_seo_section_scope(data, root_label="report_data")
     if not seo_scope_audit["ok"]:
         errors.extend(f"seo_scope: {error}" for error in seo_scope_audit.get("errors", []))
+    validate_delivery_section_contract(data, errors)
     validate_company_snapshot_contract(data, errors)
     validate_executive_summary_tone(data, errors)
     validate_appendix_source_map(data, errors)
