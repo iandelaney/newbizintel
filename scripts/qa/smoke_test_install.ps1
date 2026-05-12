@@ -8,6 +8,8 @@ if (-not $RepoRoot) {
     $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 }
 
+$proofRoot = & (Join-Path $RepoRoot 'scripts\common\resolve_proof_root.ps1')
+
 function Assert-True {
     param(
         [Parameter(Mandatory = $true)]
@@ -32,7 +34,7 @@ function Test-JsonArrayContains {
     return ($Array -contains $Expected)
 }
 
-$installRoot = Join-Path $RepoRoot 'dist\install-smoke'
+$installRoot = Join-Path $proofRoot 'install-smoke'
 $skillsRoot = Join-Path $installRoot 'skills'
 $codexRoot = Join-Path $installRoot '.codex'
 $mainSkillRoot = Join-Path $skillsRoot 'newbizintel'

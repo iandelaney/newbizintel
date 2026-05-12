@@ -101,6 +101,12 @@ You will need:
 - a Tavily API key for live web research
 - a Vercel account if you want Codex to publish the report to the web
 
+Before you start the install steps, set up those accounts if you do not already have them:
+
+- Create a Vercel account at [vercel.com/signup](https://vercel.com/signup).
+- Create a Tavily account at [app.tavily.com/sign-in](https://app.tavily.com/sign-in).
+- After signing in to Tavily, create an API key from the Tavily dashboard and keep it ready for the config step below.
+
 Important:
 
 - On Windows, use PowerShell.
@@ -244,7 +250,7 @@ This will:
 
 #### 4. Install the Vercel CLI
 
-If you want Codex to publish the report to a live URL, install the Vercel CLI:
+If you want Codex to publish the report to a live URL, first create a Vercel account at [vercel.com/signup](https://vercel.com/signup), then install the Vercel CLI:
 
 ```powershell
 npm install -g vercel
@@ -252,11 +258,15 @@ npm install -g vercel
 
 #### 5. Log in to Vercel
 
+If you have not signed up yet, create your account first at [vercel.com/signup](https://vercel.com/signup).
+
 ```powershell
 vercel login
 ```
 
 #### 6. Add your Tavily key
+
+If you do not already have one, create a Tavily account at [app.tavily.com/sign-in](https://app.tavily.com/sign-in), then generate an API key in the Tavily dashboard before continuing.
 
 The installer will create or update:
 
@@ -281,6 +291,22 @@ Restart Codex, open a chat, and ask:
 - `Use $newbizintel with the sample report data and deploy the HTML report to Vercel at a random URL.`
 
 If that works, installation is good.
+
+#### 9. Clean local repo artifacts when you are done
+
+Local install and QA work can create ignored helper folders such as `vendor`, `node_modules`, `dist`, and temporary handoff files.
+
+If you want to return the repo to a lean state after local testing:
+
+```powershell
+.\scripts\qa\clean_local_artifacts.ps1
+```
+
+Preview what would be removed without deleting anything:
+
+```powershell
+.\scripts\qa\clean_local_artifacts.ps1 -DryRun
+```
 
 ### macOS install
 
@@ -330,7 +356,7 @@ This will:
 
 #### 4. Install the Vercel CLI
 
-If you want Codex to publish the report to a live URL, install the Vercel CLI:
+If you want Codex to publish the report to a live URL, first create a Vercel account at [vercel.com/signup](https://vercel.com/signup), then install the Vercel CLI:
 
 ```bash
 npm install -g vercel
@@ -338,11 +364,15 @@ npm install -g vercel
 
 #### 5. Log in to Vercel
 
+If you have not signed up yet, create your account first at [vercel.com/signup](https://vercel.com/signup).
+
 ```bash
 vercel login
 ```
 
 #### 6. Add your Tavily key
+
+If you do not already have one, create a Tavily account at [app.tavily.com/sign-in](https://app.tavily.com/sign-in), then generate an API key in the Tavily dashboard before continuing.
 
 The installer will create or update:
 
@@ -367,6 +397,22 @@ Restart Codex, open a chat, and ask:
 - `Use $newbizintel with the sample report data and deploy the HTML report to Vercel at a random URL.`
 
 If that works, installation is good.
+
+#### 9. Clean local repo artifacts when you are done
+
+Local install and QA work can create ignored helper folders such as `vendor`, `node_modules`, `dist`, and temporary handoff files.
+
+If you want to return the repo to a lean state after local testing:
+
+```bash
+./scripts/qa/clean_local_artifacts.sh
+```
+
+Preview what would be removed without deleting anything:
+
+```bash
+DRY_RUN=true ./scripts/qa/clean_local_artifacts.sh
+```
 
 ### If you only want the skill files
 
@@ -599,7 +645,18 @@ In practice, that means:
 - Codex can then publish that HTML report to Vercel
 - users review the result in the browser from a live URL
 
-If you want a random preview URL rather than a brand-named one, ask for that explicitly in Codex.
+By default, NewBizIntel deployment handoff should use a randomly named preview URL rather than a brand-named one.
+
+That default preview URL is useful for personal review, QA, and quick sharing during drafting.
+
+If you want a stable link that is appropriate to share with other colleagues more broadly, ask Codex to deploy the site to Vercel production instead of leaving it as a preview deployment.
+
+Inside Codex, say one of these:
+
+- `Use $newbizintel for <brand name> and deploy the final HTML report to Vercel as a production site.`
+- `Use $newbizintel for <brand name> and publish the finished Vercel handoff to production so I can share it with colleagues.`
+
+If you do not say `production`, assume the default is the randomly named preview URL.
 
 ### Recommended release habit
 
@@ -610,3 +667,21 @@ Before sharing the repo with someone else:
 3. run QA on the sample data
 
 That gives you the quickest confidence check that both installation and rendering still work.
+
+### Keeping the repo lean
+
+The repo-local install smoke test now writes its proof files to the shared proof root instead of building up under `dist` in the repo itself.
+
+If you do local bootstrap, install, or QA work repeatedly, run the cleanup helper occasionally:
+
+Windows:
+
+```powershell
+.\scripts\qa\clean_local_artifacts.ps1
+```
+
+macOS:
+
+```bash
+./scripts/qa/clean_local_artifacts.sh
+```
