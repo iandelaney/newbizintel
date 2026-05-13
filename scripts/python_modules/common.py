@@ -207,6 +207,7 @@ def default_token_usage_state() -> dict[str, Any]:
             "output_tokens": 0,
             "total_tokens": 0,
             "recorded_stages": 0,
+            "deterministic_stages": 0,
             "unavailable_stages": 0,
         },
         "stages": {},
@@ -311,13 +312,18 @@ def _recalculate_token_usage_totals(state: dict[str, Any]) -> None:
         "output_tokens": 0,
         "total_tokens": 0,
         "recorded_stages": 0,
+        "deterministic_stages": 0,
         "unavailable_stages": 0,
     }
     for stage in stages.values():
         if not isinstance(stage, dict):
             continue
-        if stage.get("status") == "unavailable":
+        stage_status = str(stage.get("status") or "")
+        if stage_status == "unavailable":
             totals["unavailable_stages"] += 1
+            continue
+        if stage_status == "deterministic":
+            totals["deterministic_stages"] += 1
             continue
         totals["input_tokens"] += _coerce_token_int(stage.get("input_tokens"))
         totals["output_tokens"] += _coerce_token_int(stage.get("output_tokens"))
@@ -327,6 +333,86 @@ def _recalculate_token_usage_totals(state: dict[str, Any]) -> None:
         totals["total_tokens"] = totals["input_tokens"] + totals["output_tokens"]
     token_usage["totals"] = totals
     token_usage["updated_at"] = utc_now()
+
+
+def token_group_key(stage_key: str) -> str:
+    text = str(stage_key or "").strip()
+    if not text:
+        return "unknown"
+    return text.split(".", 1)[0]
+
+
+def build_token_usage_summary(state: dict[str, Any]) -> dict[str, Any]:
+    token_usage = state.setdefault("token_usage", default_token_usage_state())
+    _recalculate_token_usage_totals(state)
+    totals = token_usage.get("totals", {})
+    stages = token_usage.get("stages", {})
+    groups: dict[str, dict[str, Any]] = {}
+    for stage_key in sorted(stages):
+        stage = stages.get(stage_key)
+        if not isinstance(stage, dict):
+            continue
+        group_key = token_group_key(stage_key)
+        group = groups.setdefault(
+            group_key,
+            {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "recorded_entries": 0,
+                "deterministic_entries": 0,
+                "unavailable_entries": 0,
+                "providers": [],
+                "models": [],
+                "entries": {},
+            },
+        )
+        stage_status = str(stage.get("status") or "")
+        if stage_status == "recorded":
+            group["input_tokens"] += _coerce_token_int(stage.get("input_tokens"))
+            group["output_tokens"] += _coerce_token_int(stage.get("output_tokens"))
+            group["total_tokens"] += _coerce_token_int(stage.get("total_tokens"))
+            group["recorded_entries"] += 1
+        elif stage_status == "deterministic":
+            group["deterministic_entries"] += 1
+        else:
+            group["unavailable_entries"] += 1
+        provider = str(stage.get("provider") or "").strip()
+        model = str(stage.get("model") or "").strip()
+        if provider and provider not in group["providers"]:
+            group["providers"].append(provider)
+        if model and model not in group["models"]:
+            group["models"].append(model)
+        group["entries"][stage_key] = stage
+
+    module_coverage = []
+    for module_name in ("intake", "research", "structure", "assets", "campaign_art", "render", "qa", "deploy"):
+        group = groups.get(module_name, {})
+        tracking = "missing"
+        if group:
+            if int(group.get("recorded_entries", 0)) > 0:
+                tracking = "recorded"
+            elif int(group.get("deterministic_entries", 0)) > 0:
+                tracking = "deterministic_only"
+            elif int(group.get("unavailable_entries", 0)) > 0:
+                tracking = "unavailable"
+        module_coverage.append(
+            {
+                "module": module_name,
+                "workflow_status": str(state.get("status", {}).get(module_name) or "pending"),
+                "token_tracking": tracking,
+                "input_tokens": int(group.get("input_tokens", 0) or 0),
+                "output_tokens": int(group.get("output_tokens", 0) or 0),
+                "total_tokens": int(group.get("total_tokens", 0) or 0),
+            }
+        )
+
+    return {
+        "updated_at": utc_now(),
+        "totals": totals,
+        "groups": groups,
+        "module_coverage": module_coverage,
+    }
 
 
 def record_token_usage(
@@ -365,6 +451,32 @@ def record_token_usage(
     stages[stage_key] = stage
     _recalculate_token_usage_totals(state)
     return stage
+
+
+def write_token_usage_artifacts(brand_folder: Path, state: dict[str, Any]) -> None:
+    summary = build_token_usage_summary(state)
+    write_json(brand_folder / "token-usage-summary.json", summary)
+    lines = [
+        "# NewBizIntel Token Usage Summary",
+        "",
+        f"Updated: {summary['updated_at']}",
+        "",
+        f"Recorded stages: {summary['totals'].get('recorded_stages', 0)}",
+        f"Deterministic stages: {summary['totals'].get('deterministic_stages', 0)}",
+        f"Unavailable stages: {summary['totals'].get('unavailable_stages', 0)}",
+        f"Input tokens: {summary['totals'].get('input_tokens', 0)}",
+        f"Output tokens: {summary['totals'].get('output_tokens', 0)}",
+        f"Total tokens: {summary['totals'].get('total_tokens', 0)}",
+        "",
+        "| Module | Workflow status | Token tracking | Input | Output | Total |",
+        "|---|---|---|---:|---:|---:|",
+    ]
+    for item in summary["module_coverage"]:
+        lines.append(
+            f"| {item['module']} | {item['workflow_status']} | {item['token_tracking']} | "
+            f"{item['input_tokens']} | {item['output_tokens']} | {item['total_tokens']} |"
+        )
+    (brand_folder / "token-usage-summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def default_state(brand_folder: Path) -> dict[str, Any]:
@@ -472,6 +584,7 @@ def save_state(brand_folder: Path, state: dict[str, Any]) -> None:
     _recalculate_token_usage_totals(state)
     state["updated_at"] = utc_now()
     write_json(brand_folder / "run-state.json", state)
+    write_token_usage_artifacts(brand_folder, state)
     tasks = sorted(state["task_list"], key=lambda item: item["id"])
     payload = {
         "ok": True,

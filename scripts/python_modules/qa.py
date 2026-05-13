@@ -10,7 +10,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from python_modules.common import add_event, load_state, read_json, save_state, set_gate, set_status, write_json
+from python_modules.common import add_event, load_state, read_json, record_token_usage, save_state, set_gate, set_status, write_json
 
 
 def audit_hybrid(state: dict[str, Any]) -> dict[str, Any]:
@@ -455,6 +455,15 @@ def module_qa(
     set_status(state, "qa", "passed")
     set_gate(state, "gate_9_quality_review", "passed")
     set_gate(state, "gate_6a_editorial_quality", "passed")
+    record_token_usage(
+        state,
+        "qa.bundle_review",
+        None,
+        provider="local-python",
+        model="deterministic",
+        status="deterministic",
+        note="Current QA bundle checks are deterministic local audits over canonical outputs.",
+    )
     save_state(brand_folder, state)
     checks["task_list"] = audit_task_list(data_path)
     html_path = brand_folder / "newbizintel-report.html"

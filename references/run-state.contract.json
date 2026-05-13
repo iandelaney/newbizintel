@@ -66,6 +66,7 @@
       "output_tokens": 0,
       "total_tokens": 0,
       "recorded_stages": 0,
+      "deterministic_stages": 0,
       "unavailable_stages": 0
     },
     "stages": {},

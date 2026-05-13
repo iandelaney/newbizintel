@@ -9,6 +9,7 @@ from python_modules.common import (
     normalize_url,
     output_root,
     read_json,
+    record_token_usage,
     save_state,
     set_gate,
     set_status,
@@ -59,6 +60,15 @@ def module_intake(args: argparse.Namespace, *, template_path: Path, template_ass
         raise SystemExit("Intake failed: brand.website must be a confirmed real website.")
     set_status(state, "intake", "passed")
     set_gate(state, "gate_1_intake", "passed")
+    record_token_usage(
+        state,
+        "intake.workspace_setup",
+        None,
+        provider="local-python",
+        model="deterministic",
+        status="deterministic",
+        note="Workspace creation and input normalization are deterministic local operations.",
+    )
     save_state(brand_folder, state)
     return {
         "module": "intake",

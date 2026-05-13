@@ -54,6 +54,7 @@ def module_research(
 ) -> dict[str, Any]:
     data_path = data_path_from_args(args)
     brand_folder = brand_folder_from_data(data_path)
+    module_usage: dict[str, Any] | None = None
     if (
         args.research_mode == "bootstrap"
         and not args.research_summary_path
@@ -101,6 +102,7 @@ def module_research(
                     workpack_usage,
                     provider="tavily",
                 )
+                module_usage = merge_token_usage(module_usage, workpack_usage)
                 summary = reduce_search_workpacks(data_path, brand_folder, workpacks)
                 add_event(state, "reducer", "research.live_search_summary_draft", outputs=[str(brand_folder / "research-summary.draft.json")])
                 save_state(brand_folder, state)
@@ -115,6 +117,7 @@ def module_research(
                 workpack_usage,
                 provider="tavily",
             )
+            module_usage = merge_token_usage(module_usage, workpack_usage)
             summary = reduce_search_workpacks(data_path, brand_folder, workpacks)
         elif args.research_summary_path:
             summary = read_json(Path(args.research_summary_path).expanduser().resolve())
@@ -132,6 +135,7 @@ def module_research(
                     _usage_from_json_path(reputation_research_path),
                     provider="tavily",
                 )
+                module_usage = merge_token_usage(module_usage, _usage_from_json_path(reputation_research_path))
                 save_state(brand_folder, state)
         if args.research_mode == "live-summary":
             summary, semrush_path = apply_semrush_direct_api(data_path, brand_folder, summary)
@@ -144,6 +148,7 @@ def module_research(
                     _usage_from_json_path(semrush_path),
                     provider="semrush",
                 )
+                module_usage = merge_token_usage(module_usage, _usage_from_json_path(semrush_path))
                 save_state(brand_folder, state)
     except SystemExit:
         _fail_research(state, brand_folder)
@@ -171,6 +176,14 @@ def module_research(
     set_gate(state, "gate_3_research", research_status)
     set_gate(state, "gate_3a_semrush", status.get("semrush", "quota-limited"))
     set_gate(state, "gate_4_search_seo_evidence", status.get("search_seo", "pending"))
+    record_token_usage(
+        state,
+        "research.module",
+        module_usage,
+        provider="mixed-research",
+        model=state.get("model_routing", {}).get("synthesis"),
+        note="Aggregated token usage across the research collectors that exposed usage metadata.",
+    )
     save_state(brand_folder, state)
     return {
         "module": "research",

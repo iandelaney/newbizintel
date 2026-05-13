@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from python_modules.common import load_state, save_state, set_gate, set_status
+from python_modules.common import extract_token_usage, load_state, record_token_usage, save_state, set_gate, set_status
 
 
 def module_render(
@@ -82,9 +82,10 @@ def module_render(
         raise
     pptx_path = brand_folder / "newbizintel-report.pptx"
     pptx_warning = ""
+    pptx_result: dict[str, Any] = {}
     try:
         pptx_data_path = pptx_safe_data_copy(data_path)
-        run_python_script(script_root / "render" / "report_data_to_pptx.py", ["--data", str(pptx_data_path), "--pptx", str(pptx_path)])
+        pptx_result = run_python_script(script_root / "render" / "report_data_to_pptx.py", ["--data", str(pptx_data_path), "--pptx", str(pptx_path)])
     except SystemExit as exc:
         pptx_warning = str(exc)
         build_minimal_pptx(data_path, pptx_path)
@@ -99,6 +100,25 @@ def module_render(
     set_status(state, "render", "passed")
     set_gate(state, "gate_8_render_outputs", "passed")
     set_gate(state, "gate_6_render_outputs", "passed")
+    record_token_usage(
+        state,
+        "render.html_bundle",
+        None,
+        provider="local-python",
+        model="deterministic",
+        status="deterministic",
+        note="HTML render, portable HTML packaging, and deployable HTML checks are deterministic local operations.",
+    )
+    pptx_usage = extract_token_usage(pptx_result)
+    record_token_usage(
+        state,
+        "render.pptx_builder",
+        pptx_usage,
+        provider="local-python",
+        model="deterministic" if not pptx_usage else None,
+        status="deterministic" if not pptx_usage else None,
+        note="PPTX export currently runs through local render code and does not usually expose model token usage.",
+    )
     save_state(brand_folder, state)
     return {
         "module": "render",

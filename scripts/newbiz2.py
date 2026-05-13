@@ -1243,6 +1243,10 @@ def validate_executive_summary_tone(data: dict[str, Any], errors: list[str]) -> 
         "risks ",
         "needs ",
     )
+    stale_phrases = (
+        "the commercial risk is that this coverage",
+        "coverage highlights this coverage",
+    )
     cards = data.get("executive_summary", {}).get("cards", [])
     for index, card in enumerate(cards if isinstance(cards, list) else []):
         if not isinstance(card, dict):
@@ -1267,6 +1271,19 @@ def validate_executive_summary_tone(data: dict[str, Any], errors: list[str]) -> 
         if "later" in lower_body or "below" in lower_body or "in the reputation chapter" in lower_body:
             errors.append(
                 f"executive_summary.cards[{index}].body must stand alone and not rely on later sections of the report."
+            )
+        if any(phrase in lower_body for phrase in stale_phrases):
+            errors.append(
+                f"executive_summary.cards[{index}].body contains stale or self-colliding coverage phrasing and must be rewritten for executive clarity."
+            )
+
+    storybrand = data.get("storybrand", {})
+    if isinstance(storybrand, dict):
+        read_across = str(storybrand.get("existing_messaging_assessment", {}).get("reputation_read_across") or "")
+        lower_read_across = read_across.lower()
+        if any(phrase in lower_read_across for phrase in stale_phrases):
+            errors.append(
+                "storybrand.existing_messaging_assessment.reputation_read_across contains stale or self-colliding coverage phrasing and must be rewritten."
             )
 
 
@@ -1881,6 +1898,9 @@ def executive_commercial_risk_summary(brand: str, top_news: dict[str, Any]) -> s
             f"The commercial risk is that trust questions drown out the growth story, making resilience and response proof more persuasive than broad brand claims."
         )
     lower_raw = raw.lower()
+    if lower_raw.startswith("this coverage "):
+        rewritten = re.sub(r"^this coverage\b", "recent coverage", raw, flags=re.IGNORECASE)
+        return f"The commercial risk is that {rewritten[0].lower()}{rewritten[1:]}"
     if lower_raw.startswith("raises "):
         return f"The commercial risk is that public scrutiny around {brand} {raw[0].lower()}{raw[1:]}"
     if lower_raw.startswith(("creates ", "signals ", "shows ", "suggests ", "points to ", "could affect ", "may affect ", "risks ", "needs ")):
@@ -2434,10 +2454,10 @@ def synthesize_news_why_it_matters(brand: str, title: str, source_type: str, sen
     if source_type == "owned_newsroom":
         return f"{brand}'s own newsroom coverage shows where the company wants the market to focus, but buyers will still need independent proof before treating the claims as settled."
     if sentiment == "negative":
-        return f"This coverage can shape trust, board confidence, or buying caution around {brand}, so the brand needs clearer proof and issue-readiness in public-facing journeys."
+        return f"Recent coverage can shape trust, board confidence, or buying caution around {brand}, so the brand needs clearer proof and issue-readiness in public-facing journeys."
     if sentiment == "positive":
-        return f"This coverage gives {brand} useful momentum, but the opportunity is strongest when growth or AI claims are backed by practical buyer proof."
-    return f"This coverage contributes to the live market narrative around {brand} and should inform how the company balances ambition, credibility, and buyer reassurance."
+        return f"Recent coverage gives {brand} useful momentum, but the opportunity is strongest when growth or AI claims are backed by practical buyer proof."
+    return f"Recent coverage contributes to the live market narrative around {brand} and should inform how the company balances ambition, credibility, and buyer reassurance."
 
 
 def synthesize_news_rank_reason(source: str, source_type: str, story_date: date | None, cutoff: date) -> str:

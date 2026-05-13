@@ -10,6 +10,7 @@ from python_modules.common import (
     add_event,
     extract_token_usage,
     load_state,
+    merge_token_usage,
     proof_root,
     record_token_usage,
     save_state,
@@ -83,6 +84,7 @@ def module_campaign_art(
     import_result: dict[str, Any] = {"imported": 0, "skipped": True}
     import_reduction: dict[str, Any] = {"ok": False, "applied_count": 0, "skipped": True}
     manifest_path: Path | None = None
+    module_usage: dict[str, Any] | None = None
 
     if not source_dir and not latest_generated_batch:
         script = script_root / "campaign-art" / "generate_campaign_illustrations.py"
@@ -118,6 +120,7 @@ def module_campaign_art(
             status="unavailable",
             note="Use built-in imagegen with the prepared prompt manifest, then re-import the finished raster set.",
         )
+        module_usage = merge_token_usage(module_usage, extract_token_usage(generation))
         add_event(
             state,
             "note",
@@ -174,6 +177,7 @@ def module_campaign_art(
                 provider="built-in-imagegen",
                 model="imagegen",
             )
+            module_usage = merge_token_usage(module_usage, extract_token_usage(import_result))
         else:
             import_reduction = {"ok": False, "applied_count": 0, "manifest": str(import_manifest_path) if import_manifest_path else "", "skipped": True}
 
@@ -184,6 +188,14 @@ def module_campaign_art(
     else:
         set_status(state, "campaign_art", "passed")
         set_gate(state, "gate_5b_campaign_art", "passed")
+    record_token_usage(
+        state,
+        "campaign_art.module",
+        module_usage,
+        provider="built-in-imagegen",
+        model="imagegen",
+        note="Aggregated token usage across campaign-art manifest generation and final-raster import when usage metadata is available.",
+    )
     add_event(state, "reducer", "campaign_art.asset_manifest_reducer", outputs=[str(manifest_path) if manifest_path else "campaign-art-report-data-patch"])
     save_state(brand_folder, state)
     if not audit["ok"]:

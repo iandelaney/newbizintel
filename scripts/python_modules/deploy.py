@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from python_modules.common import load_state, save_state, set_gate, set_status
+from python_modules.common import load_state, record_token_usage, save_state, set_gate, set_status
 
 
 def module_deploy(
@@ -37,6 +37,15 @@ def module_deploy(
     set_status(state, "deploy", "passed")
     set_gate(state, "gate_10_delivery_handoff", "passed")
     set_gate(state, "gate_7_delivery", "passed")
+    record_token_usage(
+        state,
+        "deploy.handoff_refresh",
+        None,
+        provider="local-python",
+        model="deterministic",
+        status="deterministic",
+        note="Delivery handoff refresh and stage preparation are deterministic local operations.",
+    )
     save_state(brand_folder, state)
     index_path = brand_folder / "index.html"
     inject_task_list_into_html(index_path, brand_folder)

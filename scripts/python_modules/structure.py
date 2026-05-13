@@ -5,7 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from python_modules.common import add_event, load_state, read_json, save_state, set_gate, set_status, write_json
+from python_modules.common import add_event, load_state, read_json, record_token_usage, save_state, set_gate, set_status, write_json
 
 
 def module_structure(
@@ -41,5 +41,14 @@ def module_structure(
     state.setdefault("freshness", {})["report_data_hash"] = sha256(data_path)
     set_status(state, "structure", "passed")
     set_gate(state, "gate_4_report_data", "passed")
+    record_token_usage(
+        state,
+        "structure.report_data_reducer",
+        None,
+        provider="local-python",
+        model="deterministic",
+        status="deterministic",
+        note="Current structure build merges research into report-data.json with deterministic local logic.",
+    )
     save_state(brand_folder, state)
     return {"module": "structure", "data": str(data_path), "brand_folder": str(brand_folder), "validation": validation}

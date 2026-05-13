@@ -5,7 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from python_modules.common import add_event, load_state, read_json, save_state, set_gate, set_status, write_json
+from python_modules.common import add_event, load_state, read_json, record_token_usage, save_state, set_gate, set_status, write_json
 
 
 def module_assets(
@@ -43,5 +43,14 @@ def module_assets(
     set_gate(state, "gate_5_assets", "passed")
     set_gate(state, "gate_5a_source_badges", "passed")
     set_gate(state, "gate_5b_required_logos", "passed")
+    record_token_usage(
+        state,
+        "assets.logo_pipeline",
+        None,
+        provider="local-python",
+        model="deterministic",
+        status="deterministic",
+        note="Logo acquisition, badge normalization, and manifest reduction are deterministic local operations.",
+    )
     save_state(brand_folder, state)
     return {"module": "assets", "data": str(data_path), "brand_folder": str(brand_folder), "required_logos": manifest}
