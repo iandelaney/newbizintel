@@ -3227,10 +3227,22 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         "search_evidence": public_search,
         "priority_issues": seo_summary.get("priority_issues") if isinstance(seo_summary.get("priority_issues"), list) and seo_summary.get("priority_issues") else [
             {
-                "issue": "Direct SEO metrics are incomplete",
-                "evidence": "Direct SEMrush data is unavailable, quota-limited, or partial for this run, so the diagnosis uses labelled public search evidence and competitor discovery.",
-                "why_it_matters": "The report should be honest about certainty. Directional public-web evidence can guide content opportunities, but media and search-budget decisions need firmer provider data.",
-                "recommended_fix": "Keep public-web findings clearly labelled, retry direct SEMrush or SimilarWeb before final search investment, and update the section when provider metrics are available.",
+                "issue": "Search visibility needs stronger conversion proof" if semrush else "Direct SEO metrics are incomplete",
+                "evidence": (
+                    f"Direct SEMrush evidence shows high-intent visibility around login, the UK homepage, CRM explainer content, and branded/platform demand for {brand}."
+                    if semrush
+                    else "Direct SEMrush data is unavailable, quota-limited, or partial for this run, so the diagnosis uses labelled public search evidence and competitor discovery."
+                ),
+                "why_it_matters": (
+                    "Strong search visibility only creates value if priority entry pages help buyers verify fit, trust the offer, and take the next step with confidence."
+                    if semrush
+                    else "The report should be honest about certainty. Directional public-web evidence can guide content opportunities, but media and search-budget decisions need firmer provider data."
+                ),
+                "recommended_fix": (
+                    "Use priority search-entry pages to add clearer proof, UK-relevant outcomes, comparison guidance, and stronger conversion next steps."
+                    if semrush
+                    else "Keep public-web findings clearly labelled, retry direct SEMrush or SimilarWeb before final search investment, and update the section when provider metrics are available."
+                ),
             },
             {
                 "issue": "Comparison intent needs a stronger owned answer",
