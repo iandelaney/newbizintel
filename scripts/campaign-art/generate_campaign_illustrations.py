@@ -1027,6 +1027,29 @@ def full_surprise_pool() -> list[dict]:
     return pool
 
 
+def stable_profile_sort_key(item: dict) -> tuple[str, str, str]:
+    return (
+        str(item.get("palette_family") or classify_profile_palette_family(item)),
+        str(item.get("family") or item.get("kind") or ""),
+        str(item.get("slug") or ""),
+    )
+
+
+def stable_generated_at(path: Path, payload: dict) -> str:
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = None
+        if isinstance(existing, dict):
+            existing_generated_at = str(existing.get("generated_at") or "").strip()
+            existing_without_timestamp = dict(existing)
+            existing_without_timestamp.pop("generated_at", None)
+            if existing_generated_at and existing_without_timestamp == payload:
+                return existing_generated_at
+    return datetime.now(timezone.utc).isoformat()
+
+
 def select_palette_candidate_profiles(
     kind: str,
     primary_profile: dict,
@@ -1044,9 +1067,11 @@ def select_palette_candidate_profiles(
     used_slugs.add(primary["slug"])
     used_palette_families.add(primary["palette_family"])
 
-    shuffled_pool = [dict(item) for item in pool if item.get("slug") not in used_slugs]
-    random.SystemRandom().shuffle(shuffled_pool)
-    for item in shuffled_pool:
+    ordered_pool = [dict(item) for item in pool if item.get("slug") not in used_slugs]
+    for item in ordered_pool:
+        item["palette_family"] = classify_profile_palette_family(item)
+    ordered_pool.sort(key=stable_profile_sort_key)
+    for item in ordered_pool:
         item["palette_family"] = classify_profile_palette_family(item)
         if item["palette_family"] in used_palette_families:
             continue
@@ -1058,7 +1083,9 @@ def select_palette_candidate_profiles(
 
     if len(chosen) < max_candidates:
         global_pool = [dict(item) for item in full_surprise_pool() if item.get("slug") not in used_slugs]
-        random.SystemRandom().shuffle(global_pool)
+        for item in global_pool:
+            item["palette_family"] = classify_profile_palette_family(item)
+        global_pool.sort(key=stable_profile_sort_key)
         for item in global_pool:
             item["palette_family"] = classify_profile_palette_family(item)
             if item["palette_family"] in used_palette_families:
@@ -1070,7 +1097,7 @@ def select_palette_candidate_profiles(
                 break
 
     if len(chosen) < max_candidates:
-        for item in shuffled_pool:
+        for item in ordered_pool:
             if item.get("slug") in used_slugs:
                 continue
             item["palette_family"] = classify_profile_palette_family(item)
@@ -1554,7 +1581,10 @@ def choose_profile(
     if not available:
         available = pool or [base_profile_for_kind(kind)]
 
-    profile = random.SystemRandom().choice(available)
+    for item in available:
+        item["palette_family"] = classify_profile_palette_family(item)
+    available = sorted(available, key=stable_profile_sort_key)
+    profile = available[0]
     profile = dict(profile)
     profile["palette_family"] = classify_profile_palette_family(profile)
     used_slugs.add(profile["slug"])
@@ -1726,7 +1756,6 @@ def generate(
 
     manifest_path = asset_dir / f"{brand_slug}-campaign-illustration-prompts.json"
     manifest_payload = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
         "brand_name": brand_name,
         "brand_slug": brand_slug,
         "delivery_mode": delivery_mode,
@@ -1734,6 +1763,7 @@ def generate(
         "asset_dir": asset_dir.name,
         "ideas": prompt_manifest,
     }
+    manifest_payload["generated_at"] = stable_generated_at(manifest_path, manifest_payload)
     manifest_path.write_text(
         json.dumps(manifest_payload, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",

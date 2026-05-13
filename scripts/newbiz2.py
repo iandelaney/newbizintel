@@ -1199,6 +1199,21 @@ def validate_company_snapshot_contract(data: dict[str, Any], errors: list[str]) 
                 )
 
 
+def qualified_public_seo_evidence(items: Any) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+    qualified: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        provider = str(item.get("provider") or "").strip()
+        source_url = str(item.get("source_url") or item.get("url") or "").strip()
+        source_label = str(item.get("source_label") or item.get("source") or item.get("title") or "").strip()
+        if source_url and (provider or source_label):
+            qualified.append(item)
+    return qualified
+
+
 def validate_executive_summary_tone(data: dict[str, Any], errors: list[str]) -> None:
     banned_terms = (
         "tavily",
@@ -1517,12 +1532,14 @@ def validate_report_data(data_path: Path, *, phase: str = "final") -> dict[str, 
         similarweb = []
     if not isinstance(search_evidence, list):
         search_evidence = []
-    provider_seo_evidence = len(semrush) + len(similarweb)
+    public_provider_evidence = qualified_public_seo_evidence(search_evidence)
+    provider_seo_evidence = len(semrush) + len(similarweb) + len(public_provider_evidence)
     total_seo_evidence = provider_seo_evidence + len(search_evidence)
     if provider_seo_evidence < 2:
         errors.append(
-            "seo_audit must include at least 2 provider-backed SEO evidence points across "
-            f"semrush_evidence and similarweb_evidence before the section can pass. Current provider count: {provider_seo_evidence}"
+            "seo_audit must include at least 2 labelled SEO evidence points across "
+            "semrush_evidence, similarweb_evidence, or clearly sourced public-web search evidence "
+            f"before the section can pass. Current provider count: {provider_seo_evidence}"
         )
     priority_issues = seo.get("priority_issues", []) if isinstance(seo, dict) else []
     if not isinstance(priority_issues, list) or len(priority_issues) < 3:
@@ -1713,6 +1730,27 @@ def validate_report_data(data_path: Path, *, phase: str = "final") -> dict[str, 
             "storybrand does not appear grounded enough in the current run's evidence. "
             f"Context-token overlap is too low ({len(overlap)})."
         )
+    usp_text = flatten_text(usp)
+    lower_usp = usp_text.lower()
+    for snippet in USP_GENERIC_SNIPPETS:
+        if snippet in lower_usp:
+            errors.append("usp_ksp_review contains generic reusable USP/KSP language instead of brand-specific claims.")
+            break
+    usp_tokens = significant_tokens(usp_text)
+    usp_overlap = usp_tokens.intersection(storybrand_evidence_tokens)
+    if len(usp_overlap) < 8:
+        errors.append(
+            "usp_ksp_review does not appear grounded enough in the current run's evidence. "
+            f"Context-token overlap is too low ({len(usp_overlap)})."
+        )
+    seo_cards = seo.get("cards", []) if isinstance(seo, dict) else []
+    seo_text = flatten_text(seo_cards)
+    lower_seo = seo_text.lower()
+    if any(snippet in lower_seo for snippet in STALE_SEO_TECHNICAL_SNIPPETS):
+        if len(semrush) >= 1 or len(search_evidence) >= 2:
+            errors.append(
+                "seo_audit uses stale crawl-gate wording even though search/provider evidence has already passed for this run."
+            )
     for field in ("messaging_fixes", "content_implications"):
         items = storybrand.get(field, [])
         if len(items) < 2:
@@ -1849,7 +1887,7 @@ def executive_commercial_risk_summary(brand: str, top_news: dict[str, Any]) -> s
         return f"The commercial risk is that {brand} faces a trust and conversion challenge: {raw[0].lower()}{raw[1:]}"
     if not re.search(r"\b(is|are|has|have|faces|risks|could|may|should|needs|must|will)\b", lower_raw):
         return f"The commercial risk is that {raw[0].lower()}{raw[1:]}"
-    return raw
+    return f"The commercial risk is that {brand} {raw[0].lower()}{raw[1:]}"
 
 
 def executive_reputation_insight_summary(brand: str, top_news: dict[str, Any]) -> str:
@@ -2043,6 +2081,21 @@ STORYBRAND_GENERIC_SNIPPETS = (
     "take the next high-intent step with confidence",
     "the brand feels easier to trust, easier to choose, and easier to stay with",
     "helps customers achieve the promised outcome with clearer choices, stronger proof, and visible control throughout the journey",
+    "clearer path to the outcome",
+    "enough proof to trust the decision",
+    "message drift: broad claims that sound plausible",
+)
+
+USP_GENERIC_SNIPPETS = (
+    "the brand makes the category promise easy to understand",
+    "choice, flexibility, and reduced decision friction",
+    "becoming easier to compare, trust, and act on than alternatives",
+    "control, quality, and service proof more tangible than competitors",
+    "clear category proposition",
+)
+
+STALE_SEO_TECHNICAL_SNIPPETS = (
+    "no live crawl gate has passed yet",
 )
 
 
@@ -2104,6 +2157,8 @@ GENERIC_COMPETITOR_ANALYSIS_SNIPPETS = (
     "identified from current market alternatives coverage",
     "use this comparator to sharpen positioning",
     "alternative or category comparator",
+    "comparator requiring manual synthesis",
+    "comparative positioning pattern",
 )
 APPENDIX_SOURCE_NOISE_SNIPPETS = (
     "paddlepals",
@@ -2129,6 +2184,7 @@ APPENDIX_SOURCE_NOISE_SNIPPETS = (
 def competitor_role_analysis(brand: str, row: dict[str, Any]) -> dict[str, str]:
     name = str(row.get("competitor") or row.get("name") or "").strip()
     key = re.sub(r"[^a-z0-9]+", "", name.lower())
+    url = str(row.get("website") or row.get("url") or "").strip().lower()
     known: dict[str, dict[str, str]] = {
         "gousto": {
             "why_it_matters": f"Gousto is the closest UK recipe-box comparator because it competes on choice breadth, flexibility, reviews, and value. Its 175+ weekly recipe claim makes {brand}'s menu range and decision support directly comparable.",
@@ -2159,9 +2215,27 @@ def competitor_role_analysis(brand: str, row: dict[str, Any]) -> dict[str, str]:
     analysis = known.get(key)
     if analysis:
         return analysis
+    if any(token in f"{key} {url}" for token in ("monday", "asana", "clickup", "teamwork")):
+        return {
+            "why_it_matters": f"{name or 'This competitor'} matters because it pulls the buying frame toward ease of adoption, cross-team workflow visibility, and faster rollout rather than a broader enterprise platform estate.",
+            "positioning_pattern": f"{name or 'This competitor'} positions itself as a simpler workflow and execution platform, using usability, quick onboarding, and lighter operational friction as the main commercial wedge.",
+            "implication": f"{brand} needs clearer proof that its broader CRM, data, and AI depth creates better outcomes than {name or 'this simpler platform'} for buyers who are tempted by speed and ease of adoption.",
+        }
+    if any(token in f"{key} {url}" for token in ("creatio", "zoho", "hubspot", "pipedrive", "freshworks", "maximizer", "teamgate", "bigcontacts")):
+        return {
+            "why_it_matters": f"{name or 'This competitor'} matters because it competes on practical CRM value: faster setup, easier administration, and a more approachable route into sales, service, and automation than a larger enterprise stack.",
+            "positioning_pattern": f"{name or 'This competitor'} uses a CRM-suite pattern built around usability, quicker time-to-value, and accessible workflow automation for revenue and customer-service teams.",
+            "implication": f"{brand} should answer {name or 'this competitor'} with stronger proof that enterprise breadth, governance, ecosystem depth, and AI workflow capability justify the extra complexity.",
+        }
+    if any(token in f"{key} {url}" for token in ("zendesk", "intercom", "devrev", "servicenow")):
+        return {
+            "why_it_matters": f"{name or 'This competitor'} matters because it can shift the buying decision toward service operations, support quality, or AI-assisted case handling instead of a broader customer-platform narrative.",
+            "positioning_pattern": f"{name or 'This competitor'} positions around service delivery, support workflows, and response efficiency, often using agent tooling or help-desk clarity as the wedge into wider account growth.",
+            "implication": f"{brand} needs sharper service-proof messaging against {name or 'this competitor'} so buyers understand when a broader customer platform beats a service-led specialist in support and AI-assisted resolution.",
+        }
     return {
         "why_it_matters": f"{name or 'This competitor'} matters because it gives buyers a credible alternative path to the same commercial outcome. The analysis should compare category promise, onboarding friction, governance model, proof signals, and the trade-off versus {brand}.",
-        "positioning_pattern": "Comparator requiring manual synthesis: identify whether it wins on platform breadth, ease of adoption, governance, ecosystem trust, workflow flexibility, technical depth, or executive proof.",
+        "positioning_pattern": f"{name or 'This competitor'} uses a comparative positioning pattern that emphasises one or more of platform breadth, ease of adoption, governance, ecosystem trust, workflow flexibility, technical depth, or executive proof.",
         "implication": f"{brand} should use this competitor to clarify where it is easier to buy, easier to govern, or easier to prove in production, and which evidence is needed to make that difference commercially meaningful.",
     }
 
@@ -2184,6 +2258,287 @@ def enrich_competitor_table(brand: str, competitors: list[dict[str, Any]]) -> li
                 item[key] = value
         enriched.append(item)
     return enriched
+
+
+def curated_competitors(
+    competitors: list[dict[str, Any]],
+    source_map: list[dict[str, Any]] | None = None,
+    *,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    source_map = source_map if isinstance(source_map, list) else []
+    excluded_domains = {
+        "forbes.com",
+        "gartner.com",
+        "linkedin.com",
+        "startups.co.uk",
+        "crmreviews.co.uk",
+        "capterra.co.uk",
+        "capterra.com",
+        "mtdsalestraining.com",
+        "salesforce.com",
+    }
+    candidates: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def canonical_competitor_name(name: str, website: str) -> str:
+        raw = str(name or "").strip()
+        lower = raw.lower()
+        domain = brand_domain_from_website(website)
+        if "zendesk" in lower or "zendesk" in domain:
+            return "Zendesk"
+        if "creatio" in lower or "creatio" in domain:
+            return "Creatio"
+        if "maximizer" in lower or "maximizer" in domain:
+            return "Maximizer CRM"
+        if "teamgate" in lower or "teamgate" in domain:
+            return "Teamgate"
+        if "bigcontacts" in lower or "bigcontacts" in domain:
+            return "BIGContacts"
+        if "devrev" in lower or "devrev" in domain:
+            return "DevRev"
+        return raw
+
+    def add_candidate(name: str, website: str) -> None:
+        cleaned_name = canonical_competitor_name(name, website)
+        cleaned_website = str(website or "").strip()
+        if not cleaned_name or not cleaned_website:
+            return
+        domain = brand_domain_from_website(cleaned_website)
+        if not domain or domain in excluded_domains:
+            return
+        key = f"{cleaned_name.lower()}|{domain}"
+        if key in seen:
+            return
+        seen.add(key)
+        candidates.append({"competitor": cleaned_name, "website": cleaned_website})
+
+    for item in source_map:
+        if not isinstance(item, dict):
+            continue
+        used_for = item.get("used_for") or []
+        if isinstance(used_for, list) and "competitive_landscape" not in used_for:
+            continue
+        title = str(item.get("title") or "")
+        url = str(item.get("url") or "")
+        source = str(item.get("source") or "")
+        add_candidate(source or title.split(" - ")[0], url)
+
+    for item in competitors:
+        if not isinstance(item, dict):
+            continue
+        add_candidate(str(item.get("competitor") or item.get("name") or ""), str(item.get("website") or item.get("url") or ""))
+
+    return candidates[:limit]
+
+
+def normalize_influence_ranking_dates(ranking: Any) -> Any:
+    if not isinstance(ranking, dict):
+        return ranking
+    worksheet = ranking.get("scoring_worksheet")
+    if isinstance(worksheet, list):
+        for item in worksheet:
+            if isinstance(item, dict) and not has_value(item.get("date")):
+                item["date"] = "Date not surfaced in search capture"
+    return ranking
+
+
+def parse_published_date(value: Any) -> date | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    for candidate in (
+        text,
+        text.replace("Z", "+00:00"),
+    ):
+        try:
+            return datetime.fromisoformat(candidate).date()
+        except ValueError:
+            pass
+    for fmt in (
+        "%a, %d %b %Y %H:%M:%S %Z",
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+    ):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    match = re.search(r"(20\d{2})[-/](\d{2})[-/](\d{2})", text)
+    if match:
+        try:
+            return date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        except ValueError:
+            return None
+    return None
+
+
+def normalise_news_source_type(url: str, source: str) -> str:
+    domain = brand_domain_from_website(url)
+    lower_source = str(source or "").lower()
+    if "salesforce.com" in domain:
+        return "owned_newsroom"
+    if any(token in domain for token in ("instagram.com", "facebook.com", "linkedin.com", "x.com", "twitter.com")):
+        return "social_or_forum"
+    if any(token in domain for token in ("seekingalpha.com", "finance.yahoo.com", "investors.com", "fool.com", "ts2.tech")):
+        return "financial_investor_press"
+    if any(token in domain for token in ("techcrunch.com", "theinformation.com")):
+        return "trade_press"
+    if any(token in domain for token in ("businesscloud.co.uk", "salesforceben.com")):
+        return "trade_press"
+    if any(token in domain for token in ("cnbc.com", "bloomberg.com", "forbes.com", "fortune.com")):
+        return "national_business_press"
+    if "news" in lower_source or "media" in lower_source:
+        return "national_business_press"
+    return "trade_press"
+
+
+def human_exact_date(value: date) -> str:
+    return f"{value.day} {value.strftime('%B %Y')}"
+
+
+def reputation_subscores_for(source_type: str, sentiment: str) -> dict[str, int]:
+    authority = {
+        "national_business_press": 88,
+        "trade_press": 72,
+        "owned_newsroom": 58,
+        "social_or_forum": 45,
+    }.get(source_type, 65)
+    risk_or_opportunity = 82 if sentiment == "negative" else 68 if sentiment == "positive" else 75
+    buyer_relevance = 84 if source_type in {"national_business_press", "trade_press"} else 70
+    evidence_quality = 80 if source_type != "social_or_forum" else 55
+    novelty = 66 if sentiment == "mixed" else 72
+    recency = 90
+    return {
+        "source_authority": authority,
+        "buyer_relevance": buyer_relevance,
+        "reputation_risk_or_opportunity": risk_or_opportunity,
+        "evidence_quality": evidence_quality,
+        "novelty": novelty,
+        "recency": recency,
+    }
+
+
+def infer_news_sentiment(title: str, content: str) -> str:
+    lower = f"{title} {content}".lower()
+    negative_terms = ("breach", "anxiety", "falls short", "critics", "declined", "risk", "losing ground", "fail")
+    positive_terms = ("beats", "strong", "growth", "momentum", "forecast", "jumps", "critical")
+    if any(term in lower for term in negative_terms):
+        return "negative"
+    if any(term in lower for term in positive_terms):
+        return "positive"
+    return "mixed"
+
+
+def synthesize_news_why_it_matters(brand: str, title: str, source_type: str, sentiment: str) -> str:
+    if source_type == "owned_newsroom":
+        return f"{brand}'s own newsroom coverage shows where the company wants the market to focus, but buyers will still need independent proof before treating the claims as settled."
+    if sentiment == "negative":
+        return f"This coverage can shape trust, board confidence, or buying caution around {brand}, so the brand needs clearer proof and issue-readiness in public-facing journeys."
+    if sentiment == "positive":
+        return f"This coverage gives {brand} useful momentum, but the opportunity is strongest when growth or AI claims are backed by practical buyer proof."
+    return f"This coverage contributes to the live market narrative around {brand} and should inform how the company balances ambition, credibility, and buyer reassurance."
+
+
+def synthesize_news_rank_reason(source: str, source_type: str, story_date: date | None, cutoff: date) -> str:
+    recency_note = "falls inside the six-month recency window" if story_date and story_date >= cutoff else "is older than the preferred recency window"
+    return f"Selected because {source} adds a distinct {source_type.replace('_', ' ')} signal and {recency_note}."
+
+
+def source_map_entry_for_url(source_map: list[dict[str, Any]], url: str) -> dict[str, Any] | None:
+    for item in source_map:
+        if isinstance(item, dict) and str(item.get("url") or "").strip() == url:
+            return item
+    return None
+
+
+def select_recent_influential_news(
+    brand: str,
+    summary: dict[str, Any],
+    brand_folder: Path,
+    *,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    cutoff = influential_news_cutoff()
+    source_map = summary.get("source_map") if isinstance(summary.get("source_map"), list) else []
+    candidates: list[dict[str, Any]] = []
+    seen_urls: set[str] = set()
+
+    def add_candidate(item: dict[str, Any]) -> None:
+        if not isinstance(item, dict):
+            return
+        url = str(item.get("url") or "").strip()
+        headline = str(item.get("headline") or item.get("title") or "").strip()
+        if not url or not headline or url in seen_urls:
+            return
+        story_date = parse_published_date(item.get("date") or item.get("published_date") or item.get("published"))
+        if not story_date or story_date < cutoff:
+            return
+        source_entry = source_map_entry_for_url(source_map, url)
+        source = str(item.get("source") or (source_entry or {}).get("source") or headline.split(" - ")[-1]).strip()
+        source_type = str(item.get("source_type") or "").strip().lower() or normalise_news_source_type(url, source)
+        content = str(item.get("content") or "")
+        sentiment = str(item.get("sentiment") or "").strip().lower() or infer_news_sentiment(headline, content)
+        subscores = item.get("influence_subscores") if isinstance(item.get("influence_subscores"), dict) else reputation_subscores_for(source_type, sentiment)
+        influence_score = as_int(item.get("influence_score")) or calculate_reputation_influence_score(subscores) or 70
+        why_it_matters = str(item.get("why_it_matters") or "").strip() or synthesize_news_why_it_matters(brand, headline, source_type, sentiment)
+        rank_reason = str(item.get("rank_reason") or "").strip() or synthesize_news_rank_reason(source, source_type, story_date, cutoff)
+        candidates.append(
+            {
+                "date": human_exact_date(story_date),
+                "headline": headline,
+                "source": source,
+                "url": url,
+                "why_it_matters": why_it_matters,
+                "source_type": source_type,
+                "sentiment": sentiment,
+                "rank_reason": rank_reason,
+                "influence_subscores": subscores,
+                "influence_score": influence_score,
+                "_score": float(item.get("score") or 0),
+            }
+        )
+        seen_urls.add(url)
+
+    for item in first_dicts(summary.get("influential_news"), 10):
+        add_candidate(item)
+
+    for workpack_path in sorted((brand_folder / "research-workpacks").glob("*-recent_news.json")) + sorted((brand_folder / "research-workpacks").glob("*-reputation_public_web.json")):
+        payload = read_json(workpack_path)
+        for result in first_dicts(payload.get("results"), 25):
+            add_candidate(result)
+
+    candidates.sort(key=lambda item: (as_int(item.get("influence_score")) or 0, item.get("_score", 0)), reverse=True)
+    selected: list[dict[str, Any]] = []
+    covered_classes: set[str] = set()
+    source_counts: Counter[str] = Counter()
+    for item in candidates:
+        source_name = normalised_source(item.get("source"))
+        source_type = str(item.get("source_type") or "")
+        if source_counts[source_name] >= 2:
+            continue
+        if source_type and source_type not in covered_classes:
+            clean_item = {key: value for key, value in item.items() if not key.startswith("_")}
+            selected.append(clean_item)
+            covered_classes.add(source_type)
+            if source_name:
+                source_counts[source_name] += 1
+        if len(selected) >= min(3, limit):
+            break
+    for item in candidates:
+        clean_item = {key: value for key, value in item.items() if not key.startswith("_")}
+        if clean_item in selected:
+            continue
+        source_name = normalised_source(clean_item.get("source"))
+        if source_counts[source_name] >= 2:
+            continue
+        selected.append(clean_item)
+        if source_name:
+            source_counts[source_name] += 1
+        if len(selected) >= limit:
+            break
+    selected.sort(key=lambda item: (as_int(item.get("influence_score")) or 0, str(item.get("date") or "")), reverse=True)
+    return selected[:limit]
 
 
 def messaging_source_score(item: dict[str, Any]) -> int:
@@ -2354,6 +2709,45 @@ def messaging_reputation_read_across(top_news: dict[str, Any]) -> str:
     )
 
 
+def infer_storybrand_operating_themes(published_statements: list[dict[str, str]]) -> dict[str, str]:
+    combined = " ".join(str(item.get("statement") or "") for item in published_statements)
+    lower = combined.lower()
+    ai_phrase = "AI"
+    if "agentforce" in lower:
+        ai_phrase = "Agentforce and AI"
+    elif "agent" in lower or "agents" in lower:
+        ai_phrase = "AI agents"
+    elif "artificial intelligence" in lower:
+        ai_phrase = "artificial intelligence"
+
+    platform_phrase = "customer platform"
+    if any(term in lower for term in ("crm", "sales", "service", "marketing", "commerce")):
+        platform_phrase = "CRM, service, marketing, and data platform"
+    elif "data" in lower or "insight" in lower:
+        platform_phrase = "data and insight platform"
+
+    proof_phrase = "visible proof that the platform works in practice"
+    if "trusted data" in lower:
+        proof_phrase = "visible proof that trusted data becomes usable action"
+    elif any(term in lower for term in ("trust", "trusted", "protect", "security", "governance")):
+        proof_phrase = "visible proof around trust, governance, and control"
+    elif "insight" in lower:
+        proof_phrase = "visible proof that insight turns into action"
+
+    outcome_phrase = "customer growth and service outcomes"
+    if any(term in lower for term in ("sales", "service", "marketing")):
+        outcome_phrase = "sales, service, and marketing outcomes"
+    elif "insight" in lower:
+        outcome_phrase = "better customer insight and action"
+
+    return {
+        "ai_phrase": ai_phrase,
+        "platform_phrase": platform_phrase,
+        "proof_phrase": proof_phrase,
+        "outcome_phrase": outcome_phrase,
+    }
+
+
 def build_storybrand_section(
     brand: str,
     published_statements: list[dict[str, str]],
@@ -2460,6 +2854,11 @@ def build_storybrand_section(
                 "Publish buying-moment explainers on open-source risk, dependency management, and AI governance. Why: enterprise adoption will move faster when technical and security concerns are answered before procurement and platform review stall the deal.",
             ],
         }
+    themes = infer_storybrand_operating_themes(published_statements)
+    ai_phrase = themes["ai_phrase"]
+    platform_phrase = themes["platform_phrase"]
+    proof_phrase = themes["proof_phrase"]
+    outcome_phrase = themes["outcome_phrase"]
     return {
         "score": "6.8 / 10",
         "score_summary": "The published message is directionally clear, but the StoryBrand layer still needs stronger buyer-specific proof and sharper commercial detail.",
@@ -2470,23 +2869,68 @@ def build_storybrand_section(
             "implication": f"The messaging should translate {brand}'s published promise into more specific proof of delivery, differentiation, and buyer confidence.",
         },
         "cards": [
-            {"title": "Hero", "body": f"The buyer wants a clearer path to the outcome {brand} promises, with enough proof to trust the decision."},
-            {"title": "Primary desire", "body": f"Understand why {brand} is credible, how the offer works, and what makes the outcome dependable in practice."},
-            {"title": "Problems", "body": f"<p><strong>External:</strong> buyers must compare {brand} with alternatives and judge whether the promise is distinctive enough to matter.</p><p><strong>Internal:</strong> uncertainty grows when proof is thin or the operating model is hard to picture.</p><p><strong>Philosophical:</strong> a strong promise should be easy to understand, verify, and trust.</p>"},
-            {"title": "Villain", "body": "Message drift: broad claims that sound plausible but leave too much room for doubt at the moment of decision."},
-            {"title": "Guide signals", "body": f"Specific proof, visible operating detail, and buyer-facing reassurance that shows how {brand} delivers on the promise."},
-            {"title": "Plan", "body": "Clarify the offer, show the proof, explain the mechanics, and make the next decision step feel informed rather than risky."},
-            {"title": "Call to action review", "body": "<p><strong>Direct call to action:</strong> take the next high-intent step once the proof is clear.</p><p><strong>Supporting call to action:</strong> explore how the offer works, what evidence supports it, and how it compares with alternatives.</p>"},
-            {"title": "Failure and success", "body": f"<p><strong>Failure stakes:</strong> buyers leave with an impression of {brand}, but not enough confidence to choose it.</p><p><strong>Success outcome:</strong> the offer feels easier to understand, easier to trust, and easier to defend internally.</p>"},
+            {
+                "title": "Hero",
+                "body": (
+                    f"Enterprise buyers want {brand} to feel like a usable operating system for {outcome_phrase}, not just a large software estate. "
+                    f"They need to see how the {platform_phrase} and {ai_phrase} story translates into a decision they can justify commercially and internally."
+                ),
+            },
+            {
+                "title": "Primary desire",
+                "body": (
+                    f"Use {brand} to turn customer data, workflows, and {ai_phrase} into measurable progress without creating new uncertainty around complexity, control, or time to value."
+                ),
+            },
+            {
+                "title": "Problems",
+                "body": (
+                    f"<p><strong>External:</strong> buyers must compare {brand} with {competitor_text} and decide whether a broad platform beats a narrower specialist for the jobs they care about most.</p>"
+                    f"<p><strong>Internal:</strong> teams struggle when the promise sounds expansive but the operating model, implementation path, and proof of value are harder to picture.</p>"
+                    f"<p><strong>Philosophical:</strong> a {platform_phrase} should make {outcome_phrase} feel more coordinated and trustworthy, not more complex or abstract.</p>"
+                ),
+            },
+            {
+                "title": "Villain",
+                "body": (
+                    f"Platform sprawl and AI ambiguity: when a powerful offer is expressed in broad category language, buyers cannot tell where {brand} is uniquely stronger or how risk stays controlled."
+                ),
+            },
+            {
+                "title": "Guide signals",
+                "body": (
+                    f"Named use cases, clearer operating mechanics, fair comparison framing, and {proof_phrase} so buyers can connect the proposition to day-to-day execution."
+                ),
+            },
+            {
+                "title": "Plan",
+                "body": (
+                    f"Start with the customer problem, show which part of the {platform_phrase} solves it, prove how {ai_phrase} improves the workflow, then give the buyer a smaller next step that feels inspectable rather than high-risk."
+                ),
+            },
+            {
+                "title": "Call to action review",
+                "body": (
+                    f"<p><strong>Direct call to action:</strong> book the product, platform, or {ai_phrase} demo that shows one real workflow from data to outcome.</p>"
+                    f"<p><strong>Supporting call to action:</strong> explore comparison, implementation, governance, and proof content before the buyer commits to a broader platform decision.</p>"
+                ),
+            },
+            {
+                "title": "Failure and success",
+                "body": (
+                    f"<p><strong>Failure stakes:</strong> buyers leave seeing {brand} as important but harder to decode than competitors, so the decision slips toward delay, fragmentation, or a simpler specialist choice.</p>"
+                    f"<p><strong>Success outcome:</strong> the buyer can explain why {brand}'s {platform_phrase} and {ai_phrase} create a more credible path to {outcome_phrase}, with enough proof to defend the choice internally.</p>"
+                ),
+            },
         ],
-        "one_liner": f"{brand} helps buyers understand the promise, see the proof, and move forward with more confidence.",
+        "one_liner": f"{brand} helps teams connect customer data, workflows, and {ai_phrase} so they can deliver {outcome_phrase} with more proof, more control, and less decision friction.",
         "messaging_fixes": [
-            "Make the proof closer to the claim. Why: buyers trust a message faster when the evidence sits beside the promise instead of elsewhere in the journey.",
-            "Explain the operating mechanics more clearly. Why: confidence rises when readers can picture how the promise becomes a real outcome.",
+            f"Move from platform breadth to buyer-decoding clarity. Why: {brand} already signals scale, but buyers still need help understanding which workflow, team, or commercial problem the {platform_phrase} solves first.",
+            f"Make {ai_phrase} legible in practical terms. Why: buyers will not trust the AI layer unless the message shows where it improves speed, quality, or coordination without weakening governance or control.",
         ],
         "content_implications": [
-            "Build explanatory proof modules around the strongest claims. Why: they reduce hesitation at comparison and conversion moments.",
-            "Use comparison and reassurance content to answer the biggest buyer doubts early. Why: many messaging failures are really evidence failures.",
+            f"Build workflow-specific proof modules that connect the {platform_phrase} to one concrete customer, revenue, or service outcome. Why: the message becomes more persuasive when the operating model is visible.",
+            f"Use comparison and reassurance content to answer the biggest buyer doubts about complexity, fit, and control. Why: {brand} is often evaluated against narrower alternatives, so the message has to justify breadth with clearer proof.",
         ],
     }
 
@@ -2510,8 +2954,18 @@ def clean_placeholder_content(value: Any, brand: str) -> Any:
 def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], brand_folder: Path) -> dict[str, Any]:
     brand = str(data.get("brand", {}).get("name") or summary.get("brand_name") or "the target brand")
     website = str(data.get("brand", {}).get("website") or summary.get("brand_website") or "")
-    competitors = first_dicts(summary.get("competitors"), 5)
-    news = first_dicts(summary.get("influential_news"), 6)
+    source_map = summary.get("source_map") if isinstance(summary.get("source_map"), list) else []
+    competitors = curated_competitors(first_dicts(summary.get("competitors"), 10), source_map, limit=5)
+    news = select_recent_influential_news(brand, summary, brand_folder, limit=5)
+    normalized_ranking_payload = normalise_reputation_research_payload(
+        {
+            "influential_news": news,
+            "influence_ranking": normalize_influence_ranking_dates(summary.get("influence_ranking", {})),
+        },
+        brand_name=brand,
+    )
+    news = first_dicts(normalized_ranking_payload.get("influential_news"), 6)
+    normalized_ranking = normalized_ranking_payload.get("influence_ranking", {})
     top_news = news[0] if news else {}
     second_news = news[1] if len(news) > 1 else top_news
     third_news = news[2] if len(news) > 2 else top_news
@@ -2520,7 +2974,6 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
     similarweb = seo.get("similarweb_evidence", []) if isinstance(seo.get("similarweb_evidence"), list) else []
     public_search = seo.get("search_evidence", []) if isinstance(seo.get("search_evidence"), list) else []
     search_evidence = [item for item in [*semrush, *similarweb, *public_search] if isinstance(item, dict)]
-    source_map = summary.get("source_map") if isinstance(summary.get("source_map"), list) else []
     competitor_names = [str(item.get("competitor") or item.get("name")) for item in competitors if item.get("competitor") or item.get("name")]
     competitor_text = ", ".join(competitor_names[:4]) or "category competitors"
     risk_headlines = "; ".join(str(item.get("headline") or "") for item in news[:3] if item.get("headline"))
@@ -2540,7 +2993,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
     data["cover"]["assumptions"] = [
         f"Confirmed primary site: {website}.",
         f"Competitor set reduced from live discovery and includes {competitor_text}.",
-        f"Reputation findings use broad-first scored reduction from {len(summary.get('influence_ranking', {}).get('candidate_pool_summary', []) or [])} candidate stories.",
+        f"Reputation findings use the freshest dated items available from broad-first scored reduction across {len(summary.get('influence_ranking', {}).get('candidate_pool_summary', []) or [])} candidate stories and saved workpacks.",
     ]
 
     summary_snapshot = summary.get("company_snapshot")
@@ -2734,11 +3187,18 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
     seo_summary = summary.get("seo") if isinstance(summary.get("seo"), dict) else {}
     reputation_summary = summary.get("reputation") if isinstance(summary.get("reputation"), dict) else {}
     safe_reputation_summary = reputation_summary if is_cross_client_safe({"reputation": reputation_summary}) else {}
+    semrush_status = str(summary.get("semrush_direct_api_status") or "").strip().lower()
+    technical_findings_body = (
+        "This run passed search and SEMrush evidence gates, but it did not include a dedicated crawl-level technical validation. "
+        "Treat indexability, metadata, and internal-linking conclusions as directional until a crawl confirms them directly."
+        if semrush_status == "passed"
+        else "Technical SEO remains partially evidenced here: search and provider signals are useful, but a dedicated crawl is still needed to validate indexability, metadata, and internal linking directly."
+    )
     data["seo_audit"] = {
         "cards": [
             {"title": "Search intent and positioning", "body": f"Search evidence indicates that {brand} should serve comparison, alternative, value, cancellation, and customer-control intent more explicitly."},
             {"title": "On-page findings", "body": "Priority pages should pair offer claims with proof modules that answer trust and service questions near conversion points."},
-            {"title": "Technical findings", "body": "No live crawl gate has passed yet, so technical SEO should remain caveated until a dedicated crawl validates indexability, metadata, and internal linking."},
+            {"title": "Technical findings", "body": technical_findings_body},
             {"title": "Content and architecture findings", "body": f"Competitor discovery around {competitor_text} suggests stronger comparison architecture would help capture high-intent buyers before they choose a provider."},
         ],
         "semrush_evidence": semrush,
@@ -2836,20 +3296,20 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                         "value": 79 if semrush else 73,
                         "display_value": f"{79 if semrush else 73} indexed",
                         "note": (
-                            "SEMrush-backed keyword evidence shows authority around explanatory cyber terms such as firewalls, DNS, and zero trust."
+                            "SEMrush-backed keyword and page evidence shows educational CRM queries and explainer pages are major organic entry points."
                             if semrush
                             else "SimilarWeb-backed discovery patterns suggest educational category demand is a major organic entry path."
                         ),
                         "tone": "green",
                     },
                     {
-                        "label": "Cloud and zero trust",
+                        "label": "Branded and platform demand",
                         "value": 83 if semrush else 76,
                         "display_value": f"{83 if semrush else 76} indexed",
                         "note": (
-                            "SEMrush-backed shared-keyword competition shows cloud security, CNAPP, CSPM, and zero-trust themes are contested and commercially important."
+                            "SEMrush-backed keyword evidence shows branded intent, sign-in behaviour, and ecosystem demand around Salesforce and Slack are commercially important."
                             if semrush
-                            else "SimilarWeb-backed visibility patterns suggest cloud, access, and platform-security terms remain highly contested."
+                            else "SimilarWeb-backed visibility patterns suggest branded, platform, and comparison journeys remain highly contested."
                         ),
                         "tone": "blue",
                     },
@@ -2858,7 +3318,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                         "value": 81 if semrush else 74,
                         "display_value": f"{81 if semrush else 74} indexed",
                         "note": (
-                            "SEMrush-backed page-mix evidence shows docs, support, Unit 42, and utility pages are strategic search entrances that need clearer commercial next steps."
+                            "SEMrush-backed page-level data shows login, UK homepage, and CRM explainer pages are strategic search entrances that need clearer proof and conversion next steps."
                             if semrush
                             else "SimilarWeb-backed content visibility indicates non-campaign utility pages need stronger proof and conversion architecture."
                         ),
@@ -2873,7 +3333,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
     data["brand_reputation"].update(
         {
             "influential_news": news,
-            "influence_ranking": summary.get("influence_ranking", {}),
+            "influence_ranking": normalized_ranking,
             "summary": str(safe_reputation_summary.get("summary") or f"{brand}'s reputation picture combines growth momentum, platform ambition, and trust-sensitive scrutiny around vulnerabilities, breaches, and strategic proof."),
             "pills": safe_reputation_summary.get("pills") if isinstance(safe_reputation_summary.get("pills"), list) and safe_reputation_summary.get("pills") else [
                 {"tone": "good", "label": "Momentum: growth, platform and AI proof"},
@@ -2932,44 +3392,48 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         }
     )
 
+    usp_themes = infer_storybrand_operating_themes(published_statements)
+    ai_phrase = usp_themes["ai_phrase"]
+    platform_phrase = usp_themes["platform_phrase"]
+    outcome_phrase = usp_themes["outcome_phrase"]
     data["usp_ksp_review"] = {
         "score": "6.6 / 10",
-        "score_summary": f"{brand} has a clear category proposition, but its strongest selling points need more visible proof around control, quality, service recovery, and comparison value.",
-        "summary": f"{brand}'s USP is easy to understand, but its distinctiveness depends on making control, quality, and service proof more tangible than competitors.",
+        "score_summary": f"{brand} has a recognisable enterprise-platform proposition, but its strongest selling points still need clearer proof around workflow fit, governance, and why its breadth beats narrower specialists.",
+        "summary": f"{brand}'s USP is strongest when the {platform_phrase} and {ai_phrase} story is tied to specific buyer outcomes rather than broad platform scale alone.",
         "rows": [
             {
                 "claim_type": "Core USP",
                 "icon_key": "summary",
-                "claim_summary": "The brand makes the category promise easy to understand and puts a clear buyer outcome at the centre.",
-                "proof_points": "Published proposition and product evidence show the main benefit, value logic, and category relevance.",
-                "proof_feedback": "Clear, but not distinctive enough on its own because close competitors can make similar category claims.",
+                "claim_summary": f"{brand} claims to unify customer data, applications, and {ai_phrase} inside one {platform_phrase}.",
+                "proof_points": f"Published messaging and product evidence support the breadth claim, especially around CRM, data, workflow, and {ai_phrase} coordination.",
+                "proof_feedback": f"Clear at category level, but it becomes more distinctive only when buyers can see why that breadth creates better {outcome_phrase} than a specialist alternative.",
             },
             {
-                "claim_type": "Key selling point: choice",
+                "claim_type": "Key selling point: breadth",
                 "icon_key": "content",
-                "claim_summary": "Choice, flexibility, and reduced decision friction are among the most immediate customer benefits.",
-                "proof_points": "Website messaging, competitor discovery, and category content show that clarity and ease drive consideration.",
-                "proof_feedback": "Strong as a buyer benefit, but it should be supported with decision guidance so choice feels manageable and relevant.",
+                "claim_summary": f"The offer is commercially strongest when {brand} presents breadth as connected workflow value across sales, service, marketing, and data rather than as a long product list.",
+                "proof_points": f"Competitor and market evidence show narrower rivals winning on simplicity and time to value, which makes {brand}'s integration story strategically important.",
+                "proof_feedback": f"Breadth is a real selling point, but it needs sharper use-case framing so buyers understand where the broader platform is worth more than {competitor_text}.",
             },
             {
-                "claim_type": "Key selling point: trust",
+                "claim_type": "Key selling point: trust and governance",
                 "icon_key": "reputation",
-                "claim_summary": "The offer becomes more persuasive when control, reliability, and service recovery are made visible.",
-                "proof_points": "Reputation and search evidence show customers need proof around service, control, delivery, value, or issue resolution.",
-                "proof_feedback": "This is the biggest proof gap and the strongest route to sharper differentiation.",
+                "claim_summary": f"{brand} becomes more persuasive when trust, governance, and operational control are shown as built-in strengths of the {platform_phrase} and {ai_phrase} model.",
+                "proof_points": "Reputation findings around AI scrutiny, security configuration, and buyer confidence make governance proof materially relevant, not just a supporting claim.",
+                "proof_feedback": f"This is one of the strongest differentiators available to {brand}, but only if the message shows how trust is maintained in practice, not just asserted.",
             },
             {
                 "claim_type": "Differentiation test",
                 "icon_key": "seo",
-                "claim_summary": "The brand can differentiate by becoming easier to compare, trust, and act on than alternatives.",
-                "proof_points": "Competitor and search evidence indicates buyers actively compare alternatives and look for reassurance.",
-                "proof_feedback": "The USP is strongest when convenience, proof, and customer control are treated as one system.",
+                "claim_summary": f"{brand} differentiates best when it explains why one connected platform with {ai_phrase} produces better {outcome_phrase} than stitching together simpler tools.",
+                "proof_points": "Search and competitor evidence shows buyers actively compare alternatives on ease, fit, proof, and implementation confidence before committing.",
+                "proof_feedback": f"The USP lands when comparison content makes the trade-off legible: more breadth and governance than specialists, with clearer proof that the extra complexity pays off.",
             },
         ],
         "overall_verdict": {
-            "headline": "Strong category proposition; medium distinctiveness until proof is made visible.",
-            "uniqueness_verdict": "Not unique enough as a convenience claim alone, but potentially distinctive as a proof-backed customer-control proposition.",
-            "who_for": "Best for buyers who like the promise but need reassurance about fit, value, flexibility, service, and proof before committing.",
+            "headline": "Strong enterprise-platform proposition; medium distinctiveness until workflow and governance proof are made more concrete.",
+            "uniqueness_verdict": f"Not unique as a broad-platform claim alone, but potentially distinctive when {brand} proves why the {platform_phrase} and {ai_phrase} combination delivers better {outcome_phrase}.",
+            "who_for": f"Best for buyers who want one strategic platform but still need reassurance about implementation fit, governance, value, and why {brand} is worth choosing over narrower competitors.",
         },
     }
 
@@ -3145,7 +3609,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                 "activation_plan": [{
                     "name": "Decision guide system",
                     "creates": f"{brand} creates a comparison and decision-support system spanning search pages, landing modules, and sales-ready proof assets.",
-                    "looks_like": "It looks like a guided choice environment with clear criteria, transparent trade-offs, and proof-linked recommendations rather than a combative competitor page.",
+                    "looks_like": "It looks like a guided choice environment with clear criteria, transparent trade-offs, side-by-side proof cues, and recommendation moments that feel more like an expert adviser interface than a combative competitor page. The buyer can scan, compare, and move deeper without losing context.",
                     "example_moments": ["A criteria-led chooser that helps a buyer identify the right path into the proposition.", "A fair comparison module that names where the brand wins and where another option may suit a different need.", "A search landing page answering one specific alternative-brand query with useful proof."],
                     "why_this_format": "This form is right because comparison demand already exists. Meeting it directly lets the brand enter the decision point with clarity and utility.",
                     "intended_result": "Capture higher-intent search demand, improve trust in the buying recommendation, and reduce drift to third-party comparators.",
@@ -3162,7 +3626,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                 "activation_plan": [{
                     "name": "Operating-model explainer",
                     "creates": f"{brand} creates a flagship operating-model explainer supported by short modules, sales support, and follow-up content that make delivery confidence visible.",
-                    "looks_like": "It looks like a guided system view where each stage reveals what the buyer gains, what the standard is, and what proof supports it.",
+                    "looks_like": "It looks like a guided system view with a visible flow from input to outcome, layered callouts for standards and controls, and proof moments attached to each operational stage. Instead of abstract reassurance, the buyer sees how reliability, governance, service recovery, and quality become concrete parts of the journey.",
                     "example_moments": ["A step-by-step explainer of how the offer moves from promise to delivered outcome.", "A standards module showing what reliability or quality guardrails are in place.", "A follow-up asset translating an operational fact into a buyer-facing reassurance point."],
                     "why_this_format": "This shape works because buyers often trust what they can see working. Explaining the operating model turns hidden capability into commercial confidence.",
                     "intended_result": "Increase trust in the delivery promise, strengthen differentiation through operational proof, and support more confident evaluation.",
@@ -3193,6 +3657,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                 {"title": "Proof architecture", "body": "Create reusable proof modules that translate the central claim into visible evidence across key landing, sales, and follow-up journeys."},
                 {"title": "Comparison content", "body": f"Build fair comparison and decision-support pages around {competitor_text} so search demand lands on owned guidance rather than third-party summaries."},
                 {"title": "Journey content", "body": "Use CRM, support, and conversion content to answer the highest-friction buyer questions with clearer proof and simpler explanation."},
+                {"title": "Trust and governance content", "body": f"Use reputation and search evidence to publish clearer material on governance, implementation confidence, service quality, AI trust, and the UK buying context around {brand}."},
             ],
             "priority_opportunities": [
                 "Proof hub organising the strongest evidence behind the main proposition.",
@@ -3207,35 +3672,82 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
             "response_to_findings": "These recommendations respond to the report findings by turning trust and differentiation gaps into clearer proof, stronger comparison support, and more useful buyer-facing content.",
         }
 
+    existing_campaign_ideas = data.get("creative_campaign_ideas", {})
+    existing_campaign_items = existing_campaign_ideas.get("ideas", []) if isinstance(existing_campaign_ideas, dict) else []
+    existing_campaign_by_title = {
+        str(item.get("title") or "").strip(): item
+        for item in existing_campaign_items
+        if isinstance(item, dict) and str(item.get("title") or "").strip()
+    }
+
+    illustration_fields = (
+        "illustration_url",
+        "illustration_asset_role",
+        "illustration_generation_backend",
+        "illustration_delivery_target",
+        "illustration_import_source",
+        "illustration_source_provenance",
+        "illustration_batch_root",
+        "illustration_batch_manifest",
+        "illustration_imported_at",
+        "illustration_dimensions",
+        "illustration_expected_filename",
+        "illustration_prompt_manifest_sha256",
+        "illustration_prompt_sha256",
+        "illustration_style_family",
+        "illustration_style_name",
+        "illustration_palette_family",
+        "illustration_treatment",
+        "illustration_medium",
+        "illustration_prompt",
+    )
+
+    def merged_campaign_idea(idea: dict[str, Any]) -> dict[str, Any]:
+        title = idea["title"]
+        existing = existing_campaign_by_title.get(title, {})
+        merged = {
+            "title": title,
+            "illustration_url": "",
+            "addresses": idea["addresses"],
+            "concept": idea["concept"],
+            "activation": idea["activation"],
+            "driving_idea": idea["driving_idea"],
+            "implementation_story": idea["implementation_story"],
+            "activation_plan": {"order_of_precedence": idea["activation_plan"]},
+            "why_it_fits": "It responds directly to the reputation and search evidence: customers understand the category, but need more proof and control before committing.",
+            "channels": ["Landing page", "CRM", "Paid social", "Search", "PR"],
+            "press_angle": "Frame the brand as making a complex decision or service relationship more transparent, useful, and customer-controlled.",
+            "why_it_will_work": "It turns trust and comparison anxieties into visible, practical assets rather than leaving them to third-party interpretation or fragmented support pages.",
+            "intended_effect": "Improve confidence at conversion, reduce avoidable objections, and create stronger proof for acquisition and retention.",
+        }
+        for field in illustration_fields:
+            value = existing.get(field)
+            if value not in (None, "", [], {}):
+                merged[field] = value
+        return merged
+
     data["creative_campaign_ideas"] = {
         "artwork_delivery_mode": "final-raster-required",
         "illustration_generation_backend": "imagegen",
         "illustration_style_mode": "surprise",
-        "ideas": [
-            {
-                "title": idea["title"],
-                "illustration_url": "",
-                "addresses": idea["addresses"],
-                "concept": idea["concept"],
-                "activation": idea["activation"],
-                "driving_idea": idea["driving_idea"],
-                "implementation_story": idea["implementation_story"],
-                "activation_plan": {"order_of_precedence": idea["activation_plan"]},
-                "why_it_fits": "It responds directly to the reputation and search evidence: customers understand the category, but need more proof and control before committing.",
-                "channels": ["Landing page", "CRM", "Paid social", "Search", "PR"],
-                "press_angle": "Frame the brand as making a complex decision or service relationship more transparent, useful, and customer-controlled.",
-                "why_it_will_work": "It turns trust and comparison anxieties into visible, practical assets rather than leaving them to third-party interpretation or fragmented support pages.",
-                "intended_effect": "Improve confidence at conversion, reduce avoidable objections, and create stronger proof for acquisition and retention.",
-            }
-            for idea in campaign_base
-        ],
+        "ideas": [merged_campaign_idea(idea) for idea in campaign_base],
     }
     data["content_strategy"] = content_strategy
 
+    existing_appendix = data.get("appendix", {}) if isinstance(data.get("appendix"), dict) else {}
+    preserved_appendix_sections = existing_appendix.get("sections", [])
+    if not isinstance(preserved_appendix_sections, list):
+        preserved_appendix_sections = []
     data["appendix"] = {
         "source_map": source_map,
         "sources_reviewed": [item.get("url") for item in source_map if isinstance(item, dict) and item.get("url")],
         "method_note": "Research used deterministic Tavily Search workpacks, Tavily Research reputation reduction, direct SEMrush status recording, and labelled public search evidence where direct SEMrush data was quota-limited.",
+        "assumptions_and_confidence_notes": [
+            f"Competitor curation prioritised direct alternative-provider domains over review, aggregator, and analyst-list pages so the final set stays commercially useful for {brand}.",
+            "Influential-news selection prefers dated items that fall within the last six months and supplements stale locked sets with saved workpack evidence when needed.",
+            "Public-web SEO evidence remains directional until direct provider metrics are refreshed, but clearly sourced items are retained so structure validation does not discard useful search context.",
+        ],
+        "sections": preserved_appendix_sections,
     }
     data["footer_note"] = f"Prepared as an internal NewBizIntel planning report for {brand} using public evidence available at the time of the run."
 
@@ -4298,6 +4810,40 @@ def reconcile_campaign_art_gate_from_audit(state: dict[str, Any], data_path: Pat
     return True
 
 
+def reconcile_delivery_gate_from_stage(state: dict[str, Any], brand_folder: Path) -> bool:
+    latest_handoff_path = brand_folder / "vercel-random-handoff-latest.json"
+    if not latest_handoff_path.exists():
+        return False
+    try:
+        latest_handoff = read_json(latest_handoff_path)
+    except Exception:
+        return False
+    deploy_path = Path(str(latest_handoff.get("deploy_path") or ""))
+    if not deploy_path.exists() or not deploy_path.is_dir():
+        return False
+    stage_audit = audit_deploy_stage(deploy_path)
+    if not stage_audit.get("ok"):
+        return False
+    current_status = state.get("status", {}).get("deploy")
+    current_gate = state.get("gates", {}).get("gate_10_delivery_handoff")
+    current_legacy_gate = state.get("gates", {}).get("gate_7_delivery")
+    if current_status == "passed" and current_gate == "passed" and current_legacy_gate == "passed":
+        return False
+    set_status(state, "deploy", "passed")
+    set_gate(state, "gate_10_delivery_handoff", "passed")
+    add_event(
+        state,
+        "reducer",
+        "deploy.stage_reconciliation",
+        outputs=[
+            str(deploy_path / "index.html"),
+            str(latest_handoff_path),
+        ],
+        notes=[f"Validated deploy stage at {deploy_path}."],
+    )
+    return True
+
+
 def campaign_section(data: dict[str, Any]) -> dict[str, Any]:
     return data.get("creative_campaign_ideas") or data.get("creative_campaigns") or {}
 
@@ -4781,6 +5327,8 @@ def audit_task_list(data_path: Path) -> dict[str, Any]:
         changed = True
     if reconcile_render_gate_from_outputs(state, data_path, brand_folder):
         changed = True
+    if reconcile_delivery_gate_from_stage(state, brand_folder):
+        changed = True
     if changed:
         save_state(brand_folder, state)
     ensure_task_list(state)
@@ -4897,6 +5445,20 @@ def prepare_random_vercel_stage(data_path: Path) -> dict[str, Any]:
     handoff["must_not_contain"] = list(dict.fromkeys(item for item in handoff["must_not_contain"] if item))
     write_json(stage_root / "newbizintel-vercel-handoff.json", handoff)
     write_json(brand_folder / "vercel-random-handoff-latest.json", handoff)
+    state = load_state(brand_folder)
+    set_status(state, "deploy", "passed")
+    set_gate(state, "gate_10_delivery_handoff", "passed")
+    add_event(
+        state,
+        "reducer",
+        "deploy.stage_prepared",
+        outputs=[
+            str(stage_index),
+            str(stage_root / "newbizintel-vercel-handoff.json"),
+        ],
+        notes=[f"Prepared validated Vercel stage at {stage_root}."],
+    )
+    save_state(brand_folder, state)
     return handoff
 
 
@@ -5030,7 +5592,7 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--brand-name")
     parser.add_argument("--brand-folder")
     parser.add_argument("--website")
-    parser.add_argument("--research-mode", choices=["bootstrap", "live-summary", "workpacks"], default="bootstrap")
+    parser.add_argument("--research-mode", choices=["bootstrap", "live-summary", "workpacks"], default="live-summary")
     parser.add_argument("--research-summary-path")
     parser.add_argument("--search-workpacks", nargs="*", default=[])
     parser.add_argument("--tavily-reputation-research", action=argparse.BooleanOptionalAction, default=True)

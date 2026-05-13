@@ -804,6 +804,9 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
                 suspicious_exact_brand_asset = suspicious_brand_logo_candidate(exact_brand_asset, brand_name, source)
                 if not suspicious_exact_brand_asset:
                     brand_asset = exact_brand_asset
+        preferred_brand_asset = preferred_logo_asset(asset_dir, f"{brand_slug}-logo")
+        if brand_asset is None and preferred_brand_asset and "pptx-logo" not in preferred_brand_asset.name.lower():
+            brand_asset = preferred_brand_asset
         pptx_brand_asset = asset_dir / f"{brand_slug}-pptx-logo.png"
         if brand_asset is None and pptx_brand_asset.exists() and quality_ok(pptx_brand_asset, minimum=200):
             brand_asset = pptx_brand_asset
@@ -812,6 +815,7 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
         if brand_asset is None:
             brand_asset = preferred_logo_asset(asset_dir, f"{brand_slug}-logo")
         brand["logo_url"] = relative_to_brand(brand_asset, brand_folder) if brand_asset else ""
+        brand["cover_logo_url"] = brand["logo_url"]
         mark_asset = preferred_logo_asset(asset_dir, f"{brand_slug}-mark", prefer_square=True) if mark_ok else None
         if not mark_asset:
             loose_square_asset = preferred_loose_square_asset(asset_dir, f"{brand_slug}-mark")
@@ -833,7 +837,13 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
     else:
         manifest["ok"] = False
         manifest["errors"].append(f"{brand_name} brand logo failed: {source}")
-    manifest["brand"] = brand_logo_manifest_entry(brand_name, brand.get("logo_url", ""), source, ok, brand_folder)
+    manifest["brand"] = brand_logo_manifest_entry(
+        brand_name,
+        brand.get("cover_logo_url", "") or brand.get("logo_url", ""),
+        source,
+        ok,
+        brand_folder,
+    )
     if not manifest["brand"].get("ok"):
         manifest["ok"] = False
         manifest["errors"].append(f"{brand_name} brand logo failed: {manifest['brand'].get('error') or source}")

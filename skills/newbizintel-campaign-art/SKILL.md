@@ -7,9 +7,9 @@ description: Create or refresh Creative Campaign illustration prompts, manifests
 
 Default to true raster artwork.
 
-For premium runs, the default backend is image-generated raster art, not the local scaffold renderer.
+For premium runs, the default backend is the built-in `image_gen` tool, not the local scaffold renderer.
 
-The bundled Python generator is a scaffold and fallback path, not the premium end state.
+Do not use the bundled CLI image generator for premium campaign art.
 Only use scaffold output when the report explicitly opts into `artwork_delivery_mode: "scaffold-allowed"` or an equivalent local-scaffold backend.
 
 Own:
@@ -26,6 +26,7 @@ Rules:
 - push the 4 campaign visuals apart when the brief calls for contrast
 - do not accept one repeated house style with mild variation as final premium art
 - treat `illustration_generation_backend: "imagegen"` as the premium default
+- treat built-in `image_gen` as the only approved premium generation path
 - do not overwrite existing campaign artwork by default when a report may already contain approved final raster assets
 - mark scaffold output honestly so QA can distinguish placeholder art from final artwork
 
@@ -35,7 +36,7 @@ Premium workflow:
    - `illustration_prompt_manifest`
    - `illustration_prompt_brief`
    - expected output filenames
-2. Generate one real raster image per prompt.
+2. Generate one real raster image per prompt with the built-in `image_gen` skill.
 3. Import those images back into the report with:
    - `run_module.ps1 -ImportSourceDir <folder>`
    - or `run_module.ps1 -ImportLatestGeneratedBatch`

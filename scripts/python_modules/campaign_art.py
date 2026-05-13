@@ -6,15 +6,37 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from python_modules.common import add_event, extract_token_usage, load_state, proof_root, record_token_usage, save_state, set_gate, set_status
+from python_modules.common import (
+    add_event,
+    extract_token_usage,
+    load_state,
+    proof_root,
+    record_token_usage,
+    save_state,
+    set_gate,
+    set_status,
+)
 
 
 def _campaign_art_handoff_details(data_path: Path, default_batch_dir: Path, generation: dict[str, Any]) -> dict[str, Any]:
     brand_folder = data_path.parent
     slide_assets = brand_folder / "slide-assets"
     slug = brand_folder.name
-    prompt_manifest = Path(str(generation.get("prompt_manifest") or generation.get("prompts_manifest") or generation.get("prompt_json") or (slide_assets / f"{slug}-campaign-illustration-prompts.json"))).resolve()
-    batch_request = Path(str(generation.get("batch_request") or generation.get("batch_request_json") or (slide_assets / f"{slug}-campaign-batch-request.json"))).resolve()
+    prompt_manifest = Path(
+        str(
+            generation.get("prompt_manifest")
+            or generation.get("prompts_manifest")
+            or generation.get("prompt_json")
+            or (slide_assets / f"{slug}-campaign-illustration-prompts.json")
+        )
+    ).resolve()
+    batch_request = Path(
+        str(
+            generation.get("batch_request")
+            or generation.get("batch_request_json")
+            or (slide_assets / f"{slug}-campaign-batch-request.json")
+        )
+    ).resolve()
     expected_files = generation.get("expected_files") or []
     return {
         "prompt_manifest": str(prompt_manifest),
@@ -49,11 +71,15 @@ def module_campaign_art(
     source_dir = str(getattr(args, "campaign_art_source_dir", "") or "").strip()
     latest_generated_batch = bool(getattr(args, "campaign_art_latest_generated_batch", False))
     auto_generate_originals = bool(getattr(args, "campaign_art_generate_originals", True))
-    generate_dry_run = bool(getattr(args, "campaign_art_generate_dry_run", False))
 
     generation: dict[str, Any] = {"generated": 0, "skipped": True}
     reduction: dict[str, Any] = {"ok": False, "applied_count": 0, "skipped": True}
-    generated_batch: dict[str, Any] = {"generated": 0, "skipped": True}
+    generated_batch: dict[str, Any] = {
+        "generated": 0,
+        "skipped": True,
+        "mode": "image_gen_only",
+        "note": "Automatic CLI campaign-art generation is disabled. Use the built-in image_gen skill, then import the finished rasters.",
+    }
     import_result: dict[str, Any] = {"imported": 0, "skipped": True}
     import_reduction: dict[str, Any] = {"ok": False, "applied_count": 0, "skipped": True}
     manifest_path: Path | None = None
@@ -108,6 +134,16 @@ def module_campaign_art(
             "Campaign art original generation now uses built-in imagegen. "
             f"Generate the raster set from {handoff['prompt_manifest']} and {handoff['batch_request']}, save it under {handoff['default_batch_dir']}, "
             "then rerun campaign-art with --campaign-art-source-dir or --campaign-art-latest-generated-batch."
+        )
+    elif not source_dir and not latest_generated_batch:
+        add_event(
+            state,
+            "note",
+            "campaign_art.awaiting_imagegen_import",
+            notes=[
+                "Campaign art now uses built-in image_gen only.",
+                "Generate the final rasters with image_gen, then rerun campaign-art with --campaign-art-source-dir or --campaign-art-latest-generated-batch.",
+            ],
         )
 
     if source_dir or latest_generated_batch:

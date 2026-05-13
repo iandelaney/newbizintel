@@ -139,10 +139,12 @@ def load_prompt_manifest(asset_dir: Path, brand_slug: str) -> dict[str, dict[str
         title = str(item.get("title") or "").strip()
         if not title:
             continue
+        treatment = str(item.get("treatment") or item.get("medium") or "").strip()
         by_title[title] = {
             "illustration_style_family": str(item.get("style_family") or "").strip(),
             "illustration_style_name": str(item.get("style_slug") or "").strip(),
             "illustration_palette_family": str(item.get("palette_family") or "").strip(),
+            "illustration_treatment": treatment,
             "illustration_medium": str(item.get("medium") or "").strip(),
         }
     return by_title

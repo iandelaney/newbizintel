@@ -11,11 +11,19 @@ This root skill is only the entrypoint and routing policy. It should not absorb 
 
 ## Cross-Platform Runner
 
-Use the Python runner by default:
+Use the launcher by default so the repo can resolve the correct runner and Python path for the host:
 
 ```bash
-python scripts/newbizintel.py run --mode full --brand-name "Brand" --website "https://www.example.com/" --brand-folder "/path/to/output"
+./run-newbizintel.sh run --mode full --brand-name "Brand" --website "https://www.example.com/" --brand-folder "/path/to/output"
 ```
+
+On Windows PowerShell, use:
+
+```powershell
+.\run-newbizintel.ps1 run --mode full --brand-name "Brand" --website "https://www.example.com/" --brand-folder "C:\path\to\output"
+```
+
+The raw `python scripts/newbizintel.py ...` path is still supported, but the launcher should be preferred in Codex and colleague setups because it is more resilient to local Python-path differences.
 
 PowerShell is now a Windows legacy/compatibility path only. Do not require Mac colleagues to install `pwsh`.
 
@@ -66,7 +74,7 @@ Do not ask colleagues to install a separate Slides skill. The render path should
 - `newbizintel-research`: gather Tavily and SEMrush-backed evidence
 - `newbizintel-structure`: build and validate `report-data.json`
 - `newbizintel-assets`: build and validate logos, marks, competitor badges, and source badges
-- `newbizintel-campaign-art`: create or refresh Creative Campaign illustration prompts and final raster assets
+- `newbizintel-campaign-art`: create or refresh Creative Campaign illustration prompts and final raster assets using built-in `image_gen` for premium artwork
 - `newbizintel-render`: render HTML, portable HTML, PPTX, and bundle outputs
 - `newbizintel-qa`: run presentation and smoke-test checks
 - `newbizintel-deploy`: refresh handoff and prepare optional Vercel deployment
@@ -168,7 +176,7 @@ The Executive Summary must read like board-ready synthesis, not research notes.
 - The Messaging section must begin with an assessment of existing published messaging before the StoryBrand analysis. Use `storybrand.existing_messaging_assessment` with at least two published mission, purpose, promise, proposition, or brand-platform statements, their source labels and source URLs, a reputation read-across, and a practical implication. Render those source labels as hyperlinks so readers can verify the published statements. Do not change the StoryBrand cards to satisfy this requirement; instead, let the published-message assessment frame them. `storybrand.messaging_fixes` and `storybrand.content_implications` must explain the WHY behind each recommendation and must explicitly draw on reputation, trust, service, growth, proof, customer, or technology findings.
 - Brand report outputs must live under the resolved output root, normally `C:\codex projects\output\<brand-slug>`. Do not default to a skill-local `output` folder. Deploy handoff files must remain in the brand output folder or a child of it; do not create sibling folders such as `output\vercel` for brand report artifacts.
 - End every full report run by asking the user whether they would like the finished report deployed to Vercel. Do not deploy automatically. Ask: "Would you like me to deploy this report to Vercel as a randomly named preview URL?"
-- If the user says yes to Vercel deployment, use the `vercel-deploy` skill. First run the NewBizIntel random staging command (`python scripts/newbizintel.py vercel-stage --data-path "<brand-folder>/report-data.json"`) and pass the returned `deploy_path` to `vercel-deploy`; never deploy the brand output folder directly.
+- If the user says yes to Vercel deployment, use the `vercel-deploy` skill. First run the NewBizIntel random staging command (`./run-newbizintel.sh vercel-stage --data-path "<brand-folder>/report-data.json"` on macOS/Linux, or `.\run-newbizintel.ps1 vercel-stage --data-path "<brand-folder>\report-data.json"` on Windows) and pass the returned `deploy_path` to `vercel-deploy`; never deploy the brand output folder directly.
 - Vercel uploads from NewBizIntel must always use a random staging folder/project identity so generated URLs do not include the target brand name, brand slug, or domain token. If the returned URL contains the brand name, brand slug, or domain token, treat it as a failed deployment handoff and create a fresh random stage before trying again.
 - Proof, fixture, and disposable test artifacts are not brand report outputs. Create them through `scripts\common\resolve_proof_root.ps1`, which defaults to `C:\codex projects\tmp-newbizintel-proofs` or `NEWBIZINTEL_PROOF_ROOT`, and must refuse locations inside the delivery output root such as `output\skill-runs`.
 - For SEMrush, favour direct API access first. If `SEMRUSH_API_KEY` is available, the research module should automatically select and run the direct SEMrush API collector without requiring a separate reminder flag. If the operator supplies `-SemrushApiKey`, use it only as an in-process runtime secret for that run and never write it to repo files, report artifacts, run state, notes, or output JSON. If direct API is unavailable, quota-limited, or blocked, use Composio MCP as the SEMrush backup before falling back to SimilarWeb, Jina, or other public-web context. SimilarWeb/public-web evidence can satisfy the broader Search and SEO evidence gate when clearly sourced and labelled, but must never be described as SEMrush-backed.
@@ -182,7 +190,7 @@ The Executive Summary must read like board-ready synthesis, not research notes.
 - Keep `newbizintel` self-contained and cleanly shareable with colleagues.
 - Do not introduce hidden dependencies on sibling folders or local workspace-only helper paths.
 - Do not require PowerShell or a separate Slides skill on macOS. Python plus optional Node is acceptable; PPTX must still have a bundled fallback when optional render dependencies are absent.
-- Treat Creative Campaign artwork as a delivery-grade asset, not decoration. Production reports must use bundled final raster artwork marked `final-raster-artwork`; local scaffold, placeholder, unverified, missing, undersized, or non-raster campaign art is a fail condition.
+- Treat Creative Campaign artwork as a delivery-grade asset, not decoration. Production reports must use bundled final raster artwork marked `final-raster-artwork`; local scaffold, placeholder, unverified, missing, undersized, or non-raster campaign art is a fail condition. The approved premium generation path is the built-in `image_gen` skill, followed by import into the report.
 - Treat Creative Campaign artwork diversity as a quality gate, not a subjective nice-to-have. If two ideas look samey, especially because they share a broad medium or treatment family, regenerate or replace one before render/QA.
 - Treat Creative Campaign copy as campaign imagination, not a production checklist. Each idea must let a reader envisage the campaign as a whole: a clear driving idea, a descriptive implementation story, and one or more vivid activation expressions. Each activation expression should say what the brand creates, what it looks like and feels like, concrete example moments or user paths, why that form is right, and what result it is designed to produce. Do not force three steps when one flagship activation or two expressions would be stronger; do not render a one-item numbered list. Keep internal production details such as required inputs available in the data, but do not render the section as dense "should contain" / "needs as input" bullet lists.
 - Use `scripts\qa\smoke_test_install.ps1` after installer or config-handoff changes so the colleague install path is proven, not assumed.

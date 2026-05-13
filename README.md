@@ -40,6 +40,16 @@ Most people will use `newbizintel` from inside the Codex app, not from a termina
 3. Start a new chat.
 4. Ask Codex to use `newbizintel` for the brand you care about.
 
+If you need to run the workflow manually from the repo, prefer the included launcher instead of calling the Python file directly:
+
+```powershell
+.\run-newbizintel.ps1 run --mode full --brand-name "Brand" --website "https://www.example.com/" --brand-folder "C:\path\to\output"
+```
+
+```bash
+./run-newbizintel.sh run --mode full --brand-name "Brand" --website "https://www.example.com/" --brand-folder "/path/to/output"
+```
+
 Plain-English examples:
 
 - `Use $newbizintel for Anaconda and produce the full report bundle.`
@@ -210,6 +220,12 @@ Open PowerShell and move into the repo:
 
 ```powershell
 cd "C:\codex projects\newbizintel-skill-repo"
+```
+
+When you want to run the workflow itself on Windows, prefer:
+
+```powershell
+.\run-newbizintel.ps1 run --mode full --brand-name "Brand" --website "https://www.example.com/" --brand-folder "C:\path\to\output"
 ```
 
 #### 2. Run the readiness check

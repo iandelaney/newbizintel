@@ -60,7 +60,7 @@ def render_html(
     data = read_json(data_path)
     brand = data.get("brand", {})
     output_path = output_path or data_path.parent / "newbizintel-report.html"
-    logo = asset_src(data_path, brand.get("logo_url", "") or brand.get("mark_url", ""))
+    logo = asset_src(data_path, brand.get("cover_logo_url", "") or brand.get("logo_url", "") or brand.get("mark_url", ""))
     title = f"{brand.get('name', 'Brand')} New Business Intelligence Report"
     sections: list[str] = []
     sections.append(
@@ -215,6 +215,23 @@ def render_html(
             appendix_blocks += "<h3>Sources Reviewed</h3>" + source_list_html(appendix_sources)
         appendix_blocks += list_html(appendix.get("missing_data", []), has_value=has_value)
         appendix_blocks += list_html(appendix.get("assumptions_and_confidence_notes", []), has_value=has_value)
+        appendix_sections = appendix.get("sections", [])
+        if isinstance(appendix_sections, list):
+            for section in appendix_sections:
+                if not isinstance(section, dict):
+                    continue
+                title = str(section.get("title") or "").strip()
+                if not title:
+                    continue
+                body_parts = [f"<h3>{html.escape(title)}</h3>"]
+                summary = str(section.get("summary") or "").strip()
+                if summary:
+                    body_parts.append(f"<p>{html.escape(summary)}</p>")
+                body_parts.append(list_html(section.get("bullets", []), has_value=has_value))
+                section_sources = section.get("sources") or []
+                if section_sources:
+                    body_parts.append("<h4>Sources</h4>" + source_list_html(section_sources))
+                appendix_blocks += "".join(body_parts)
         if appendix_blocks:
             sections.append("<section><h2>Appendix</h2>" + appendix_blocks + "</section>")
     css = """
@@ -292,6 +309,7 @@ def pptx_safe_data_copy(
     brand = data.setdefault("brand", {})
     brand_name = brand.get("name", "Brand")
     brand_slug = brand.get("slug") or slugify(brand_name)
+    brand.setdefault("cover_logo_url", brand.get("logo_url", ""))
     brand_logo = pptx_safe_logo_asset(data_path, brand.get("logo_url"), relative_to_brand=relative_to_brand) or pptx_safe_logo_asset(
         data_path,
         brand.get("mark_url"),

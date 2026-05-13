@@ -54,6 +54,13 @@ def module_research(
 ) -> dict[str, Any]:
     data_path = data_path_from_args(args)
     brand_folder = brand_folder_from_data(data_path)
+    if (
+        args.research_mode == "bootstrap"
+        and not args.research_summary_path
+        and not (args.search_workpacks or [])
+        and not is_repo_example_path(data_path)
+    ):
+        args.research_mode = "live-summary"
     state = load_state(brand_folder)
     set_status(state, "research", "in_progress")
     set_gate(state, "gate_2_competitors", "in_progress")

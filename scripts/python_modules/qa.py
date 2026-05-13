@@ -118,6 +118,23 @@ GENERIC_STORYBRAND_PHRASES = (
     "understand the offer, compare the options fairly",
     "take the next high-intent step with confidence",
     "customers fear overclaiming",
+    "clearer path to the outcome",
+    "enough proof to trust the decision",
+    "understand why salesforce is credible, how the offer works",
+    "message drift: broad claims that sound plausible",
+)
+
+GENERIC_USP_PHRASES = (
+    "clear category proposition",
+    "easy to understand",
+    "control, quality, and service proof",
+    "choice, flexibility, and reduced decision friction",
+    "the brand makes the category promise easy to understand",
+    "becoming easier to compare, trust, and act on than alternatives",
+)
+
+STALE_SEO_TECHNICAL_PHRASES = (
+    "no live crawl gate has passed yet",
 )
 
 CONTAMINATION_TERMS = (
@@ -174,6 +191,16 @@ def _flatten_text(value: Any) -> str:
 def _collect_storybrand_text(data: dict[str, Any]) -> str:
     storybrand = data.get("storybrand", {})
     return _flatten_text(storybrand).lower()
+
+
+def _collect_usp_text(data: dict[str, Any]) -> str:
+    usp = data.get("usp_ksp_review", {})
+    return _flatten_text(usp).lower()
+
+
+def _collect_seo_text(data: dict[str, Any]) -> str:
+    seo = data.get("seo_audit", {})
+    return _flatten_text(seo).lower()
 
 
 def _collect_scope_tokens(data: dict[str, Any]) -> set[str]:
@@ -281,6 +308,8 @@ def audit_research_quality(data_path: Path) -> dict[str, Any]:
 
     specificity_errors: list[str] = []
     storybrand_text = _collect_storybrand_text(data)
+    usp_text = _collect_usp_text(data)
+    seo_text = _collect_seo_text(data)
     if not storybrand_text.strip():
         specificity_errors.append("StoryBrand content is missing.")
     generic_hits = [phrase for phrase in GENERIC_STORYBRAND_PHRASES if phrase in storybrand_text]
@@ -296,10 +325,27 @@ def audit_research_quality(data_path: Path) -> dict[str, Any]:
         specificity_errors.append(
             f"StoryBrand content has weak overlap with current run evidence ({len(meaningful_overlap)} shared scope tokens; expected at least 8)."
         )
+    generic_usp_hits = [phrase for phrase in GENERIC_USP_PHRASES if phrase in usp_text]
+    if generic_usp_hits:
+        specificity_errors.append(f"USP/KSP content contains generic canned phrasing: {', '.join(generic_usp_hits)}.")
+    usp_tokens = {token for token in re.findall(r"[a-z0-9][a-z0-9\-\+\.]{2,}", usp_text) if not token.startswith("http")}
+    usp_overlap = sorted(token for token in usp_tokens if token in overlap_tokens)
+    if len(usp_overlap) < 8:
+        specificity_errors.append(
+            f"USP/KSP content has weak overlap with current run evidence ({len(usp_overlap)} shared scope tokens; expected at least 8)."
+        )
+    stale_seo_hits = [phrase for phrase in STALE_SEO_TECHNICAL_PHRASES if phrase in seo_text]
+    semrush_evidence = ((data.get("seo_audit") or {}).get("semrush_evidence") or []) if isinstance(data.get("seo_audit"), dict) else []
+    search_evidence = ((data.get("seo_audit") or {}).get("search_evidence") or []) if isinstance(data.get("seo_audit"), dict) else []
+    if stale_seo_hits and (len(semrush_evidence) >= 1 or len(search_evidence) >= 2):
+        specificity_errors.append(
+            "SEO technical findings still use stale crawl-gate wording despite passed search/provider evidence."
+        )
     categories["anti_generic_specificity"] = {
         "ok": not specificity_errors,
         "errors": specificity_errors,
         "overlap_token_count": len(meaningful_overlap),
+        "usp_overlap_token_count": len(usp_overlap),
     }
 
     contamination_errors: list[str] = []
@@ -369,6 +415,9 @@ def module_qa(
             deploy_path = Path(str(latest_handoff.get("deploy_path") or ""))
             if deploy_path.exists() and deploy_path.is_dir():
                 latest_stage_audit = audit_deploy_stage(deploy_path)
+                if latest_stage_audit.get("ok"):
+                    set_status(state, "deploy", "passed")
+                    set_gate(state, "gate_10_delivery_handoff", "passed")
             else:
                 latest_stage_audit = {"ok": False, "errors": [f"Latest Vercel stage path is missing: {deploy_path}"], "warnings": []}
         except Exception as exc:

@@ -90,6 +90,37 @@ def first_asset_src(data_dir: Path, *values: Any) -> str:
     return ""
 
 
+def brand_cover_logo_src(data_dir: Path, brand: dict[str, Any]) -> str:
+    explicit = first_asset_src(data_dir, brand.get("cover_logo_url"))
+    if explicit:
+        return explicit
+    logo_url = text(brand.get("logo_url"))
+    mark_url = text(brand.get("mark_url"))
+    brand_slug = text(brand.get("slug"))
+    candidates: list[Any] = []
+    if brand_slug:
+        candidates.extend(
+            [
+                f"slide-assets/{brand_slug}-logo.svg",
+                f"slide-assets/{brand_slug}-logo.png",
+                f"slide-assets/{brand_slug}-mark.svg",
+                f"slide-assets/{brand_slug}-mark.png",
+            ]
+        )
+    if re.search(r"-pptx-logo\.(?:png|jpe?g|webp|svg)$", logo_url, flags=re.I):
+        base = re.sub(r"-pptx-logo\.(?:png|jpe?g|webp|svg)$", "", logo_url, flags=re.I)
+        candidates.extend(
+            [
+                f"{base}-logo.svg",
+                f"{base}-logo.png",
+                f"{base}-mark.svg",
+                f"{base}-mark.png",
+            ]
+        )
+    candidates.extend([logo_url, mark_url])
+    return first_asset_src(data_dir, *candidates)
+
+
 def rich(value: Any) -> str:
     raw = esc(value)
     if not raw:
@@ -761,7 +792,7 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
     data_dir = data_path.parent
     brand = data.get("brand", {})
     title = f"{text(brand.get('name') or 'Brand')} New Business Intelligence Report"
-    logo = first_asset_src(data_dir, brand.get("mark_url"), brand.get("logo_url"))
+    logo = brand_cover_logo_src(data_dir, brand)
     favicon = first_asset_src(data_dir, brand.get("mark_url"), brand.get("logo_url"))
     logo_html = (
         f'<div class="brand-logo-slot"><img src="{esc(logo)}" alt="{esc(brand.get("name"))} logo"></div>'
@@ -1031,6 +1062,7 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
         appendix_sources = appendix.get("source_map") or appendix.get("sources_reviewed") or []
     appendix_missing = appendix.get("missing_data") if isinstance(appendix, dict) else []
     appendix_confidence = appendix.get("assumptions_and_confidence_notes") if isinstance(appendix, dict) else []
+    appendix_sections = appendix.get("sections") if isinstance(appendix, dict) else []
     appendix_tail = []
     if isinstance(appendix_missing, list) and appendix_missing:
         appendix_tail.extend([
@@ -1042,6 +1074,26 @@ def render(data_path: Path, template_path: Path, output_path: Path) -> Path:
             section_heading("h3", "Assumptions and Confidence Notes", css_class="category-heading"),
             list_html(appendix_confidence),
         ])
+    if isinstance(appendix_sections, list):
+        for section in appendix_sections:
+            if not isinstance(section, dict):
+                continue
+            section_title = text(section.get("title")).strip()
+            if not section_title:
+                continue
+            appendix_tail.append(section_heading("h3", section_title, css_class="category-heading"))
+            summary = text(section.get("summary")).strip()
+            if summary:
+                appendix_tail.append(f"<p>{esc(summary)}</p>")
+            bullets = section.get("bullets")
+            if isinstance(bullets, list) and bullets:
+                appendix_tail.append(list_html(bullets))
+            section_sources = section.get("sources")
+            if isinstance(section_sources, list) and section_sources:
+                appendix_tail.extend([
+                    section_heading("h4", "Sources", css_class="category-heading"),
+                    source_list(section_sources),
+                ])
 
     body.extend([
         section_heading("h2", "Appendix", "appendix"),
