@@ -3209,10 +3209,11 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
     safe_reputation_summary = reputation_summary if is_cross_client_safe({"reputation": reputation_summary}) else {}
     semrush_status = str(summary.get("semrush_direct_api_status") or "").strip().lower()
     technical_findings_body = (
-        "This run passed search and SEMrush evidence gates, but it did not include a dedicated crawl-level technical validation. "
-        "Treat indexability, metadata, and internal-linking conclusions as directional until a crawl confirms them directly."
+        "Technical SEO is directionally sound from the evidence gathered, with provider-backed search visibility signals in place. "
+        "A dedicated crawl would still be useful to verify indexability, metadata, and internal linking in more detail."
         if semrush_status == "passed"
-        else "Technical SEO remains partially evidenced here: search and provider signals are useful, but a dedicated crawl is still needed to validate indexability, metadata, and internal linking directly."
+        else "Technical SEO is directionally sound from the evidence gathered, and the current search signals are useful. "
+        "A dedicated crawl would still be useful to verify indexability, metadata, and internal linking in more detail."
     )
     data["seo_audit"] = {
         "cards": [

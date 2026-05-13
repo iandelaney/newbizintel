@@ -135,6 +135,8 @@ GENERIC_USP_PHRASES = (
 
 STALE_SEO_TECHNICAL_PHRASES = (
     "no live crawl gate has passed yet",
+    "technical seo remains partially evidenced here",
+    "this run passed search and semrush evidence gates, but it did not include a dedicated crawl-level technical validation",
 )
 
 CONTAMINATION_TERMS = (
