@@ -2451,11 +2451,24 @@ def infer_news_sentiment(title: str, content: str) -> str:
 
 
 def synthesize_news_why_it_matters(brand: str, title: str, source_type: str, sentiment: str) -> str:
+    title_lc = (title or "").lower()
     if source_type == "owned_newsroom":
         return f"{brand}'s own newsroom coverage shows where the company wants the market to focus, but buyers will still need independent proof before treating the claims as settled."
     if sentiment == "negative":
+        if "buyback" in title_lc or "guidance falls short" in title_lc or "revenue guidance" in title_lc:
+            return f"This story raises questions about whether {brand}'s financial confidence is being sustained by operating performance or capital allocation, which can make enterprise buyers and boards more cautious about long-term platform commitment."
+        if "ai rival" in title_lc or "losing ground" in title_lc:
+            return f"This story sharpens the competitive AI frame around {brand}, so the commercial risk is not just perception but whether buyers start to see Agentforce and AI as catch-up messaging rather than a practical advantage."
+        if "breach" in title_lc or "data was accessed" in title_lc or "customers’ data" in title_lc or "customers' data" in title_lc:
+            return f"This story puts security assurance and third-party risk into the buying conversation, which means {brand} needs clearer public proof on data stewardship, incident readiness, and ecosystem governance."
+        if "earnings guidance" in title_lc or "analyst forecasts" in title_lc or "risks to watch" in title_lc or "market open" in title_lc:
+            return f"This story reinforces that investor-facing volatility can spill into commercial confidence, especially when prospects are already weighing platform complexity, AI credibility, and the cost of commitment."
+        if "revenue outlook" in title_lc or "ai adoption" in title_lc:
+            return f"This story mixes growth momentum with proof pressure: it gives {brand} positive visibility, but it also raises the bar for turning AI-adoption claims into concrete buyer outcomes."
         return f"Recent coverage can shape trust, board confidence, or buying caution around {brand}, so the brand needs clearer proof and issue-readiness in public-facing journeys."
     if sentiment == "positive":
+        if "revenue outlook" in title_lc or "ai adoption" in title_lc:
+            return f"This story gives {brand} useful momentum, but the commercial upside depends on converting investor-friendly growth and AI signals into practical proof that buyers can evaluate quickly."
         return f"Recent coverage gives {brand} useful momentum, but the opportunity is strongest when growth or AI claims are backed by practical buyer proof."
     return f"Recent coverage contributes to the live market narrative around {brand} and should inform how the company balances ambition, credibility, and buyer reassurance."
 
