@@ -71,6 +71,13 @@ Do not ask colleagues to install a separate Slides skill. The render path should
 - `newbizintel-qa`: run presentation and smoke-test checks
 - `newbizintel-deploy`: refresh handoff and prepare optional Vercel deployment
 
+## Campaign-Art Generation Policy
+
+- Always use built-in `imagegen` for original campaign raster artwork.
+- Do not treat the bundled CLI image generator as the default path for new original campaign art.
+- The `campaign-art` step should prepare prompts and manifests first, then hand off original-image generation to built-in `imagegen`.
+- After generating the raster set, import it back into the workflow with `--campaign-art-source-dir` or `--campaign-art-latest-generated-batch`.
+
 ## Canonical 10-Step Task List
 
 The visible workflow task list, `run-state.json.task_list`, `workflow-task-list.json`, and `workflow-task-list.md` must use these same ten primary steps in this order:
