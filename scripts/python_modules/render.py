@@ -1,13 +1,23 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
+import subprocess
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from python_modules.common import extract_token_usage, load_state, record_token_usage, save_state, set_gate, set_status
+
+
+def _pptx_slide_count(pptx_path: Path) -> int:
+    if not pptx_path.exists():
+        return 0
+    with zipfile.ZipFile(pptx_path) as archive:
+        return len([name for name in archive.namelist() if name.startswith("ppt/slides/slide") and name.endswith(".xml")])
 
 
 def module_render(
@@ -83,12 +93,40 @@ def module_render(
     pptx_path = brand_folder / "newbizintel-report.pptx"
     pptx_warning = ""
     pptx_result: dict[str, Any] = {}
+    pptx_data_path = pptx_safe_data_copy(data_path)
     try:
-        pptx_data_path = pptx_safe_data_copy(data_path)
-        pptx_result = run_python_script(script_root / "render" / "report_data_to_pptx.py", ["--data", str(pptx_data_path), "--pptx", str(pptx_path)])
-    except SystemExit as exc:
-        pptx_warning = str(exc)
-        build_minimal_pptx(data_path, pptx_path)
+        js_script = script_root / "render" / "report_data_to_pptx.js"
+        completed = subprocess.run(
+            ["node", str(js_script), "--data", str(pptx_data_path), "--pptx", str(pptx_path)],
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+            cwd=str(script_root.parent),
+        )
+        if completed.returncode != 0:
+            raise RuntimeError(
+                f"{js_script.name} failed with exit code {completed.returncode}: "
+                f"{completed.stderr.strip() or completed.stdout.strip()}"
+            )
+        output = completed.stdout.strip()
+        pptx_result = json.loads(output) if output else {}
+        if _pptx_slide_count(pptx_path) < 12:
+            raise RuntimeError(
+                f"{js_script.name} produced only {_pptx_slide_count(pptx_path)} slides; expected at least 12 for the rich deck."
+            )
+    except Exception as js_exc:
+        try:
+            pptx_result = run_python_script(
+                script_root / "render" / "report_data_to_pptx.py",
+                ["--data", str(data_path), "--pptx", str(pptx_path)],
+            )
+        except SystemExit as py_exc:
+            pptx_warning = f"Node PPTX export failed: {js_exc}; Python PPTX export failed: {py_exc}"
+            build_minimal_pptx(data_path, pptx_path)
+        else:
+            pptx_warning = f"Node PPTX export failed and Python exporter was used instead: {js_exc}"
     if not pptx_path.exists():
         set_status(state, "render", "failed")
         set_gate(state, "gate_8_render_outputs", "failed")

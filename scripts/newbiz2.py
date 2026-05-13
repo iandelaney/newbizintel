@@ -4794,7 +4794,14 @@ def run_python_script(script: Path, args: list[str]) -> dict[str, Any]:
         pptx_runtime_python = repo_root / "pptx_runtime_env" / "Scripts" / "python.exe"
         if pptx_runtime_python.exists():
             python_executable = pptx_runtime_python
-    completed = subprocess.run([str(python_executable), str(script), *args], text=True, capture_output=True, check=False)
+    completed = subprocess.run(
+        [str(python_executable), str(script), *args],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
     if completed.returncode != 0:
         raise SystemExit(f"{script.name} failed with exit code {completed.returncode}: {completed.stderr.strip() or completed.stdout.strip()}")
     output = completed.stdout.strip()

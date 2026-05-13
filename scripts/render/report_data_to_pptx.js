@@ -236,6 +236,46 @@ function addBulletList(slide, items, x, y, w, lineH = 0.46, fontSize = 13, maxIt
   });
 }
 
+function toneColor(tone) {
+  const key = plain(tone).toLowerCase();
+  if (key === "green") return C.teal;
+  if (key === "amber" || key === "warn") return C.amber;
+  return C.soft;
+}
+
+function addMetricBars(slide, series, x, y, w, rowH = 1.08) {
+  const usable = (series || []).slice(0, 5);
+  usable.forEach((item, idx) => {
+    const rowY = y + idx * rowH;
+    const value = Math.max(0, Math.min(100, Number(item.value || 0)));
+    addRoundBox(slide, x, rowY, w, 0.90, { fill: idx % 2 ? C.panel2 : C.panel });
+    addText(slide, plain(item.label), x + 0.16, rowY + 0.12, 2.10, 0.22, {
+      fontFace: "Aptos Display",
+      fontSize: 12.8,
+      bold: true,
+      color: C.navy,
+      margin: 0,
+    });
+    addRoundBox(slide, x + 2.18, rowY + 0.20, 3.18, 0.16, { fill: C.line, line: C.line });
+    addRoundBox(slide, x + 2.18, rowY + 0.20, Math.max(0.24, (3.18 * value) / 100), 0.16, {
+      fill: toneColor(item.tone),
+      line: toneColor(item.tone),
+    });
+    addText(slide, plain(item.display_value || `${value}`), x + 5.52, rowY + 0.10, 1.10, 0.20, {
+      fontSize: 11.4,
+      bold: true,
+      color: C.navy,
+      align: "right",
+      margin: 0,
+    });
+    addText(slide, compact(item.note, 136), x + 2.18, rowY + 0.44, 4.38, 0.34, {
+      fontSize: 10.6,
+      color: C.ink,
+      margin: 0,
+    });
+  });
+}
+
 function createDeck(data, dataPath, outPath) {
   const dataDir = path.dirname(dataPath);
   const brand = data.brand || {};
@@ -353,8 +393,107 @@ function createDeck(data, dataPath, outPath) {
   });
   finalizeSlide(exec, pptx);
 
+  const agency = pptx.addSlide();
+  addHeader(agency, "Agency Opportunity", 4, badge, plain(brand.name));
+  addRoundBox(agency, 0.88, 0.96, 11.45, 0.62, { fill: "EAF5FF", line: "C8E2FF" });
+  addText(agency, compact(data.agency_opportunity?.overall_recommendation || data.agency_opportunity?.archetype?.verdict, 205), 1.04, 1.08, 11.0, 0.28, {
+    fontSize: 14.8,
+    bold: true,
+    color: C.navy,
+    margin: 0,
+  });
+  const oppCards = data.agency_opportunity?.department_opportunity_map || [];
+  const oppPos = [[0.88, 1.84], [6.10, 1.84], [0.88, 3.88], [6.10, 3.88]];
+  oppCards.slice(0, 4).forEach((card, idx) => {
+    const [x, y] = oppPos[idx];
+    addRoundBox(agency, x, y, 5.02, 1.72, { fill: idx % 2 ? C.panel2 : C.panel });
+    addText(agency, plain(card.department), x + 0.16, y + 0.12, 2.2, 0.22, {
+      fontFace: "Aptos Display",
+      fontSize: 13.2,
+      bold: true,
+      color: C.navy,
+      margin: 0,
+    });
+    addText(agency, compact(card.opportunity_signal, 138), x + 0.16, y + 0.44, 4.58, 0.72, {
+      fontSize: 11.4,
+      margin: 0,
+    });
+    addText(agency, compact(card.rationale, 108), x + 0.16, y + 1.20, 4.58, 0.28, {
+      fontSize: 10.5,
+      color: C.slate,
+      margin: 0,
+    });
+  });
+  finalizeSlide(agency, pptx);
+
+  const storybrand = pptx.addSlide();
+  addHeader(storybrand, "StoryBrand Messaging", 5, badge, plain(brand.name));
+  addRoundBox(storybrand, 0.88, 0.96, 11.45, 0.60, { fill: "EEF8F7", line: "CBECE7" });
+  addText(storybrand, compact(data.storybrand?.one_liner || data.storybrand?.score_summary, 205), 1.04, 1.08, 11.0, 0.28, {
+    fontSize: 14.4,
+    bold: true,
+    color: C.navy,
+    margin: 0,
+  });
+  const sbCards = data.storybrand?.cards || [];
+  const sbPos = [[0.88, 1.84], [4.18, 1.84], [7.48, 1.84], [0.88, 4.04], [4.18, 4.04], [7.48, 4.04]];
+  sbCards.slice(0, 6).forEach((card, idx) => {
+    const [x, y] = sbPos[idx];
+    addRoundBox(storybrand, x, y, 2.86, 1.84, { fill: idx % 2 ? C.panel2 : C.panel });
+    addText(storybrand, plain(card.title), x + 0.14, y + 0.12, 2.42, 0.22, {
+      fontFace: "Aptos Display",
+      fontSize: 12.8,
+      bold: true,
+      color: C.navy,
+      margin: 0,
+    });
+    addText(storybrand, compact(card.body, 134), x + 0.14, y + 0.42, 2.52, 1.10, {
+      fontSize: 11.0,
+      margin: 0,
+    });
+  });
+  finalizeSlide(storybrand, pptx);
+
+  const usp = pptx.addSlide();
+  addHeader(usp, "USP and Selling Points", 6, badge, plain(brand.name));
+  addRoundBox(usp, 0.88, 0.96, 11.45, 0.60, { fill: C.panel, line: C.line });
+  addText(usp, compact(data.usp_ksp_review?.summary || data.usp_ksp_review?.score_summary, 205), 1.04, 1.08, 11.0, 0.28, {
+    fontSize: 14.2,
+    bold: true,
+    color: C.navy,
+    margin: 0,
+  });
+  const uspRows = data.usp_ksp_review?.rows || [];
+  const uspPos = [[0.88, 1.84], [6.10, 1.84], [0.88, 4.00], [6.10, 4.00]];
+  uspRows.slice(0, 4).forEach((row, idx) => {
+    const [x, y] = uspPos[idx];
+    addRoundBox(usp, x, y, 5.02, 1.88, { fill: idx % 2 ? C.panel2 : C.panel });
+    addText(usp, plain(row.claim_type), x + 0.16, y + 0.12, 2.2, 0.22, {
+      fontFace: "Aptos Display",
+      fontSize: 13.0,
+      bold: true,
+      color: C.navy,
+      margin: 0,
+    });
+    addText(usp, compact(row.claim_summary, 118), x + 0.16, y + 0.42, 4.58, 0.44, {
+      fontSize: 11.1,
+      margin: 0,
+    });
+    addText(usp, `Proof: ${compact(row.proof_points, 92)}`, x + 0.16, y + 0.92, 4.58, 0.30, {
+      fontSize: 10.4,
+      color: C.ink,
+      margin: 0,
+    });
+    addText(usp, `Read: ${compact(row.proof_feedback, 92)}`, x + 0.16, y + 1.24, 4.58, 0.30, {
+      fontSize: 10.4,
+      color: C.slate,
+      margin: 0,
+    });
+  });
+  finalizeSlide(usp, pptx);
+
   const comp = pptx.addSlide();
-  addHeader(comp, "Competitive Landscape", 4, badge, plain(brand.name));
+  addHeader(comp, "Competitive Landscape", 7, badge, plain(brand.name));
   addText(comp, compact(data.competitive_landscape?.why_each_competitor_matters, 190), 0.90, 0.98, 11.4, 0.34, {
     fontSize: 15.8,
     color: C.slate,
@@ -382,7 +521,7 @@ function createDeck(data, dataPath, outPath) {
   finalizeSlide(comp, pptx);
 
   const seo = pptx.addSlide();
-  addHeader(seo, "SEO Priorities", 5, badge, plain(brand.name));
+  addHeader(seo, "SEO Priorities", 8, badge, plain(brand.name));
   addRoundBox(seo, 0.88, 0.96, 11.45, 0.58, { fill: C.panel });
   addText(seo, compact(pickCardBody(data.seo_audit, "biggest seo opportunity") || pickCardBody(data.seo_audit), 180), 1.04, 1.10, 11.0, 0.22, {
     fontSize: 14.3,
@@ -406,8 +545,21 @@ function createDeck(data, dataPath, outPath) {
   });
   finalizeSlide(seo, pptx);
 
+  const seoCharts = data.seo_audit?.charts || [];
+  seoCharts.slice(0, 2).forEach((chart, idx) => {
+    const slide = pptx.addSlide();
+    addHeader(slide, plain(chart.title || `SEO Evidence ${idx + 1}`), 9 + idx, badge, plain(brand.name));
+    addText(slide, compact(chart.subtitle, 205), 0.90, 0.98, 11.4, 0.34, {
+      fontSize: 15.2,
+      color: C.slate,
+      margin: 0,
+    });
+    addMetricBars(slide, chart.series || [], 0.90, 1.62, 11.2, 1.08);
+    finalizeSlide(slide, pptx);
+  });
+
   const rep = pptx.addSlide();
-  addHeader(rep, "Brand Reputation", 6, badge, plain(brand.name));
+  addHeader(rep, "Brand Reputation", 11, badge, plain(brand.name));
   addRoundBox(rep, 0.88, 0.96, 11.45, 0.60, { fill: "EEF8F7", line: "CBECE7" });
   addText(rep, compact(pickCardBody(data.brand_reputation, "trust") || pickCardBody(data.brand_reputation), 185), 1.04, 1.09, 11.0, 0.26, {
     fontSize: 13.5,
@@ -454,7 +606,7 @@ function createDeck(data, dataPath, outPath) {
   finalizeSlide(rep, pptx);
 
   const content = pptx.addSlide();
-  addHeader(content, "Content Strategy", 7, badge, plain(brand.name));
+  addHeader(content, "Content Strategy", 12, badge, plain(brand.name));
   addRoundBox(content, 0.88, 0.96, 11.45, 0.56, { fill: C.panel });
   addText(content, compact(data.content_strategy?.response_to_findings, 180), 1.04, 1.08, 11.0, 0.22, {
     fontSize: 14.5,
@@ -481,7 +633,7 @@ function createDeck(data, dataPath, outPath) {
   finalizeSlide(content, pptx);
 
   const campaigns = pptx.addSlide();
-  addHeader(campaigns, "Creative Campaign Ideas", 8, badge, plain(brand.name));
+  addHeader(campaigns, "Creative Campaign Ideas", 13, badge, plain(brand.name));
   addText(campaigns, compact(plain(data.creative_campaign_ideas?.ideas?.[0]?.concept) || "Four campaign routes shaped by the strongest commercial and messaging opportunities in the report.", 185), 0.90, 0.98, 11.4, 0.34, {
     fontSize: 15.7,
     color: C.slate,
@@ -516,7 +668,7 @@ function createDeck(data, dataPath, outPath) {
   finalizeSlide(campaigns, pptx);
 
   const roadmap = pptx.addSlide();
-  addHeader(roadmap, "30 / 60 / 90 Day Plan", 9, badge, plain(brand.name));
+  addHeader(roadmap, "30 / 60 / 90 Day Plan", 14, badge, plain(brand.name));
   addText(roadmap, "A practical rollout that turns the report into a clearer commercial story, stronger proof, and more useful buyer-stage content.", 0.90, 0.98, 11.4, 0.34, {
     fontSize: 16.0,
     color: C.slate,
@@ -540,7 +692,7 @@ function createDeck(data, dataPath, outPath) {
   finalizeSlide(roadmap, pptx);
 
   const closing = pptx.addSlide();
-  addHeader(closing, "Closing Takeaways", 10, badge, plain(brand.name));
+  addHeader(closing, "Closing Takeaways", 15, badge, plain(brand.name));
   addRoundBox(closing, 0.88, 0.96, 11.45, 0.62, { fill: "EAF5FF", line: "C8E2FF" });
   addText(closing, compact(data.executive_summary?.overall_recommendation || data.content_strategy?.cards?.[3]?.body, 205), 1.04, 1.09, 11.0, 0.28, {
     fontSize: 15.0,
@@ -586,6 +738,7 @@ async function main() {
   const outPath = path.resolve(args.pptx || path.join(path.dirname(dataPath), "newbizintel-slides.pptx"));
   const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
   await createDeck(data, dataPath, outPath);
+  process.stdout.write(JSON.stringify({ data: dataPath, pptx: outPath }));
 }
 
 main().catch((error) => {
