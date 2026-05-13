@@ -587,7 +587,7 @@ def news_table(data_dir: Path, news: Any) -> str:
             f"<td>{logo_html}<strong>{headline}</strong><br><small>{esc(publisher)} · {esc(item.get('date'))}</small></td>"
             f"<td>{esc(item.get('sentiment'))}</td>"
             f"<td>{esc(item.get('influence_score'))}</td>"
-            f"<td>{rich(item.get('rank_reason') or item.get('why_it_matters'))}</td>"
+            f"<td>{rich(item.get('why_it_matters') or item.get('rank_reason'))}</td>"
             "</tr>"
         )
     return (
