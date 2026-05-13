@@ -116,11 +116,11 @@ def evidence_from_datasets(domain: str, datasets: dict[str, dict[str, Any]]) -> 
         if examples:
             evidence.append(
                 {
-                    "title": "Organic competitors can be validated from search overlap",
+                    "title": "Search overlap shows third-party visibility pressure",
                     "body": (
-                        f"SEMrush competitor data identifies search-overlap rivals including "
-                        f"{'; '.join(examples)}. This helps separate true organic competitors from broader "
-                        "commercial or narrative comparisons."
+                        f"SEMrush competitor data shows Salesforce shares search visibility with third-party platforms including "
+                        f"{'; '.join(examples)}. This indicates that research-stage buyers often encounter explainers, community discussions, "
+                        "and reference pages before they reach Salesforce's own content."
                     ),
                 }
             )
