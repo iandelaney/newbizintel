@@ -3265,9 +3265,9 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                         "value": 74 if semrush else 66,
                         "display_value": f"{74 if semrush else 66} indexed",
                         "note": (
-                            "SEMrush-backed indexed positioning read using organic keyword strength, competitor overlap, and page-entry diversity."
+                            "Indexed positioning read using organic keyword strength, competitor overlap, and page-entry diversity."
                             if semrush
-                            else "SimilarWeb-backed indexed positioning read using website traffic visibility, competitor discovery, and public search signals."
+                            else "Indexed positioning read using website traffic visibility, competitor discovery, and public search signals."
                         ),
                         "tone": "green",
                     },
@@ -3281,9 +3281,9 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                             ),
                             "display_value": f"{([78, 71, 69, 63][index] if semrush else [72, 68, 64, 59][index])} indexed",
                             "note": (
-                                "SEMrush-backed indexed competitor positioning from overlap strength, shared-keyword contest, and category prominence."
+                                "Indexed competitor positioning from overlap strength, shared-keyword contest, and category prominence."
                                 if semrush
-                                else "SimilarWeb-backed indexed competitor positioning from audience visibility, alternatives discovery, and public search presence."
+                                else "Indexed competitor positioning from audience visibility, alternatives discovery, and public search presence."
                             ),
                             "tone": "blue",
                         }
@@ -3306,9 +3306,9 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                         "value": 86 if semrush else 78,
                         "display_value": f"{86 if semrush else 78} indexed",
                         "note": (
-                            f"SEMrush-backed overlap and direct comparison evidence shows buyers actively compare {brand} with named competitors."
+                            f"Overlap and direct comparison evidence shows buyers actively compare {brand} with named competitors."
                             if semrush
-                            else "SimilarWeb-backed competitor visibility patterns suggest strong alternatives and comparison demand."
+                            else "Competitor visibility patterns suggest strong alternatives and comparison demand."
                         ),
                         "tone": "teal",
                     },
@@ -3317,9 +3317,9 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                         "value": 79 if semrush else 73,
                         "display_value": f"{79 if semrush else 73} indexed",
                         "note": (
-                            "SEMrush-backed keyword and page evidence shows educational CRM queries and explainer pages are major organic entry points."
+                            "Keyword and page evidence shows educational CRM queries and explainer pages are major organic entry points."
                             if semrush
-                            else "SimilarWeb-backed discovery patterns suggest educational category demand is a major organic entry path."
+                            else "Discovery patterns suggest educational category demand is a major organic entry path."
                         ),
                         "tone": "green",
                     },
@@ -3328,9 +3328,9 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                         "value": 83 if semrush else 76,
                         "display_value": f"{83 if semrush else 76} indexed",
                         "note": (
-                            "SEMrush-backed keyword evidence shows branded intent, sign-in behaviour, and ecosystem demand around Salesforce and Slack are commercially important."
+                            "Keyword evidence shows branded intent, sign-in behaviour, and ecosystem demand around Salesforce and Slack are commercially important."
                             if semrush
-                            else "SimilarWeb-backed visibility patterns suggest branded, platform, and comparison journeys remain highly contested."
+                            else "Visibility patterns suggest branded, platform, and comparison journeys remain highly contested."
                         ),
                         "tone": "blue",
                     },
@@ -3339,9 +3339,9 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                         "value": 81 if semrush else 74,
                         "display_value": f"{81 if semrush else 74} indexed",
                         "note": (
-                            "SEMrush-backed page-level data shows login, UK homepage, and CRM explainer pages are strategic search entrances that need clearer proof and conversion next steps."
+                            "Page-level data shows login, UK homepage, and CRM explainer pages are strategic search entrances that need clearer proof and conversion next steps."
                             if semrush
-                            else "SimilarWeb-backed content visibility indicates non-campaign utility pages need stronger proof and conversion architecture."
+                            else "Content visibility indicates non-campaign utility pages need stronger proof and conversion architecture."
                         ),
                         "tone": "amber",
                     },
