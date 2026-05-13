@@ -3425,15 +3425,15 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                 },
             ],
             "recommended_actions": safe_reputation_summary.get("recommended_actions") if isinstance(safe_reputation_summary.get("recommended_actions"), list) and safe_reputation_summary.get("recommended_actions") else [
-                "Create a visible trust and service-recovery proof layer across acquisition and help journeys.",
-                "Prepare clear public lines on subscription control, marketing consent, and customer remedy routes.",
-                "Use positive momentum, partnership, or product-strength stories only when anchored in independent proof.",
-                "Track reputation themes monthly and connect them to content, CRM, UX, and customer-service improvements.",
+                f"Show where {brand}'s {ai_phrase} changes real operating workflows, using named enterprise examples, measurable outcomes, and clearer implementation mechanics rather than broad innovation language.",
+                f"Make ecosystem trust more inspectable by publishing clearer proof on security posture, third-party governance, incident readiness, and how {brand} protects customer data across partner dependencies.",
+                f"Own the comparison journey against {competitor_text} with decision-support pages that explain when {brand}'s broader {platform_phrase} is worth the added complexity and when a narrower tool may fit better.",
+                f"Answer investor and board-level scrutiny with steadier public operating proof, so stories about buybacks, AI pressure, or strategic scale do not become the main proxy for whether {brand} is commercially dependable.",
             ],
             "content_implications": safe_reputation_summary.get("content_implications") if isinstance(safe_reputation_summary.get("content_implications"), list) and safe_reputation_summary.get("content_implications") else [
-                "Build an owned proof hub for customer control, delivery quality, remedies, and service recovery.",
-                "Turn customer feedback and service evidence into visible proof of improvement.",
-                "Create comparison content that directly acknowledges common buyer anxieties rather than relying on offer-led acquisition.",
+                f"Build an evidence-led {ai_phrase} content track that walks buyers from use case to workflow to governance proof, so the message lands as practical capability rather than ambient AI branding.",
+                f"Create security and ecosystem-assurance content that explains controls, partner boundaries, incident handling, and customer responsibilities in plain enterprise language.",
+                f"Publish sharper comparison and migration content around {competitor_text}, with clearer trade-offs, fit guidance, and proof that the broader {platform_phrase} pays back in execution quality.",
             ],
         }
     )

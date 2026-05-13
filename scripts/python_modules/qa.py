@@ -133,6 +133,18 @@ GENERIC_USP_PHRASES = (
     "becoming easier to compare, trust, and act on than alternatives",
 )
 
+GENERIC_REPUTATION_RECOMMENDATION_PHRASES = (
+    "service-recovery proof layer",
+    "subscription control",
+    "marketing consent",
+    "customer remedy routes",
+    "track reputation themes monthly",
+    "owned proof hub",
+    "delivery quality",
+    "offer-led acquisition",
+    "customer-service improvements",
+)
+
 STALE_SEO_TECHNICAL_PHRASES = (
     "no live crawl gate has passed yet",
     "technical seo remains partially evidenced here",
@@ -205,6 +217,16 @@ def _collect_seo_text(data: dict[str, Any]) -> str:
     return _flatten_text(seo).lower()
 
 
+def _collect_reputation_recommendation_text(data: dict[str, Any]) -> str:
+    reputation = data.get("brand_reputation", {})
+    if not isinstance(reputation, dict):
+        return ""
+    return _flatten_text([
+        reputation.get("recommended_actions"),
+        reputation.get("content_implications"),
+    ]).lower()
+
+
 def _collect_scope_tokens(data: dict[str, Any]) -> set[str]:
     tokens: set[str] = set()
 
@@ -220,8 +242,29 @@ def _collect_scope_tokens(data: dict[str, Any]) -> set[str]:
     add_tokens(data.get("company_snapshot"))
     add_tokens(data.get("competitors"))
     add_tokens(data.get("brand_reputation", {}).get("influential_news"))
+    add_tokens(data.get("brand_reputation", {}).get("recommended_actions"))
+    add_tokens(data.get("brand_reputation", {}).get("content_implications"))
     add_tokens(data.get("seo_audit"))
     return tokens
+
+
+def _normalise_recommendation_text(value: str) -> str:
+    text = re.sub(r"[^a-z0-9\s]", " ", str(value or "").lower())
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _tokenise_recommendation(value: str) -> set[str]:
+    stopwords = {
+        "the", "and", "for", "with", "that", "this", "into", "from", "your", "their", "then", "than",
+        "when", "where", "what", "will", "does", "make", "more", "less", "just", "only", "over",
+        "under", "across", "using", "use", "show", "clearer", "build", "create", "publish", "turn",
+        "brand", "buyers", "customer", "customers", "content", "proof",
+    }
+    return {
+        token for token in _normalise_recommendation_text(value).split()
+        if len(token) > 2 and token not in stopwords
+    }
 
 
 def audit_research_quality(data_path: Path) -> dict[str, Any]:
@@ -312,6 +355,7 @@ def audit_research_quality(data_path: Path) -> dict[str, Any]:
     storybrand_text = _collect_storybrand_text(data)
     usp_text = _collect_usp_text(data)
     seo_text = _collect_seo_text(data)
+    reputation_recommendation_text = _collect_reputation_recommendation_text(data)
     if not storybrand_text.strip():
         specificity_errors.append("StoryBrand content is missing.")
     generic_hits = [phrase for phrase in GENERIC_STORYBRAND_PHRASES if phrase in storybrand_text]
@@ -343,6 +387,42 @@ def audit_research_quality(data_path: Path) -> dict[str, Any]:
         specificity_errors.append(
             "SEO technical findings still use stale crawl-gate wording despite passed search/provider evidence."
         )
+    reputation_generic_hits = [
+        phrase for phrase in GENERIC_REPUTATION_RECOMMENDATION_PHRASES if phrase in reputation_recommendation_text
+    ]
+    if reputation_generic_hits:
+        specificity_errors.append(
+            f"Reputation recommendations contain generic or stale canned phrasing: {', '.join(reputation_generic_hits)}."
+        )
+    reputation = data.get("brand_reputation", {}) if isinstance(data.get("brand_reputation"), dict) else {}
+    recommendation_lists = []
+    for field_name in ("recommended_actions", "content_implications"):
+        value = reputation.get(field_name)
+        if isinstance(value, list):
+            recommendation_lists.append((field_name, [str(item).strip() for item in value if str(item).strip()]))
+    for field_name, items in recommendation_lists:
+        normalised = [_normalise_recommendation_text(item) for item in items]
+        if len(set(normalised)) != len(normalised):
+            specificity_errors.append(f"{field_name} contains duplicate recommendations.")
+        for index, item in enumerate(items):
+            tokens = _tokenise_recommendation(item)
+            if len(tokens.intersection(overlap_tokens)) < 3:
+                specificity_errors.append(
+                    f"{field_name}[{index}] has weak evidence overlap; expected at least 3 meaningful scope tokens."
+                )
+        for left in range(len(items)):
+            left_tokens = _tokenise_recommendation(items[left])
+            if not left_tokens:
+                continue
+            for right in range(left + 1, len(items)):
+                right_tokens = _tokenise_recommendation(items[right])
+                if not right_tokens:
+                    continue
+                overlap_ratio = len(left_tokens.intersection(right_tokens)) / max(len(left_tokens), len(right_tokens))
+                if overlap_ratio >= 0.7:
+                    specificity_errors.append(
+                        f"{field_name}[{left}] and {field_name}[{right}] are too similar; recommendations must stay distinct."
+                    )
     categories["anti_generic_specificity"] = {
         "ok": not specificity_errors,
         "errors": specificity_errors,
