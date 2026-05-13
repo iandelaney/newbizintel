@@ -26,6 +26,12 @@ DEFAULT_MODEL_ROUTING = {
     "deterministic_helpers": "gpt-5.4-mini",
 }
 
+TOKEN_USAGE_ALIASES = {
+    "input_tokens": ("input_tokens", "prompt_tokens", "input"),
+    "output_tokens": ("output_tokens", "completion_tokens", "output"),
+    "total_tokens": ("total_tokens", "total"),
+}
+
 TASK_DEFINITIONS = [
     {
         "id": 1,
@@ -194,6 +200,173 @@ def data_path_from_args(args: argparse.Namespace) -> Path:
     return root / slugify(args.brand_name) / "report-data.json"
 
 
+def default_token_usage_state() -> dict[str, Any]:
+    return {
+        "totals": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "recorded_stages": 0,
+            "unavailable_stages": 0,
+        },
+        "stages": {},
+        "updated_at": None,
+    }
+
+
+def _coerce_token_int(value: Any) -> int:
+    if isinstance(value, bool) or value is None:
+        return 0
+    if isinstance(value, int):
+        return max(value, 0)
+    if isinstance(value, float):
+        return max(int(value), 0)
+    if isinstance(value, str):
+        text = value.strip().replace(",", "")
+        if text.isdigit():
+            return int(text)
+    return 0
+
+
+def normalize_token_usage(payload: Any) -> dict[str, Any] | None:
+    if payload is None:
+        return None
+    usage = payload if isinstance(payload, dict) else None
+    if usage is None:
+        return None
+    input_tokens = 0
+    output_tokens = 0
+    total_tokens = 0
+    for key in TOKEN_USAGE_ALIASES["input_tokens"]:
+        if key in usage:
+            input_tokens = _coerce_token_int(usage.get(key))
+            break
+    for key in TOKEN_USAGE_ALIASES["output_tokens"]:
+        if key in usage:
+            output_tokens = _coerce_token_int(usage.get(key))
+            break
+    for key in TOKEN_USAGE_ALIASES["total_tokens"]:
+        if key in usage:
+            total_tokens = _coerce_token_int(usage.get(key))
+            break
+    if total_tokens <= 0:
+        total_tokens = input_tokens + output_tokens
+    available = any(value > 0 for value in (input_tokens, output_tokens, total_tokens))
+    return {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": total_tokens,
+        "available": available,
+    }
+
+
+def merge_token_usage(*payloads: Any) -> dict[str, Any] | None:
+    merged = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "available": False}
+    saw_any = False
+    for payload in payloads:
+        normalized = normalize_token_usage(payload)
+        if not normalized:
+            continue
+        saw_any = True
+        merged["input_tokens"] += normalized["input_tokens"]
+        merged["output_tokens"] += normalized["output_tokens"]
+        merged["total_tokens"] += normalized["total_tokens"]
+        merged["available"] = merged["available"] or normalized["available"]
+    if not saw_any:
+        return None
+    if merged["total_tokens"] <= 0:
+        merged["total_tokens"] = merged["input_tokens"] + merged["output_tokens"]
+    return merged
+
+
+def extract_token_usage(payload: Any) -> dict[str, Any] | None:
+    if payload is None:
+        return None
+    if isinstance(payload, dict):
+        direct = normalize_token_usage(payload)
+        if direct and direct["available"]:
+            return direct
+        for key in ("usage", "token_usage", "response_metadata", "metadata", "result"):
+            value = payload.get(key)
+            nested = extract_token_usage(value)
+            if nested and nested["available"]:
+                return nested
+        for value in payload.values():
+            nested = extract_token_usage(value)
+            if nested and nested["available"]:
+                return nested
+    elif isinstance(payload, list):
+        merged: dict[str, Any] | None = None
+        for item in payload:
+            merged = merge_token_usage(merged, extract_token_usage(item))
+        return merged
+    return None
+
+
+def _recalculate_token_usage_totals(state: dict[str, Any]) -> None:
+    token_usage = state.setdefault("token_usage", default_token_usage_state())
+    stages = token_usage.setdefault("stages", {})
+    totals = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "recorded_stages": 0,
+        "unavailable_stages": 0,
+    }
+    for stage in stages.values():
+        if not isinstance(stage, dict):
+            continue
+        if stage.get("status") == "unavailable":
+            totals["unavailable_stages"] += 1
+            continue
+        totals["input_tokens"] += _coerce_token_int(stage.get("input_tokens"))
+        totals["output_tokens"] += _coerce_token_int(stage.get("output_tokens"))
+        totals["total_tokens"] += _coerce_token_int(stage.get("total_tokens"))
+        totals["recorded_stages"] += 1
+    if totals["total_tokens"] <= 0:
+        totals["total_tokens"] = totals["input_tokens"] + totals["output_tokens"]
+    token_usage["totals"] = totals
+    token_usage["updated_at"] = utc_now()
+
+
+def record_token_usage(
+    state: dict[str, Any],
+    stage_key: str,
+    payload: Any,
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    status: str | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    token_usage = state.setdefault("token_usage", default_token_usage_state())
+    stages = token_usage.setdefault("stages", {})
+    normalized = normalize_token_usage(payload)
+    stage_status = status
+    if not stage_status:
+        stage_status = "recorded" if normalized and normalized.get("available") else "unavailable"
+    stage = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "status": stage_status,
+        "provider": provider,
+        "model": model,
+        "updated_at": utc_now(),
+    }
+    if note:
+        stage["note"] = note
+    if normalized:
+        stage["input_tokens"] = normalized["input_tokens"]
+        stage["output_tokens"] = normalized["output_tokens"]
+        stage["total_tokens"] = normalized["total_tokens"]
+    if stage["total_tokens"] <= 0:
+        stage["total_tokens"] = stage["input_tokens"] + stage["output_tokens"]
+    stages[stage_key] = stage
+    _recalculate_token_usage_totals(state)
+    return stage
+
+
 def default_state(brand_folder: Path) -> dict[str, Any]:
     if RUN_STATE_CONTRACT.exists():
         state = read_json(RUN_STATE_CONTRACT)
@@ -210,7 +383,9 @@ def default_state(brand_folder: Path) -> dict[str, Any]:
     state.setdefault("freshness", {"research_summary_hash": "", "report_data_hash": "", "stale_reason": ""})
     state.setdefault("locked_sets", {"competitors": [], "influential_news": []})
     state.setdefault("notes", [])
+    state.setdefault("token_usage", default_token_usage_state())
     ensure_task_list(state)
+    _recalculate_token_usage_totals(state)
     return state
 
 
@@ -218,7 +393,9 @@ def load_state(brand_folder: Path) -> dict[str, Any]:
     path = brand_folder / "run-state.json"
     state = read_json(path) if path.exists() else default_state(brand_folder)
     state["brand_folder"] = str(brand_folder)
+    state.setdefault("token_usage", default_token_usage_state())
     ensure_task_list(state)
+    _recalculate_token_usage_totals(state)
     return state
 
 
@@ -292,6 +469,7 @@ def sync_task_status_from_gates(state: dict[str, Any]) -> None:
 def save_state(brand_folder: Path, state: dict[str, Any]) -> None:
     ensure_task_list(state)
     sync_task_status_from_gates(state)
+    _recalculate_token_usage_totals(state)
     state["updated_at"] = utc_now()
     write_json(brand_folder / "run-state.json", state)
     tasks = sorted(state["task_list"], key=lambda item: item["id"])

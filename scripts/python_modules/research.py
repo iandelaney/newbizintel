@@ -5,7 +5,18 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from python_modules.common import add_event, load_state, read_json, save_state, set_gate, set_status, write_json
+from python_modules.common import (
+    add_event,
+    extract_token_usage,
+    load_state,
+    merge_token_usage,
+    read_json,
+    record_token_usage,
+    save_state,
+    set_gate,
+    set_status,
+    write_json,
+)
 
 
 def _fail_research(state: dict[str, Any], brand_folder: Path) -> None:
@@ -15,6 +26,15 @@ def _fail_research(state: dict[str, Any], brand_folder: Path) -> None:
     set_gate(state, "gate_3a_semrush", "failed")
     set_gate(state, "gate_4_search_seo_evidence", "failed")
     save_state(brand_folder, state)
+
+
+def _usage_from_json_path(path: Path | None) -> dict[str, Any] | None:
+    if not path or not path.exists():
+        return None
+    try:
+        return extract_token_usage(read_json(path))
+    except Exception:
+        return None
 
 
 def module_research(
@@ -65,11 +85,29 @@ def module_research(
             else:
                 workpacks = collect_live_search_workpacks(data_path, brand_folder)
                 add_event(state, "fanout", "research.live_search_workpacks", jobs=[str(path) for path in workpacks])
+                workpack_usage: dict[str, Any] | None = None
+                for path in workpacks:
+                    workpack_usage = merge_token_usage(workpack_usage, _usage_from_json_path(path))
+                record_token_usage(
+                    state,
+                    "research.live_search_workpacks",
+                    workpack_usage,
+                    provider="tavily",
+                )
                 summary = reduce_search_workpacks(data_path, brand_folder, workpacks)
                 add_event(state, "reducer", "research.live_search_summary_draft", outputs=[str(brand_folder / "research-summary.draft.json")])
                 save_state(brand_folder, state)
         elif args.research_mode == "workpacks":
             workpacks = [Path(path).expanduser().resolve() for path in (args.search_workpacks or [])]
+            workpack_usage: dict[str, Any] | None = None
+            for path in workpacks:
+                workpack_usage = merge_token_usage(workpack_usage, _usage_from_json_path(path))
+            record_token_usage(
+                state,
+                "research.input_workpacks",
+                workpack_usage,
+                provider="tavily",
+            )
             summary = reduce_search_workpacks(data_path, brand_folder, workpacks)
         elif args.research_summary_path:
             summary = read_json(Path(args.research_summary_path).expanduser().resolve())
@@ -81,12 +119,24 @@ def module_research(
             if reputation_research_path:
                 add_event(state, "fanout", "research.tavily_reputation_research", jobs=[str(reputation_research_path)])
                 add_event(state, "reducer", "research.tavily_reputation_reducer", outputs=[str(reputation_research_path)])
+                record_token_usage(
+                    state,
+                    "research.tavily_reputation_research",
+                    _usage_from_json_path(reputation_research_path),
+                    provider="tavily",
+                )
                 save_state(brand_folder, state)
         if args.research_mode == "live-summary":
             summary, semrush_path = apply_semrush_direct_api(data_path, brand_folder, summary)
             if semrush_path:
                 add_event(state, "fanout", "research.semrush_direct_api", jobs=[str(semrush_path)])
                 add_event(state, "reducer", "research.search_seo_evidence_reducer", outputs=[str(semrush_path)])
+                record_token_usage(
+                    state,
+                    "research.semrush_direct_api",
+                    _usage_from_json_path(semrush_path),
+                    provider="semrush",
+                )
                 save_state(brand_folder, state)
     except SystemExit:
         _fail_research(state, brand_folder)
