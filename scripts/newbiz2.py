@@ -1297,6 +1297,13 @@ def validate_appendix_source_map(data: dict[str, Any], errors: list[str]) -> Non
     for index, item in enumerate(source_map):
         if not isinstance(item, dict):
             continue
+        title = str(item.get("title") or item.get("source") or "").strip()
+        url = str(item.get("url") or "").strip()
+        if url and looks_like_competitor_owned_listing(title, url):
+            errors.append(
+                f"appendix.source_map[{index}] uses a self-owned competitor listing page and should be removed: {url}"
+            )
+            continue
         text = " ".join(str(item.get(field) or "") for field in ("title", "source", "url")).lower()
         for snippet in APPENDIX_SOURCE_NOISE_SNIPPETS:
             if snippet in text:
@@ -2214,6 +2221,274 @@ APPENDIX_SOURCE_NOISE_SNIPPETS = (
     "fightwear",
 )
 
+COMPETITOR_ALIAS_METADATA: list[dict[str, Any]] = [
+    {
+        "name": "HubSpot",
+        "website": "https://www.hubspot.com/",
+        "aliases": ("hubspot", "hub spot", "hubspot crm"),
+        "domains": ("hubspot.com",),
+        "priority": 100,
+    },
+    {
+        "name": "Zoho CRM",
+        "website": "https://www.zoho.com/crm/",
+        "aliases": ("zoho", "zoho crm"),
+        "domains": ("zoho.com",),
+        "priority": 95,
+    },
+    {
+        "name": "Microsoft Dynamics 365",
+        "website": "https://www.microsoft.com/en-gb/dynamics-365",
+        "aliases": ("microsoft dynamics", "dynamics 365", "microsoft dynamics 365"),
+        "domains": ("microsoft.com",),
+        "priority": 92,
+    },
+    {
+        "name": "Creatio",
+        "website": "https://www.creatio.com/",
+        "aliases": ("creatio",),
+        "domains": ("creatio.com",),
+        "priority": 88,
+    },
+    {
+        "name": "Freshsales",
+        "website": "https://www.freshworks.com/crm/",
+        "aliases": ("freshsales", "freshworks", "freshworks crm", "freshworks crm for sales"),
+        "domains": ("freshworks.com",),
+        "priority": 86,
+    },
+    {
+        "name": "Pipedrive",
+        "website": "https://www.pipedrive.com/",
+        "aliases": ("pipedrive",),
+        "domains": ("pipedrive.com",),
+        "priority": 82,
+    },
+    {
+        "name": "Zendesk",
+        "website": "https://www.zendesk.co.uk/",
+        "aliases": ("zendesk",),
+        "domains": ("zendesk.com", "zendesk.co.uk"),
+        "priority": 74,
+    },
+    {
+        "name": "Maximizer CRM",
+        "website": "https://www.maximizer.com/",
+        "aliases": ("maximizer", "maximizer crm"),
+        "domains": ("maximizer.com",),
+        "priority": 55,
+    },
+    {
+        "name": "Teamgate",
+        "website": "https://www.teamgate.com/",
+        "aliases": ("teamgate",),
+        "domains": ("teamgate.com",),
+        "priority": 52,
+    },
+    {
+        "name": "BIGContacts",
+        "website": "https://www.bigcontacts.com/",
+        "aliases": ("bigcontacts", "big contacts"),
+        "domains": ("bigcontacts.com",),
+        "priority": 48,
+    },
+    {
+        "name": "DevRev",
+        "website": "https://devrev.ai/",
+        "aliases": ("devrev",),
+        "domains": ("devrev.ai",),
+        "priority": 45,
+    },
+]
+
+GENERIC_REPUTATION_RECOMMENDATION_SNIPPETS = (
+    "service-recovery proof layer",
+    "subscription control",
+    "marketing consent",
+    "customer remedy routes",
+    "track reputation themes monthly",
+    "customer-service improvements",
+    "owned proof hub",
+)
+
+
+def compact_alnum(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+
+
+def competitor_metadata_by_name(name: str) -> dict[str, Any] | None:
+    target = str(name or "").strip().lower()
+    for item in COMPETITOR_ALIAS_METADATA:
+        if str(item.get("name") or "").lower() == target:
+            return item
+    return None
+
+
+def canonical_competitor_name(name: str, website: str) -> str:
+    raw = str(name or "").strip()
+    domain = brand_domain_from_website(website)
+    compact_name = compact_alnum(raw)
+    haystack = f"{str(raw or '').lower()} {str(website or '').lower()} {domain}"
+    compact_haystack = compact_alnum(haystack)
+    for item in COMPETITOR_ALIAS_METADATA:
+        aliases = item.get("aliases") or ()
+        domains = item.get("domains") or ()
+        if any(alias in haystack or compact_alnum(alias) in compact_haystack for alias in aliases):
+            return str(item["name"])
+        if domain and any(domain == candidate or domain.endswith(f".{candidate}") for candidate in domains):
+            return str(item["name"])
+        if compact_name and any(compact_name == compact_alnum(alias) for alias in aliases):
+            return str(item["name"])
+    return raw
+
+
+def canonical_competitor_website(name: str, website: str) -> str:
+    metadata = competitor_metadata_by_name(canonical_competitor_name(name, website))
+    if metadata and metadata.get("website"):
+        return str(metadata["website"])
+    return str(website or "").strip()
+
+
+def looks_like_competitor_owned_listing(name: str, website: str) -> bool:
+    cleaned_name = canonical_competitor_name(name, website)
+    domain = brand_domain_from_website(website)
+    pathish = str(website or "").lower()
+    metadata = competitor_metadata_by_name(cleaned_name)
+    domains = metadata.get("domains") if metadata else ()
+    if not domain or not cleaned_name:
+        return False
+    owner_match = any(domain == candidate or domain.endswith(f".{candidate}") for candidate in domains)
+    listing_match = any(
+        marker in pathish for marker in ("alternative", "alternatives", "competitor", "competitors", "comparison", "/vs", "-vs-")
+    )
+    return owner_match and listing_match
+
+
+def extract_competitor_mentions_from_text(text: str) -> list[str]:
+    lowered = str(text or "").lower()
+    compact = compact_alnum(lowered)
+    matches: list[str] = []
+    for item in COMPETITOR_ALIAS_METADATA:
+        aliases = item.get("aliases") or ()
+        if any(alias in lowered or compact_alnum(alias) in compact for alias in aliases):
+            matches.append(str(item["name"]))
+    return matches
+
+
+def competitor_priority(name: str) -> int:
+    metadata = competitor_metadata_by_name(name)
+    if metadata:
+        return int(metadata.get("priority") or 0)
+    return 0
+
+
+def reputation_recommendations_are_generic(items: Any) -> bool:
+    if not isinstance(items, list):
+        return True
+    combined = " ".join(str(item or "") for item in items).lower()
+    return any(snippet in combined for snippet in GENERIC_REPUTATION_RECOMMENDATION_SNIPPETS)
+
+
+def filter_appendix_source_map(
+    source_map: list[dict[str, Any]],
+    *,
+    excluded_owned_domains: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    seen_urls: set[str] = set()
+    excluded_owned_domains = {str(item or "").strip().lower() for item in (excluded_owned_domains or set()) if str(item or "").strip()}
+    for item in source_map:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "").strip()
+        source = str(item.get("source") or item.get("title") or "").strip()
+        used_for = item.get("used_for") or []
+        domain = brand_domain_from_website(url)
+        pathish = url.lower()
+        if domain and domain in excluded_owned_domains and any(
+            marker in pathish for marker in ("alternative", "alternatives", "competitor", "competitors", "comparison", "/vs", "-vs-")
+        ):
+            continue
+        if url and looks_like_competitor_owned_listing(source, url):
+            continue
+        if url in seen_urls:
+            continue
+        if url:
+            seen_urls.add(url)
+        filtered.append(item)
+    return filtered
+
+
+def discovery_competitor_candidates(summary: dict[str, Any], brand_folder: Path | None = None) -> list[dict[str, Any]]:
+    scores: dict[str, int] = {}
+
+    def add_score(name: str, amount: int) -> None:
+        cleaned = canonical_competitor_name(name, "")
+        if not cleaned:
+            return
+        scores[cleaned] = scores.get(cleaned, 0) + amount
+
+    for item in first_dicts(summary.get("source_map"), 200):
+        text = " ".join(str(item.get(field) or "") for field in ("title", "source", "url"))
+        for name in extract_competitor_mentions_from_text(text):
+            add_score(name, 1)
+
+    workpack_paths: list[Path] = []
+    if brand_folder:
+        candidate = brand_folder / "research-workpacks" / "01-competitor_discovery.json"
+        if candidate.exists():
+            workpack_paths.append(candidate)
+    for item in first_dicts(summary.get("workpacks"), 50):
+        role = str(item.get("role") or "").strip().lower()
+        path_text = str(item.get("path") or "").strip()
+        if role != "competitor_discovery" or not path_text:
+            continue
+        path = Path(path_text)
+        if path.exists():
+            workpack_paths.append(path)
+    for path in workpack_paths:
+        payload = read_json(path)
+        for result in first_dicts(payload.get("results"), 40):
+            text = " ".join(str(result.get(field) or "") for field in ("title", "content", "url"))
+            for name in extract_competitor_mentions_from_text(text):
+                add_score(name, 2)
+            domain_name = canonical_competitor_name("", str(result.get("url") or ""))
+            if domain_name:
+                add_score(domain_name, 1)
+
+    semrush_rows = (
+        summary.get("seo_provider_status", {})
+        .get("direct_api_payload", {})
+        .get("organic_competitors", {})
+        .get("rows", [])
+    )
+    for row in first_dicts(semrush_rows, 20):
+        domain = str(row.get("Domain") or "")
+        relevance_text = str(row.get("Competitor Relevance") or "").strip()
+        name = canonical_competitor_name("", domain)
+        if not name:
+            continue
+        try:
+            relevance = float(relevance_text)
+        except ValueError:
+            relevance = 0.0
+        semrush_weight = 4 if relevance >= 0.1 else 2 if relevance >= 0.03 else 1
+        add_score(name, semrush_weight)
+
+    ordered = sorted(
+        scores.items(),
+        key=lambda item: (-item[1], -competitor_priority(item[0]), item[0].lower()),
+    )
+    finalists: list[dict[str, Any]] = []
+    for name, score in ordered:
+        if score < 2:
+            continue
+        metadata = competitor_metadata_by_name(name)
+        if not metadata:
+            continue
+        finalists.append({"competitor": name, "website": str(metadata["website"]), "selection_score": score})
+    return finalists
+
 
 def competitor_role_analysis(brand: str, row: dict[str, Any]) -> dict[str, str]:
     name = str(row.get("competitor") or row.get("name") or "").strip()
@@ -2260,6 +2535,36 @@ def competitor_role_analysis(brand: str, row: dict[str, Any]) -> dict[str, str]:
             "why_it_matters": f"{name or 'Creatio'} matters because it reframes the choice around no-code process design and operational adaptability, challenging {brand} to prove that enterprise scale does not come at the expense of workflow speed or admin control.",
             "positioning_pattern": f"{name or 'Creatio'} positions around composable CRM, no-code workflow building, and faster business-process change, using flexibility and lower implementation friction as its commercial wedge.",
             "implication": f"{brand} should answer {name or 'Creatio'} with clearer proof that its broader platform and Agentforce workflow depth deliver stronger long-term operating leverage than a more configurable no-code CRM stack.",
+        }
+    if "hubspot" in f"{key} {url}":
+        return {
+            "why_it_matters": f"{name or 'HubSpot'} matters because it offers the clearest mainstream alternative for buyers who want one connected growth stack with faster adoption, strong marketing-sales-service alignment, and less implementation drag than a larger enterprise estate.",
+            "positioning_pattern": f"{name or 'HubSpot'} positions around an easy-to-adopt customer platform that unifies CRM, marketing automation, service, and content operations, using usability and commercial momentum as the wedge against heavier enterprise systems.",
+            "implication": f"{brand} needs sharper proof that enterprise depth, data governance, and Agentforce-led workflow capability create better outcomes than {name or 'HubSpot'} once buyers move beyond mid-market speed and inbound-led growth use cases.",
+        }
+    if any(token in f"{key} {url}" for token in ("zoho", "zohocrm")):
+        return {
+            "why_it_matters": f"{name or 'Zoho CRM'} matters because it pressures {brand} on breadth-for-value, giving cost-conscious teams a credible all-in-one CRM route with automation, analytics, and adjacent business apps without Salesforce-level spend or implementation overhead.",
+            "positioning_pattern": f"{name or 'Zoho CRM'} positions around suite value, broad business-app coverage, and flexible automation, using affordability and functional completeness as a commercial counterweight to premium enterprise platforms.",
+            "implication": f"{brand} should answer {name or 'Zoho CRM'} by proving where ecosystem scale, governance, and enterprise-grade orchestration justify the premium, especially for multi-team operating models that outgrow lower-cost suite logic.",
+        }
+    if "dynamics365" in f"{key} {url}" or "microsoftdynamics365" in f"{key} {url}" or "microsoft dynamics" in f"{name.lower()} {url}":
+        return {
+            "why_it_matters": f"{name or 'Microsoft Dynamics 365'} matters because it is the strongest enterprise-platform alternative for organisations already committed to Microsoft, combining CRM, service, ERP adjacency, Copilot, and native productivity-stack fit in a way that can narrow Salesforce's ecosystem advantage.",
+            "positioning_pattern": f"{name or 'Microsoft Dynamics 365'} positions around enterprise continuity: CRM woven into Microsoft 365, Azure, Power Platform, and Copilot, with commercial appeal rooted in stack alignment and governance familiarity.",
+            "implication": f"{brand} needs stronger cross-platform proof against {name or 'Microsoft Dynamics 365'}, showing where Salesforce remains the better operating system for customer data, partner ecosystem depth, and AI-enabled workflow execution beyond Microsoft lock-in.",
+        }
+    if any(token in f"{key} {url}" for token in ("freshsales", "freshworks")):
+        return {
+            "why_it_matters": f"{name or 'Freshsales'} matters because it makes the choice feel lighter and more modern for sales and support teams that want AI assistance, simple automation, and faster rollout without stepping into a full enterprise transformation programme.",
+            "positioning_pattern": f"{name or 'Freshsales'} positions around approachable AI CRM, practical sales execution, and accessible service tooling, using cleaner usability and quicker time-to-value as the route into broader account adoption.",
+            "implication": f"{brand} should respond to {name or 'Freshsales'} with clearer proof that its broader platform creates superior long-term customer, service, and data coordination rather than just more product surface area.",
+        }
+    if "pipedrive" in f"{key} {url}":
+        return {
+            "why_it_matters": f"{name or 'Pipedrive'} matters because it compresses the buying decision down to sales execution, pipeline clarity, and rep usability, giving Salesforce a sharp contrast case where simplicity can beat platform breadth for straightforward revenue teams.",
+            "positioning_pattern": f"{name or 'Pipedrive'} positions around pipeline visibility, sales-rep focus, and quick adoption, treating CRM as a disciplined selling tool rather than a wider enterprise customer system.",
+            "implication": f"{brand} should use {name or 'Pipedrive'} to clarify where lightweight pipeline software stops being enough and why broader service, data, and AI coordination matter once customer complexity rises.",
         }
     if "maximizer" in f"{key} {url}":
         return {
@@ -2350,55 +2655,9 @@ def curated_competitors(
         "mtdsalestraining.com",
         "salesforce.com",
     }
-    candidates: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    comparison_path_markers = ("alternative", "alternatives", "competitor", "competitors", "comparison", "/vs", "-vs-")
+    scored_candidates: dict[str, dict[str, Any]] = {}
 
-    def canonical_competitor_name(name: str, website: str) -> str:
-        raw = str(name or "").strip()
-        lower = raw.lower()
-        domain = brand_domain_from_website(website)
-        if "zendesk" in lower or "zendesk" in domain:
-            return "Zendesk"
-        if "creatio" in lower or "creatio" in domain:
-            return "Creatio"
-        if "maximizer" in lower or "maximizer" in domain:
-            return "Maximizer CRM"
-        if "teamgate" in lower or "teamgate" in domain:
-            return "Teamgate"
-        if "bigcontacts" in lower or "bigcontacts" in domain:
-            return "BIGContacts"
-        if "devrev" in lower or "devrev" in domain:
-            return "DevRev"
-        return raw
-
-    def looks_like_competitor_owned_listing(name: str, website: str) -> bool:
-        cleaned_name = canonical_competitor_name(name, website)
-        domain = brand_domain_from_website(website)
-        slug = re.sub(r"[^a-z0-9]+", "", cleaned_name.lower())
-        pathish = str(website or "").lower()
-        if not domain or not slug:
-            return False
-        owner_match = slug in domain.replace("-", "").replace(".", "")
-        listing_match = any(marker in pathish for marker in comparison_path_markers)
-        return owner_match and listing_match
-
-    def canonical_competitor_website(name: str, website: str) -> str:
-        cleaned_name = canonical_competitor_name(name, website)
-        lower = cleaned_name.lower()
-        if cleaned_name == "Zendesk":
-            return "https://www.zendesk.co.uk/"
-        if cleaned_name == "Creatio":
-            return "https://www.creatio.com/"
-        if cleaned_name == "Maximizer CRM":
-            return "https://www.maximizer.com/"
-        if cleaned_name == "Teamgate":
-            return "https://www.teamgate.com/"
-        if cleaned_name == "BIGContacts":
-            return "https://www.bigcontacts.com/"
-        return str(website or "").strip()
-
-    def add_candidate(name: str, website: str) -> None:
+    def add_candidate(name: str, website: str, score: int) -> None:
         cleaned_name = canonical_competitor_name(name, website)
         cleaned_website = canonical_competitor_website(cleaned_name, website)
         if not cleaned_name or not cleaned_website:
@@ -2408,11 +2667,16 @@ def curated_competitors(
         domain = brand_domain_from_website(cleaned_website)
         if not domain or domain in excluded_domains:
             return
-        key = f"{cleaned_name.lower()}|{domain}"
-        if key in seen:
-            return
-        seen.add(key)
-        candidates.append({"competitor": cleaned_name, "website": cleaned_website})
+        entry = scored_candidates.setdefault(
+            cleaned_name,
+            {
+                "competitor": cleaned_name,
+                "website": cleaned_website,
+                "_score": 0,
+            },
+        )
+        entry["website"] = cleaned_website
+        entry["_score"] = int(entry.get("_score") or 0) + score
 
     for item in source_map:
         if not isinstance(item, dict):
@@ -2423,14 +2687,32 @@ def curated_competitors(
         title = str(item.get("title") or "")
         url = str(item.get("url") or "")
         source = str(item.get("source") or "")
-        add_candidate(source or title.split(" - ")[0], url)
+        add_candidate(source or title.split(" - ")[0], url, 2)
 
     for item in competitors:
         if not isinstance(item, dict):
             continue
-        add_candidate(str(item.get("competitor") or item.get("name") or ""), str(item.get("website") or item.get("url") or ""))
+        item_score = int(item.get("selection_score") or 0) if has_value(item.get("selection_score")) else 3
+        add_candidate(
+            str(item.get("competitor") or item.get("name") or ""),
+            str(item.get("website") or item.get("url") or ""),
+            max(item_score, 1),
+        )
 
-    return candidates[:limit]
+    ranked = sorted(
+        scored_candidates.values(),
+        key=lambda item: (
+            -(int(item.get("_score") or 0) + competitor_priority(str(item.get("competitor") or ""))),
+            -competitor_priority(str(item.get("competitor") or "")),
+            str(item.get("competitor") or "").lower(),
+        ),
+    )
+    finalists: list[dict[str, Any]] = []
+    for item in ranked[:limit]:
+        cleaned = dict(item)
+        cleaned.pop("_score", None)
+        finalists.append(cleaned)
+    return finalists
 
 
 def normalize_influence_ranking_dates(ranking: Any) -> Any:
@@ -3069,7 +3351,14 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
     brand = str(data.get("brand", {}).get("name") or summary.get("brand_name") or "the target brand")
     website = str(data.get("brand", {}).get("website") or summary.get("brand_website") or "")
     source_map = summary.get("source_map") if isinstance(summary.get("source_map"), list) else []
-    competitors = curated_competitors(first_dicts(summary.get("competitors"), 10), source_map, limit=5)
+    discovered_competitors = discovery_competitor_candidates(summary, brand_folder)
+    seeded_competitors = first_dicts(summary.get("competitors"), 10)
+    combined_competitor_candidates = [*seeded_competitors, *discovered_competitors]
+    competitors = curated_competitors(combined_competitor_candidates, source_map, limit=5)
+    filtered_source_map = filter_appendix_source_map(
+        source_map,
+        excluded_owned_domains={brand_domain_from_website(website)} if website else set(),
+    )
     news = select_recent_influential_news(brand, summary, brand_folder, limit=5)
     normalized_ranking_payload = normalise_reputation_research_payload(
         {
@@ -3309,6 +3598,15 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         else "Technical SEO is directionally sound from the evidence gathered, and the current search signals are useful. "
         "A dedicated crawl would still be useful to verify indexability, metadata, and internal linking in more detail."
     )
+    saved_priority_issues = seo_summary.get("priority_issues") if isinstance(seo_summary.get("priority_issues"), list) else []
+    saved_priority_issue_text = " ".join(
+        " ".join(str(item.get(field) or "") for field in ("issue", "evidence", "why_it_matters", "recommended_fix"))
+        for item in first_dicts(saved_priority_issues, 12)
+    ).lower()
+    stale_competitor_markers = ("zendesk", "maximizer crm", "teamgate", "bigcontacts")
+    reuse_priority_issues = bool(saved_priority_issues) and not any(
+        marker in saved_priority_issue_text for marker in stale_competitor_markers
+    )
     data["seo_audit"] = {
         "cards": [
             {"title": "Search intent and positioning", "body": f"Search evidence indicates that {brand} should serve comparison, alternative, value, cancellation, and customer-control intent more explicitly."},
@@ -3319,7 +3617,7 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         "semrush_evidence": semrush,
         "similarweb_evidence": similarweb,
         "search_evidence": public_search,
-        "priority_issues": seo_summary.get("priority_issues") if isinstance(seo_summary.get("priority_issues"), list) and seo_summary.get("priority_issues") else [
+        "priority_issues": saved_priority_issues if reuse_priority_issues else [
             {
                 "issue": "Search visibility needs stronger conversion proof" if semrush else "Direct SEO metrics are incomplete",
                 "evidence": (
@@ -3456,6 +3754,13 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
         ],
     }
 
+    reputation_themes = infer_storybrand_operating_themes(published_statements)
+    ai_phrase = reputation_themes["ai_phrase"]
+    platform_phrase = reputation_themes["platform_phrase"]
+    saved_recommended_actions = safe_reputation_summary.get("recommended_actions")
+    saved_content_implications = safe_reputation_summary.get("content_implications")
+    reuse_recommended_actions = isinstance(saved_recommended_actions, list) and saved_recommended_actions and not reputation_recommendations_are_generic(saved_recommended_actions)
+    reuse_content_implications = isinstance(saved_content_implications, list) and saved_content_implications and not reputation_recommendations_are_generic(saved_content_implications)
     data.setdefault("brand_reputation", {})
     data["brand_reputation"].update(
         {
@@ -3505,13 +3810,13 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
                     "implication": "Treat help, CRM, and conversion pages as reputation infrastructure, not just operational support.",
                 },
             ],
-            "recommended_actions": safe_reputation_summary.get("recommended_actions") if isinstance(safe_reputation_summary.get("recommended_actions"), list) and safe_reputation_summary.get("recommended_actions") else [
+            "recommended_actions": saved_recommended_actions if reuse_recommended_actions else [
                 f"Show where {brand}'s {ai_phrase} changes real operating workflows, using named enterprise examples, measurable outcomes, and clearer implementation mechanics rather than broad innovation language.",
                 f"Make ecosystem trust more inspectable by publishing clearer proof on security posture, third-party governance, incident readiness, and how {brand} protects customer data across partner dependencies.",
                 f"Own the comparison journey against {competitor_text} with decision-support pages that explain when {brand}'s broader {platform_phrase} is worth the added complexity and when a narrower tool may fit better.",
                 f"Answer investor and board-level scrutiny with steadier public operating proof, so stories about buybacks, AI pressure, or strategic scale do not become the main proxy for whether {brand} is commercially dependable.",
             ],
-            "content_implications": safe_reputation_summary.get("content_implications") if isinstance(safe_reputation_summary.get("content_implications"), list) and safe_reputation_summary.get("content_implications") else [
+            "content_implications": saved_content_implications if reuse_content_implications else [
                 f"Build an evidence-led {ai_phrase} content track that walks buyers from use case to workflow to governance proof, so the message lands as practical capability rather than ambient AI branding.",
                 f"Create security and ecosystem-assurance content that explains controls, partner boundaries, incident handling, and customer responsibilities in plain enterprise language.",
                 f"Publish sharper comparison and migration content around {competitor_text}, with clearer trade-offs, fit guidance, and proof that the broader {platform_phrase} pays back in execution quality.",
@@ -3866,8 +4171,8 @@ def build_structured_report_data(data: dict[str, Any], summary: dict[str, Any], 
     if not isinstance(preserved_appendix_sections, list):
         preserved_appendix_sections = []
     data["appendix"] = {
-        "source_map": source_map,
-        "sources_reviewed": [item.get("url") for item in source_map if isinstance(item, dict) and item.get("url")],
+        "source_map": filtered_source_map,
+        "sources_reviewed": [item.get("url") for item in filtered_source_map if isinstance(item, dict) and item.get("url")],
         "method_note": "Research used deterministic Tavily Search workpacks, Tavily Research reputation reduction, direct SEMrush status recording, and labelled public search evidence where direct SEMrush data was quota-limited.",
         "assumptions_and_confidence_notes": [
             f"Competitor curation prioritised direct alternative-provider domains over review, aggregator, and analyst-list pages so the final set stays commercially useful for {brand}.",
@@ -4790,6 +5095,29 @@ def module_structure(args: argparse.Namespace) -> dict[str, Any]:
         data = merge_research_into_data(data, summary)
         data = build_structured_report_data(data, summary, brand_folder)
         write_json(data_path, data)
+        appendix_source_map = data.get("appendix", {}).get("source_map")
+        competitor_table = first_dicts(data.get("competitive_landscape", {}).get("table"), 10)
+        if isinstance(appendix_source_map, list):
+            summary["source_map"] = appendix_source_map
+        if competitor_table:
+            summary["competitors"] = [
+                {
+                    "competitor": str(item.get("competitor") or item.get("name") or "").strip(),
+                    "website": str(item.get("website") or item.get("url") or "").strip(),
+                    "why_it_matters": str(item.get("why_it_matters") or "").strip(),
+                    "positioning_pattern": str(item.get("positioning_pattern") or "").strip(),
+                    "implication": str(item.get("implication") or "").strip(),
+                }
+                for item in competitor_table
+                if has_value(item.get("competitor") or item.get("name"))
+            ]
+            summary.setdefault("locked_sets", {})["competitors"] = [
+                str(item.get("competitor") or item.get("name") or "").strip()
+                for item in competitor_table
+                if has_value(item.get("competitor") or item.get("name"))
+            ]
+            summary.setdefault("status", {})["competitor_discovery"] = "passed"
+        write_json(summary_path, summary)
     validation = validate_report_data(data_path, phase="structure")
     if not validation["ok"]:
         set_status(state, "structure", "failed")

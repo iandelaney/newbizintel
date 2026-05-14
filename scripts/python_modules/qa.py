@@ -267,6 +267,19 @@ def _tokenise_recommendation(value: str) -> set[str]:
     }
 
 
+def _tokenise_competitor_field(value: str) -> set[str]:
+    stopwords = {
+        "the", "and", "for", "with", "that", "this", "into", "from", "your", "their", "than", "when", "where",
+        "what", "will", "does", "more", "less", "just", "only", "over", "under", "across", "using", "use",
+        "brand", "buyer", "buyers", "competitor", "crm", "salesforce", "matters", "because", "route", "team",
+        "teams", "platform", "value", "proof", "against", "should", "needs", "answer",
+    }
+    return {
+        token for token in _normalise_recommendation_text(value).split()
+        if len(token) > 2 and token not in stopwords
+    }
+
+
 def audit_research_quality(data_path: Path) -> dict[str, Any]:
     data = read_json(data_path)
     brand_folder = data_path.resolve().parent

@@ -31,6 +31,40 @@ def module_structure(
         data = merge_research_into_data(data, summary)
         data = build_structured_report_data(data, summary, brand_folder)
         write_json(data_path, data)
+        appendix_source_map = data.get("appendix", {}).get("source_map")
+        competitor_table = data.get("competitive_landscape", {}).get("table")
+        seo_section = data.get("search_engine_optimization")
+        summary_seo = summary.get("seo")
+        if isinstance(appendix_source_map, list):
+            summary["source_map"] = appendix_source_map
+        if isinstance(competitor_table, list) and competitor_table:
+            normalized_competitors = []
+            for item in competitor_table:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("competitor") or item.get("name") or "").strip()
+                if not name:
+                    continue
+                normalized_competitors.append(
+                    {
+                        "competitor": name,
+                        "website": str(item.get("website") or item.get("url") or "").strip(),
+                        "why_it_matters": str(item.get("why_it_matters") or "").strip(),
+                        "positioning_pattern": str(item.get("positioning_pattern") or "").strip(),
+                        "implication": str(item.get("implication") or "").strip(),
+                    }
+                )
+            if normalized_competitors:
+                summary["competitors"] = normalized_competitors
+                summary.setdefault("locked_sets", {})["competitors"] = [
+                    item["competitor"] for item in normalized_competitors
+                ]
+                summary.setdefault("status", {})["competitor_discovery"] = "passed"
+        if isinstance(seo_section, dict) and seo_section:
+            summary["search_engine_optimization"] = seo_section
+            if isinstance(summary_seo, dict):
+                summary_seo["priority_issues"] = seo_section.get("priority_issues", [])
+        write_json(summary_path, summary)
     validation = validate_report_data(data_path, phase="structure")
     if not validation["ok"]:
         set_status(state, "structure", "failed")

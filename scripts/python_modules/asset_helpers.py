@@ -863,6 +863,11 @@ def patch_assets(data: dict[str, Any], brand_folder: Path) -> tuple[dict[str, An
                 if create_square_badge_from_logo(logo_asset, generated_square):
                     logo_asset = generated_square
                     source = f"{source}; generated-square-badge-from-wordmark"
+            if logo_asset and not visible_logo_occupancy_ok(logo_asset):
+                initial_asset = asset_dir / f"{slug}-initial-mark.png"
+                if create_initial_mark_from_logo(logo_asset, initial_asset, label=name) or create_initial_mark_from_name(name, initial_asset):
+                    logo_asset = initial_asset
+                    source = f"{source}; initial-letter-mark-from-low-occupancy-logo"
             if logo_asset:
                 quality = asset_quality(logo_asset)
                 bbox = visible_content_bbox(logo_asset)
