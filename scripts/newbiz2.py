@@ -1535,6 +1535,20 @@ def validate_report_data(data_path: Path, *, phase: str = "final") -> dict[str, 
             populated_why = len([value for value in why_values if value])
             if populated_why >= 3 and len(set(why_values)) < min(3, populated_why):
                 errors.append("competitive_landscape.table why_it_matters values must differentiate competitors from each other.")
+            for field_name, values in (("why_it_matters", why_values), ("positioning_pattern", pattern_values)):
+                for left in range(len(values)):
+                    left_tokens = competitor_field_tokens(values[left])
+                    if not left_tokens:
+                        continue
+                    for right in range(left + 1, len(values)):
+                        right_tokens = competitor_field_tokens(values[right])
+                        if not right_tokens:
+                            continue
+                        overlap_ratio = len(left_tokens.intersection(right_tokens)) / max(len(left_tokens), len(right_tokens))
+                        if overlap_ratio >= 0.72:
+                            errors.append(
+                                f"competitive_landscape.table {field_name} values at rows {left} and {right} are too similar; each competitor needs distinct commercial analysis."
+                            )
         for key in ("messaging_patterns", "content_patterns", "status_summary"):
             value = landscape.get(key)
             if not isinstance(value, list) or len([item for item in value if has_value(item)]) < 3:
@@ -2241,6 +2255,30 @@ def competitor_role_analysis(brand: str, row: dict[str, Any]) -> dict[str, str]:
             "positioning_pattern": f"{name or 'This competitor'} positions itself as a simpler workflow and execution platform, using usability, quick onboarding, and lighter operational friction as the main commercial wedge.",
             "implication": f"{brand} needs clearer proof that its broader CRM, data, and AI depth creates better outcomes than {name or 'this simpler platform'} for buyers who are tempted by speed and ease of adoption.",
         }
+    if "creatio" in f"{key} {url}":
+        return {
+            "why_it_matters": f"{name or 'Creatio'} matters because it reframes the choice around no-code process design and operational adaptability, challenging {brand} to prove that enterprise scale does not come at the expense of workflow speed or admin control.",
+            "positioning_pattern": f"{name or 'Creatio'} positions around composable CRM, no-code workflow building, and faster business-process change, using flexibility and lower implementation friction as its commercial wedge.",
+            "implication": f"{brand} should answer {name or 'Creatio'} with clearer proof that its broader platform and Agentforce workflow depth deliver stronger long-term operating leverage than a more configurable no-code CRM stack.",
+        }
+    if "maximizer" in f"{key} {url}":
+        return {
+            "why_it_matters": f"{name or 'Maximizer CRM'} matters because it offers a steadier mid-market alternative for teams that want core CRM discipline, sales visibility, and account management without buying into a wider enterprise transformation story.",
+            "positioning_pattern": f"{name or 'Maximizer CRM'} positions around practical sales management, pipeline control, and relationship visibility for revenue teams that value familiarity, lower change burden, and straightforward administration.",
+            "implication": f"{brand} needs to prove why its broader CRM, service, data, and AI estate is worth the added complexity for buyers who might otherwise choose {name or 'Maximizer CRM'} as the safer operational middle ground.",
+        }
+    if "teamgate" in f"{key} {url}":
+        return {
+            "why_it_matters": f"{name or 'Teamgate'} matters because it pushes the decision toward sales-team usability, faster rep adoption, and lighter-weight CRM execution, especially for buyers who care more about pipeline momentum than platform breadth.",
+            "positioning_pattern": f"{name or 'Teamgate'} positions around intuitive sales workflow, simple rollout, and rep-friendly pipeline management, treating speed of adoption as a more urgent benefit than enterprise-scale platform depth.",
+            "implication": f"{brand} should respond to {name or 'Teamgate'} with clearer sales-workflow proof, showing where broader data, service, and AI coordination creates better commercial outcomes than a simpler rep-first CRM.",
+        }
+    if "bigcontacts" in f"{key} {url}":
+        return {
+            "why_it_matters": f"{name or 'BIGContacts'} matters because it competes for small-team buyers who want contact management, follow-up discipline, and email-led customer visibility without the perceived overhead of a full enterprise CRM platform.",
+            "positioning_pattern": f"{name or 'BIGContacts'} positions around contact tracking, reminders, email productivity, and lightweight CRM organisation for teams that value ease and affordability over platform sophistication.",
+            "implication": f"{brand} should use {name or 'BIGContacts'} as a contrast case, making it clearer when lightweight contact management stops being enough and why broader workflow, governance, and AI capability justify moving up to Salesforce.",
+        }
     if any(token in f"{key} {url}" for token in ("creatio", "zoho", "hubspot", "pipedrive", "freshworks", "maximizer", "teamgate", "bigcontacts")):
         return {
             "why_it_matters": f"{name or 'This competitor'} matters because it competes on practical CRM value: faster setup, easier administration, and a more approachable route into sales, service, and automation than a larger enterprise stack.",
@@ -2266,6 +2304,20 @@ def is_generic_competitor_field(value: Any) -> bool:
         return True
     lower_text = text.lower()
     return any(snippet in lower_text for snippet in GENERIC_COMPETITOR_ANALYSIS_SNIPPETS)
+
+
+def competitor_field_tokens(value: Any) -> set[str]:
+    text = re.sub(r"[^a-z0-9\s]", " ", str(value or "").lower())
+    stopwords = {
+        "the", "and", "for", "with", "that", "this", "into", "from", "your", "their", "than", "when", "where",
+        "what", "will", "does", "more", "less", "just", "only", "over", "under", "across", "using", "use",
+        "brand", "buyer", "buyers", "competitor", "crm", "salesforce", "matters", "because", "route", "team",
+        "teams", "platform", "value", "proof", "against", "should", "needs", "answer",
+    }
+    return {
+        token for token in text.split()
+        if len(token) > 2 and token not in stopwords
+    }
 
 
 def enrich_competitor_table(brand: str, competitors: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2300,6 +2352,7 @@ def curated_competitors(
     }
     candidates: list[dict[str, Any]] = []
     seen: set[str] = set()
+    comparison_path_markers = ("alternative", "alternatives", "competitor", "competitors", "comparison", "/vs", "-vs-")
 
     def canonical_competitor_name(name: str, website: str) -> str:
         raw = str(name or "").strip()
@@ -2319,10 +2372,38 @@ def curated_competitors(
             return "DevRev"
         return raw
 
+    def looks_like_competitor_owned_listing(name: str, website: str) -> bool:
+        cleaned_name = canonical_competitor_name(name, website)
+        domain = brand_domain_from_website(website)
+        slug = re.sub(r"[^a-z0-9]+", "", cleaned_name.lower())
+        pathish = str(website or "").lower()
+        if not domain or not slug:
+            return False
+        owner_match = slug in domain.replace("-", "").replace(".", "")
+        listing_match = any(marker in pathish for marker in comparison_path_markers)
+        return owner_match and listing_match
+
+    def canonical_competitor_website(name: str, website: str) -> str:
+        cleaned_name = canonical_competitor_name(name, website)
+        lower = cleaned_name.lower()
+        if cleaned_name == "Zendesk":
+            return "https://www.zendesk.co.uk/"
+        if cleaned_name == "Creatio":
+            return "https://www.creatio.com/"
+        if cleaned_name == "Maximizer CRM":
+            return "https://www.maximizer.com/"
+        if cleaned_name == "Teamgate":
+            return "https://www.teamgate.com/"
+        if cleaned_name == "BIGContacts":
+            return "https://www.bigcontacts.com/"
+        return str(website or "").strip()
+
     def add_candidate(name: str, website: str) -> None:
         cleaned_name = canonical_competitor_name(name, website)
-        cleaned_website = str(website or "").strip()
+        cleaned_website = canonical_competitor_website(cleaned_name, website)
         if not cleaned_name or not cleaned_website:
+            return
+        if looks_like_competitor_owned_listing(cleaned_name, website):
             return
         domain = brand_domain_from_website(cleaned_website)
         if not domain or domain in excluded_domains:
